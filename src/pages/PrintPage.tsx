@@ -1,3 +1,4 @@
+
 import { useRef, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, HardDrive } from "lucide-react";
 import { PrintType } from "@/types";
 import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
@@ -109,6 +110,35 @@ const PrintPage = () => {
             <CardTitle>Print Options</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!isProjectPrint && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Button 
+                  variant={printType === "hard-out" ? "default" : "outline"} 
+                  onClick={() => setPrintType("hard-out")}
+                  className="w-full"
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Hard Drive Out
+                </Button>
+                <Button 
+                  variant={printType === "hard-in" ? "default" : "outline"} 
+                  onClick={() => setPrintType("hard-in")}
+                  className="w-full"
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Hard Drive In
+                </Button>
+                <Button 
+                  variant={printType === "hard-label" ? "default" : "outline"} 
+                  onClick={() => setPrintType("hard-label")}
+                  className="w-full"
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Hard Label
+                </Button>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="printType">Print Type</Label>
               <select
