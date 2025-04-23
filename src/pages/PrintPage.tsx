@@ -14,6 +14,8 @@ import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
+type ExtendedPrintType = PrintType | "hard-label";
+
 const PrintPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -21,8 +23,8 @@ const PrintPage = () => {
   const { getHardDrive, getProject, getHardDrivesByProject } = useData();
   const { currentUser } = useAuth();
   
-  const defaultType = searchParams.get("type") as PrintType || "hard-out";
-  const [printType, setPrintType] = useState<PrintType>(defaultType);
+  const defaultType = searchParams.get("type") as ExtendedPrintType || "hard-out";
+  const [printType, setPrintType] = useState<ExtendedPrintType>(defaultType);
   const [operatorName, setOperatorName] = useState(currentUser?.username || "");
   
   const printRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,7 @@ const PrintPage = () => {
                 id="printType"
                 className="w-full p-2 border rounded-md"
                 value={printType}
-                onChange={(e) => setPrintType(e.target.value as PrintType)}
+                onChange={(e) => setPrintType(e.target.value as ExtendedPrintType)}
               >
                 {!isProjectPrint && (
                   <>
