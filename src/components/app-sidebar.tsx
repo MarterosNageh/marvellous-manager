@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { HardDrive, Users, Files, CalendarDays, BarChart, Settings, LogOut } from "lucide-react";
-import LogoMarvellous from "@/components/ui/image";
+import LogoMarvellous from "/logo-marvellous-white.png";
 import { useAuth } from "@/context/AuthContext";
 const items = [{
   title: "Dashboard",
