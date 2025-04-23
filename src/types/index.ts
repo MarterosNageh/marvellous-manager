@@ -11,6 +11,7 @@ export interface Project {
   name: string;
   description?: string;
   createdAt: string;
+  type?: string;
 }
 
 export interface HardDrive {

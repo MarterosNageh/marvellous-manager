@@ -5,26 +5,26 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarGroupLabel,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { menu, hardDrive, users, files, calendarDays, barChart, settings } from "lucide-react";
+import { Menu, HardDrive, Users, Files, CalendarDays, BarChart, Settings } from "lucide-react";
 import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
-  { title: "Dashboard", url: "/dashboard", icon: barChart },
-  { title: "Projects", url: "/projects", icon: files },
-  { title: "Hard Drives", url: "/hard-drives", icon: hardDrive },
-  { title: "Task Manager", url: "/task-manager", icon: files },
-  { title: "Shifts Schedule", url: "/shifts-schedule", icon: calendarDays },
+  { title: "Dashboard", url: "/dashboard", icon: BarChart },
+  { title: "Projects", url: "/projects", icon: Files },
+  { title: "Hard Drives", url: "/hard-drives", icon: HardDrive },
+  { title: "Task Manager", url: "/task-manager", icon: Files },
+  { title: "Shifts Schedule", url: "/shifts-schedule", icon: CalendarDays },
 ];
 
 const adminItems = [
-  { title: "Settings", url: "/settings", icon: settings }
+  { title: "Settings", url: "/settings", icon: Settings }
 ];
 
 export function AppSidebar() {
