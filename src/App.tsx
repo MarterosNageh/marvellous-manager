@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +21,8 @@ import PublicHardDriveView from "./pages/PublicHardDriveView";
 import UserManagement from "./pages/UserManagement";
 import TaskManager from "./pages/TaskManager";
 import NotFound from "./pages/NotFound";
+import Settings from "./pages/Settings";
+import ShiftsSchedule from "./pages/ShiftsSchedule";
 
 const queryClient = new QueryClient();
 
@@ -37,18 +38,18 @@ const App = () => (
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/hard-drives/:id/view" element={<PublicHardDriveView />} />
-              
+
               {/* Protected routes */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              
+
               {/* Project routes */}
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/new" element={<ProjectForm />} />
               <Route path="/projects/:id" element={<ProjectDetail />} />
               <Route path="/projects/:id/edit" element={<ProjectForm />} />
               <Route path="/projects/:id/print" element={<PrintPage />} />
-              
+
               {/* Hard drive routes */}
               <Route path="/hard-drives" element={<HardDrives />} />
               <Route path="/hard-drives/new" element={<HardDriveForm />} />
@@ -56,13 +57,19 @@ const App = () => (
               <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
               <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
               <Route path="/hard-drives/:id/print" element={<PrintPage />} />
-              
+
               {/* Admin routes */}
-              <Route path="/users" element={<UserManagement />} />
-              
+              <Route path="/settings" element={<Settings />} />
+
               {/* Coming soon */}
+              <Route path="/users" element={<UserManagement />} />
+
+              {/* Task Manager */}
               <Route path="/task-manager" element={<TaskManager />} />
-              
+
+              {/* New shifts schedule */}
+              <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
+
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>

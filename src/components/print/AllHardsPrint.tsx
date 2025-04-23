@@ -1,5 +1,5 @@
-
 import { HardDrive, Project } from "@/types";
+import LogoMarvellous from "@/components/LogoMarvellous";
 
 interface AllHardsPrintProps {
   hardDrives: HardDrive[];
@@ -8,19 +8,20 @@ interface AllHardsPrintProps {
   isPreviewing?: boolean;
 }
 
-export const AllHardsPrint = ({ 
-  hardDrives, 
-  project, 
+export const AllHardsPrint = ({
+  hardDrives,
+  project,
   operatorName,
   isPreviewing = false
 }: AllHardsPrintProps) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString();
-  
+
   return (
     <div className={`p-6 ${isPreviewing ? 'text-sm' : 'text-base'}`}>
       <div className="text-center mb-6">
+        <LogoMarvellous className="h-12 mx-auto mb-2" />
         <h1 className="text-xl font-bold">Hard Drives Report</h1>
         <p className="text-muted-foreground">Marvellous Manager</p>
       </div>

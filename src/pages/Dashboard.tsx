@@ -1,13 +1,44 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/context/DataContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { HardDrive, FolderOpen, Plus } from "lucide-react";
+import { HardDrive, FolderOpen, Plus, Files } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { useMemo } from "react";
+
+const COLORS = ["#9b87f5", "#33C3F0", "#F97316", "#E5DEFF"];
 
 const Dashboard = () => {
   const { projects, hardDrives } = useData();
+
+  const hardDrivesByProject = useMemo(() => {
+    const map: { [k: string]: number } = {};
+    hardDrives.forEach((hd) => {
+      map[hd.projectId] = (map[hd.projectId] || 0) + 1;
+    });
+    return Object.entries(map).map(([projectId, count]) => {
+      const project = projects.find((p) => p.id === projectId);
+      return { name: project?.name || "Unassigned", value: count };
+    });
+  }, [projects, hardDrives]);
+
+  const hardDriveTypeData = useMemo(() => {
+    const typeMap: { [k in string]: number } = {};
+    hardDrives.forEach((hd: any) => {
+      const type = hd.type || "Unknown";
+      typeMap[type] = (typeMap[type] || 0) + 1;
+    });
+    return Object.entries(typeMap).map(([type, count], idx) => ({
+      name: type,
+      value: count,
+      color: COLORS[idx % COLORS.length],
+    }));
+  }, [hardDrives]);
+
+  const percentUsed = projects.length > 0
+    ? Math.round((hardDrives.length / (projects.length * 10)) * 100)
+    : 0;
 
   return (
     <MainLayout>
@@ -56,6 +87,58 @@ const Dashboard = () => {
               <div className="text-2xl font-bold">{hardDrives.length}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Registered hard drives
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Hard Drives by Project</CardTitle>
+            </CardHeader>
+            <CardContent style={{ width: "100%", height: 150 }}>
+              <ResponsiveContainer width="100%" height={150}>
+                <PieChart>
+                  <Pie data={hardDrivesByProject} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={48}>
+                    {hardDrivesByProject.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Hard Drives by Category</CardTitle>
+            </CardHeader>
+            <CardContent style={{ width: "100%", height: 150 }}>
+              <ResponsiveContainer width="100%" height={150}>
+                <PieChart>
+                  <Pie data={hardDriveTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={48}>
+                    {hardDriveTypeData.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Storage Utilization</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full bg-gray-100 h-5 rounded-lg overflow-hidden flex items-center">
+                <div
+                  className="bg-primary h-full transition-all"
+                  style={{ width: `${percentUsed}%`, minWidth: 8, borderRadius: 8 }}
+                  aria-label="Utilization percent"
+                />
+                <span className="pl-2 text-xs">{percentUsed}% utilized</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Based on estimated max 10 drives per project
               </p>
             </CardContent>
           </Card>
@@ -153,6 +236,22 @@ const Dashboard = () => {
               ))}
             </div>
           )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold">Task Files</h2>
+            <Link to="/task-manager">
+              <Button variant="outline" size="sm">
+                View All
+              </Button>
+            </Link>
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-muted-foreground">No task files uploaded yet. (Feature coming soon!)</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </MainLayout>

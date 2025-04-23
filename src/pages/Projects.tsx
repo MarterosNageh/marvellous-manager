@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
@@ -19,13 +18,23 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-const Projects = () => {
-  const { projects } = useData();
-  const [search, setSearch] = useState("");
+const CATEGORY_OPTIONS = [
+  "Drama",
+  "Cinema",
+  "TVC",
+  "Promotions"
+];
 
-  const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(search.toLowerCase())
-  );
+const Projects = () => {
+  const { projects, getHardDrivesByProject } = useData();
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const filteredProjects = projects
+    .filter((project) =>
+      project.name.toLowerCase().includes(search.toLowerCase()) &&
+      (categoryFilter === "all" || project.type === categoryFilter)
+    );
 
   return (
     <MainLayout>
@@ -50,6 +59,16 @@ const Projects = () => {
               className="pl-8"
             />
           </div>
+          <select
+            className="border rounded bg-white h-10 text-sm px-2"
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+          >
+            <option value="all">All Categories</option>
+            {CATEGORY_OPTIONS.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
         </div>
 
         {filteredProjects.length === 0 ? (
@@ -58,11 +77,11 @@ const Projects = () => {
               <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 text-lg font-medium">No projects found</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                {search
-                  ? "Try adjusting your search"
+                {search || categoryFilter !== "all"
+                  ? "Try adjusting your search or category filter"
                   : "Get started by adding your first project."}
               </p>
-              {!search && (
+              {!search && categoryFilter === "all" && (
                 <Link to="/projects/new" className="mt-6 inline-block">
                   <Button>
                     <Plus className="mr-2 h-4 w-4" />
@@ -78,6 +97,7 @@ const Projects = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Project Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Creation Date</TableHead>
                   <TableHead>Hard Drives</TableHead>
                   <TableHead>Description</TableHead>
@@ -85,8 +105,8 @@ const Projects = () => {
               </TableHeader>
               <TableBody>
                 {filteredProjects.map((project) => {
-                  const hardDriveCount = useData().getHardDrivesByProject(project.id).length;
-                  
+                  const hardDriveCount = getHardDrivesByProject(project.id).length;
+
                   return (
                     <TableRow key={project.id}>
                       <TableCell className="font-medium">
@@ -97,6 +117,7 @@ const Projects = () => {
                           {project.name}
                         </Link>
                       </TableCell>
+                      <TableCell>{project.type || "N/A"}</TableCell>
                       <TableCell>
                         {new Date(project.createdAt).toLocaleDateString()}
                       </TableCell>
