@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useDarkMode } from "@/hooks/use-dark-mode";
 
@@ -13,8 +12,6 @@ const LogoMarvellous = ({
   const isDark = useDarkMode();
   const logoSrc = isDark ? "/logo-marvellous-white.png" : "/logo-marvellous-black.png";
   const alt = "Marvellous Studios Logo";
-  return (
-    <img src={logoSrc} alt={alt} className={className} draggable={false} />
-  );
+  return;
 };
 export default LogoMarvellous;
