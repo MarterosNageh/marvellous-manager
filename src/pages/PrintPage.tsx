@@ -13,7 +13,9 @@ import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
+
 type ExtendedPrintType = PrintType | "hard-label";
+
 const PrintPage = () => {
   const {
     id
@@ -25,7 +27,8 @@ const PrintPage = () => {
   const {
     getHardDrive,
     getProject,
-    getHardDrivesByProject
+    getHardDrivesByProject,
+    addPrintHistory,
   } = useData();
   const {
     currentUser
@@ -38,6 +41,7 @@ const PrintPage = () => {
   const hardDrive = !isProjectPrint ? getHardDrive(id || "") : null;
   const project = isProjectPrint ? getProject(id || "") : hardDrive ? getProject(hardDrive.projectId) : null;
   const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : hardDrive ? [hardDrive] : [];
+
   if (!hardDrive && !isProjectPrint || isProjectPrint && !project || !hardDrives.length) {
     return <MainLayout>
         <div className="text-center p-12">
@@ -50,7 +54,17 @@ const PrintPage = () => {
         </div>
       </MainLayout>;
   }
+
   const handlePrint = () => {
+    if ((printType === "hard-out" || printType === "hard-in") && hardDrive) {
+      addPrintHistory({
+        type: printType as PrintType,
+        hardDriveId: hardDrive.id,
+        projectId: project?.id || null,
+        operatorName,
+      });
+    }
+
     if (!printRef.current) return;
     const content = printRef.current;
     const printWindow = window.open('', '_blank');
@@ -80,6 +94,7 @@ const PrintPage = () => {
     `);
     printWindow.document.close();
   };
+
   return <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center space-x-2">
@@ -159,4 +174,5 @@ const PrintPage = () => {
       </div>
     </MainLayout>;
 };
+
 export default PrintPage;

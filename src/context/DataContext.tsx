@@ -1,6 +1,14 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Project, HardDrive } from "@/types";
+import { Project, HardDrive, PrintType } from "@/types";
+
+interface PrintHistory {
+  id: string;
+  type: PrintType;
+  hardDriveId: string | null;
+  projectId: string | null;
+  operatorName: string;
+  timestamp: string;
+}
 
 interface DataContextType {
   projects: Project[];
@@ -14,6 +22,9 @@ interface DataContextType {
   getHardDrive: (id: string) => HardDrive | undefined;
   getProject: (id: string) => Project | undefined;
   getHardDrivesByProject: (projectId: string) => HardDrive[];
+  printHistory: PrintHistory[];
+  addPrintHistory: (history: Omit<PrintHistory, "id" | "timestamp">) => void;
+  getPrintHistory: () => PrintHistory[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -29,6 +40,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return storedHardDrives ? JSON.parse(storedHardDrives) : [];
   });
 
+  const [printHistory, setPrintHistory] = useState<PrintHistory[]>(() => {
+    const stored = localStorage.getItem("printHistory");
+    return stored ? JSON.parse(stored) : [];
+  });
+
   useEffect(() => {
     localStorage.setItem("projects", JSON.stringify(projects));
   }, [projects]);
@@ -36,6 +52,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem("hardDrives", JSON.stringify(hardDrives));
   }, [hardDrives]);
+
+  useEffect(() => {
+    localStorage.setItem("printHistory", JSON.stringify(printHistory));
+  }, [printHistory]);
 
   const addProject = (project: Omit<Project, "id" | "createdAt">) => {
     const id = `project-${Date.now()}`;
@@ -57,7 +77,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteProject = (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
-    // Also delete associated hard drives
     setHardDrives((prev) => prev.filter((h) => h.projectId !== id));
   };
 
@@ -102,6 +121,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return hardDrives.filter((h) => h.projectId === projectId);
   };
 
+  const addPrintHistory = (
+    history: Omit<PrintHistory, "id" | "timestamp">
+  ) => {
+    const newHistory: PrintHistory = {
+      ...history,
+      id: `print-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    };
+    setPrintHistory((prev) => [...prev, newHistory]);
+  };
+
+  const getPrintHistory = () => {
+    return printHistory;
+  };
+
   const value = {
     projects,
     hardDrives,
@@ -114,6 +148,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     getHardDrive,
     getProject,
     getHardDrivesByProject,
+    printHistory,
+    addPrintHistory,
+    getPrintHistory,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
