@@ -1,18 +1,27 @@
 
 import React from "react";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
-// Simple SVG logo, can be replaced with your assets
-const LogoMarvellous = ({ className = "h-8 w-auto" }) => (
-  <img
-    src="/logo-marvellous.svg"
-    alt="Marvellous Logo"
-    className={className}
-    style={{ maxHeight: 48 }}
-    onError={(e) => {
-      // fallback if image not found
-      (e.target as HTMLElement).outerHTML = '<span style="font-weight:bold;font-size:1.3em">M</span>';
-    }}
-  />
-);
+/**
+ * Renders the Marvellous Studios logo that auto switches between black/white variant based on color scheme.
+ */
+const LogoMarvellous = ({ className = "h-12 w-auto" }) => {
+  const isDark = useDarkMode();
+  const logoSrc = isDark
+    ? "/logo-marvellous-white.png"
+    : "/logo-marvellous-black.png";
+  const alt = "Marvellous Studios Logo";
+
+  return (
+    <img
+      src={logoSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      style={{ maxHeight: 60 }}
+      draggable={false}
+    />
+  );
+};
 
 export default LogoMarvellous;

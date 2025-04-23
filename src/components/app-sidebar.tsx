@@ -9,9 +9,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Menu, HardDrive, Users, Files, CalendarDays, BarChart, Settings } from "lucide-react";
+import { HardDrive, Users, Files, CalendarDays, BarChart, Settings, LogOut } from "lucide-react";
 import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 
@@ -27,17 +26,26 @@ const adminItems = [
   { title: "Settings", url: "/settings", icon: Settings }
 ];
 
+/**
+ * AppSidebar: a non-collapsible sidebar with interactive menu items and a dynamic logo.
+ */
 export function AppSidebar() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const location = useLocation();
 
+  // Full list of visible menu items for the user
+  const fullMenu = [
+    ...items,
+    ...(currentUser?.isAdmin ? adminItems : []),
+  ];
+
   return (
-    <Sidebar>
+    <Sidebar collapsible="none">
       <SidebarContent>
         <SidebarGroup>
-          <div className="flex items-center justify-center my-4">
+          <div className="flex items-center justify-center my-8">
             <Link to="/dashboard">
-              <LogoMarvellous className="h-10 mx-auto" />
+              <LogoMarvellous className="h-16 w-auto" />
             </Link>
           </div>
         </SidebarGroup>
@@ -45,7 +53,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {fullMenu.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.url)}>
                     <Link to={item.url}>
@@ -55,23 +63,28 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {currentUser?.isAdmin && adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.url)}>
-                    <Link to={item.url}>
-                      <item.icon className="mr-2" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {/* Logout menu item */}
+              <SidebarMenuItem key="logout">
+                <SidebarMenuButton
+                  asChild
+                  isActive={false}
+                  className="hover:text-destructive"
+                >
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="flex items-center w-full"
+                  >
+                    <LogOut className="mr-2" />
+                    <span>Logout</span>
+                  </button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <span className="text-[10px] text-center opacity-60 block w-full">© Marvellous Manager 2025</span>
-      </SidebarFooter>
+      {/* No SidebarFooter for logout anymore */}
     </Sidebar>
   );
 }
