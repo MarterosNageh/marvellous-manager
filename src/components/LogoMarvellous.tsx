@@ -7,7 +7,7 @@ const LogoMarvellous = ({
   minimal = false
 }: { className?: string; minimal?: boolean }) => (
   <img
-    src="/logo-marvellous-white.png"
+    src="public/logo-marvellous-white.png"
     alt="Marvellous Studios Logo"
     className={className}
     style={{
