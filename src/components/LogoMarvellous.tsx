@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useDarkMode } from "@/hooks/use-dark-mode";
-import Image from "@/components/ui/image";
+import Image from "Logos";
 
 /**
  * Renders the Marvellous Studios logo that auto switches between black/white variant based on color scheme.
