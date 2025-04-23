@@ -25,16 +25,16 @@ import {
 const HardDrives = () => {
   const { hardDrives, projects, getProject } = useData();
   const [search, setSearch] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
 
   const filteredHardDrives = hardDrives.filter((hardDrive) => {
     const matchesSearch =
       hardDrive.name.toLowerCase().includes(search.toLowerCase()) ||
       hardDrive.serialNumber.toLowerCase().includes(search.toLowerCase());
       
-    const matchesProject = projectFilter
-      ? hardDrive.projectId === projectFilter
-      : true;
+    const matchesProject = projectFilter === "all"
+      ? true
+      : hardDrive.projectId === projectFilter;
       
     return matchesSearch && matchesProject;
   });
@@ -70,7 +70,7 @@ const HardDrives = () => {
               <SelectValue placeholder="All Projects" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Projects</SelectItem>
+              <SelectItem value="all">All Projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}
@@ -85,11 +85,11 @@ const HardDrives = () => {
             <HardDriveIcon className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-medium">No hard drives found</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              {search || projectFilter
+              {search || projectFilter !== "all"
                 ? "Try adjusting your search or filter"
                 : "Get started by adding your first hard drive."}
             </p>
-            {!search && !projectFilter && (
+            {!search && projectFilter === "all" && (
               <Link to="/hard-drives/new" className="mt-6 inline-block">
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
