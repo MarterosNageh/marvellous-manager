@@ -19,7 +19,7 @@ const Login = () => {
       <div className="max-w-md w-full px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Marvellous Manager</h1>
-          <p className="text-gray-600 mt-2">Hard Drive Management System</p>
+          <p className="text-gray-600 mt-2">Hard Drive Management Solutions</p>
         </div>
         <LoginForm />
       </div>
