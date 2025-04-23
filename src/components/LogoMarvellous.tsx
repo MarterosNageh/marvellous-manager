@@ -1,27 +1,22 @@
-
 import React from "react";
-import { useDarkMode } from "@/hooks/use-dark-mode";
-import Image from "@/components/ui/image";
 
-/**
- * Renders the Marvellous Studios logo that auto switches between black/white variant based on color scheme.
- */
+// LogoMarvellous component now supports an optional "minimal" prop.
+// When minimal is true, show just the M part (crop via objectPosition).
 const LogoMarvellous = ({
-  className = "h-12 w-auto"
-}: {
-  className?: string;
-}) => {
-  const isDark = useDarkMode();
-  const logoSrc = isDark ? "/logo-marvellous-white.png" : "/logo-marvellous-black.png";
-  const alt = "Marvellous Studios Logo";
-  
-  return (
-    <Image 
-      src={logoSrc} 
-      alt={alt} 
-      className={className} 
-    />
-  );
-};
+  className = "h-8 w-auto",
+  minimal = false
+}: { className?: string; minimal?: boolean }) => (
+  <img
+    src="/logo-marvellous-white.png"
+    alt="Marvellous Studios Logo"
+    className={className}
+    style={{
+      maxHeight: minimal ? 56 : 68,
+      objectFit: minimal ? "cover" : "contain",
+      objectPosition: minimal ? "top" : "center"
+    }}
+    draggable={false}
+  />
+);
 
 export default LogoMarvellous;
