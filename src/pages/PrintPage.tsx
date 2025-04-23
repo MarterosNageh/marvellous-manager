@@ -1,4 +1,3 @@
-
 import { useRef, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -13,6 +12,7 @@ import { PrintType } from "@/types";
 import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
+import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
 const PrintPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,7 +27,6 @@ const PrintPage = () => {
   
   const printRef = useRef<HTMLDivElement>(null);
   
-  // Determine if we're printing for a hard drive or a project
   const isProjectPrint = window.location.pathname.includes("/projects/");
   
   const hardDrive = !isProjectPrint ? getHardDrive(id || "") : null;
@@ -120,6 +119,7 @@ const PrintPage = () => {
                   <>
                     <option value="hard-out">Hard Drive Out</option>
                     <option value="hard-in">Hard Drive In</option>
+                    <option value="hard-label">Print Label</option>
                   </>
                 )}
                 <option value="all-hards">All Hard Drives Info</option>
@@ -157,7 +157,7 @@ const PrintPage = () => {
                 operatorName={operatorName}
               />
             )}
-            
+
             {printType === "hard-in" && hardDrive && (
               <HardDriveInPrint
                 hardDrive={hardDrive}
@@ -165,7 +165,7 @@ const PrintPage = () => {
                 operatorName={operatorName}
               />
             )}
-            
+
             {printType === "all-hards" && (
               <AllHardsPrint
                 hardDrives={hardDrives}
@@ -173,10 +173,13 @@ const PrintPage = () => {
                 operatorName={operatorName}
               />
             )}
+
+            {printType === "hard-label" && hardDrive && (
+              <HardDriveLabelPrint hardDrive={hardDrive} />
+            )}
           </div>
         </div>
         
-        {/* Preview of the print */}
         <Card>
           <CardHeader>
             <CardTitle>Preview</CardTitle>
@@ -198,7 +201,7 @@ const PrintPage = () => {
                     isPreviewing={true}
                   />
                 )}
-                
+
                 {printType === "hard-in" && hardDrive && (
                   <HardDriveInPrint
                     hardDrive={hardDrive}
@@ -207,7 +210,7 @@ const PrintPage = () => {
                     isPreviewing={true}
                   />
                 )}
-                
+
                 {printType === "all-hards" && (
                   <AllHardsPrint
                     hardDrives={hardDrives}
@@ -215,6 +218,10 @@ const PrintPage = () => {
                     operatorName={operatorName}
                     isPreviewing={true}
                   />
+                )}
+
+                {printType === "hard-label" && hardDrive && (
+                  <HardDriveLabelPrint hardDrive={hardDrive} />
                 )}
               </div>
             )}
