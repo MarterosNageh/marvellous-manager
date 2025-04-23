@@ -12,6 +12,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Menu, HardDrive, Files, CalendarDays, BarChart, Settings } from "lucide-react";
+import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
@@ -38,8 +39,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center my-4 ${collapsed ? "px-0" : "px-2"}`}>
             <Link to="/dashboard">
-              {/* Removed the logo reference to fix the DOM issue */}
-              {!collapsed && <div className="h-10 mx-auto font-bold text-xl">MM</div>}
+              {/* Use image logo only if not collapsed */}
+              {!collapsed ? (
+                <LogoMarvellous className="h-12 w-auto mx-auto" />
+              ) : (
+                <LogoMarvellous className="h-8 w-auto mx-auto" minimal />
+              )}
             </Link>
           </div>
         </SidebarGroup>
