@@ -11,7 +11,7 @@ export interface Project {
   name: string;
   description?: string;
   createdAt: string;
-  type?: string;
+  type?: string; // e.g. "Feature Film", "Commercial", etc.
 }
 
 export interface HardDrive {
@@ -29,11 +29,12 @@ export interface HardDrive {
     usb3: boolean;
     other: string;
   };
+  taxiHard?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type PrintType = 'hard-out' | 'hard-in' | 'all-hards';
+export type PrintType = 'hard-out' | 'hard-in' | 'all-hards' | 'label';
 
 export interface PrintData {
   type: PrintType;
