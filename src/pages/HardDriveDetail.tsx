@@ -1,4 +1,3 @@
-
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
@@ -7,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { QRCodeSVG } from "qrcode.react";
 import { Check, XCircle, Edit, Trash, ArrowLeft, Printer } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useRef } from "react";
 
 const HardDriveDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,12 +32,45 @@ const HardDriveDetail = () => {
   
   const project = getProject(hardDrive.projectId);
   const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
-  
+
+  const labelRef = useRef<HTMLDivElement>(null);
+
   const handleDelete = () => {
     deleteHardDrive(hardDrive.id);
     navigate("/hard-drives");
   };
-  
+
+  const handlePrintLabel = () => {
+    if (!labelRef.current) return;
+    const content = labelRef.current;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups for this website");
+      return;
+    }
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Hard Drive Label - Marvellous Manager</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f8ff; }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${content.innerHTML}
+          <div style="text-align: center; margin-top: 20px;">
+            <button onclick="window.print()">Print Label</button>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -217,8 +250,17 @@ const HardDriveDetail = () => {
                     Hard Drive In
                   </Button>
                 </Link>
+                <Button variant="outline" className="w-full justify-start" onClick={handlePrintLabel}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print Label
+                </Button>
               </CardContent>
             </Card>
+            <div className="hidden">
+              <div ref={labelRef}>
+                <HardDriveLabelPrint hardDrive={hardDrive} project={project} />
+              </div>
+            </div>
           </div>
         </div>
       </div>
