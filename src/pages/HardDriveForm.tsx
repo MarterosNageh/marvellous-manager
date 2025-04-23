@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -114,12 +113,9 @@ const HardDriveForm = () => {
           });
         }
       } else {
-        const now = new Date().toISOString();
         const newId = addHardDrive({
           ...formData,
           taxiHard: formData.taxiHard,
-          createdAt: now,
-          updatedAt: now,
         });
         toast({
           title: "Success",

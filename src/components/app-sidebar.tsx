@@ -12,7 +12,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Menu, HardDrive, Files, CalendarDays, BarChart, Settings } from "lucide-react";
-import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
@@ -39,13 +38,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center my-4 ${collapsed ? "px-0" : "px-2"}`}>
             <Link to="/dashboard">
-              {/* Logo only if not collapsed */}
-              {!collapsed && <LogoMarvellous className="h-10 mx-auto" />}
+              {/* Removed the logo reference to fix the DOM issue */}
+              {!collapsed && <div className="h-10 mx-auto font-bold text-xl">MM</div>}
             </Link>
           </div>
         </SidebarGroup>
         <SidebarGroup>
-          {/* Remove Navigation label */}
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
