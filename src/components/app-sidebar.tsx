@@ -52,7 +52,8 @@ export function AppSidebar() {
           </div>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>
+        </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {fullMenu.map(item => <SidebarMenuItem key={item.title}>
