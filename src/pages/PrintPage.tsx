@@ -1,4 +1,3 @@
-
 import { useRef, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -14,40 +13,33 @@ import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
-
 type ExtendedPrintType = PrintType | "hard-label";
-
 const PrintPage = () => {
-  const { id } = useParams<{ id: string }>();
+  const {
+    id
+  } = useParams<{
+    id: string;
+  }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { getHardDrive, getProject, getHardDrivesByProject } = useData();
-  const { currentUser } = useAuth();
-  
+  const {
+    getHardDrive,
+    getProject,
+    getHardDrivesByProject
+  } = useData();
+  const {
+    currentUser
+  } = useAuth();
   const defaultType = searchParams.get("type") as ExtendedPrintType || "hard-out";
   const [printType, setPrintType] = useState<ExtendedPrintType>(defaultType);
   const [operatorName, setOperatorName] = useState(currentUser?.username || "");
-  
   const printRef = useRef<HTMLDivElement>(null);
-  
   const isProjectPrint = window.location.pathname.includes("/projects/");
-  
   const hardDrive = !isProjectPrint ? getHardDrive(id || "") : null;
-  const project = isProjectPrint 
-    ? getProject(id || "")
-    : hardDrive 
-      ? getProject(hardDrive.projectId)
-      : null;
-  
-  const hardDrives = isProjectPrint && project 
-    ? getHardDrivesByProject(project.id)
-    : hardDrive 
-      ? [hardDrive]
-      : [];
-  
-  if ((!hardDrive && !isProjectPrint) || (isProjectPrint && !project) || !hardDrives.length) {
-    return (
-      <MainLayout>
+  const project = isProjectPrint ? getProject(id || "") : hardDrive ? getProject(hardDrive.projectId) : null;
+  const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : hardDrive ? [hardDrive] : [];
+  if (!hardDrive && !isProjectPrint || isProjectPrint && !project || !hardDrives.length) {
+    return <MainLayout>
         <div className="text-center p-12">
           <h2 className="text-2xl font-bold mb-4">Hard Drive Not Found</h2>
           <p className="mb-6">The hard drive or project you're looking for doesn't exist or has been removed.</p>
@@ -56,21 +48,16 @@ const PrintPage = () => {
             Go Back
           </Button>
         </div>
-      </MainLayout>
-    );
+      </MainLayout>;
   }
-  
   const handlePrint = () => {
     if (!printRef.current) return;
-    
     const content = printRef.current;
     const printWindow = window.open('', '_blank');
-    
     if (!printWindow) {
       alert("Please allow popups for this website");
       return;
     }
-    
     printWindow.document.write(`
       <html>
         <head>
@@ -91,12 +78,9 @@ const PrintPage = () => {
         </body>
       </html>
     `);
-    
     printWindow.document.close();
   };
-  
-  return (
-    <MainLayout>
+  return <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
@@ -110,70 +94,30 @@ const PrintPage = () => {
             <CardTitle>Print Options</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!isProjectPrint && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Button 
-                  variant={printType === "hard-out" ? "default" : "outline"} 
-                  onClick={() => setPrintType("hard-out")}
-                  className="w-full"
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Hard Drive Out
-                </Button>
-                <Button 
-                  variant={printType === "hard-in" ? "default" : "outline"} 
-                  onClick={() => setPrintType("hard-in")}
-                  className="w-full"
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Hard Drive In
-                </Button>
-                <Button 
-                  variant={printType === "hard-label" ? "default" : "outline"} 
-                  onClick={() => setPrintType("hard-label")}
-                  className="w-full"
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Hard Label
-                </Button>
-              </div>
-            )}
+            {!isProjectPrint && <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                
+                
+                
+              </div>}
             
             <div className="space-y-2">
               <Label htmlFor="printType">Print Type</Label>
-              <select
-                id="printType"
-                className="w-full p-2 border rounded-md"
-                value={printType}
-                onChange={(e) => setPrintType(e.target.value as ExtendedPrintType)}
-              >
-                {!isProjectPrint && (
-                  <>
+              <select id="printType" className="w-full p-2 border rounded-md" value={printType} onChange={e => setPrintType(e.target.value as ExtendedPrintType)}>
+                {!isProjectPrint && <>
                     <option value="hard-out">Hard Drive Out</option>
                     <option value="hard-in">Hard Drive In</option>
                     <option value="hard-label">Print Label</option>
-                  </>
-                )}
+                  </>}
                 <option value="all-hards">All Hard Drives Info</option>
               </select>
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="operatorName">Operator Name</Label>
-              <Input
-                id="operatorName"
-                value={operatorName}
-                onChange={(e) => setOperatorName(e.target.value)}
-                placeholder="Enter operator name"
-                required
-              />
+              <Input id="operatorName" value={operatorName} onChange={e => setOperatorName(e.target.value)} placeholder="Enter operator name" required />
             </div>
             
-            <Button 
-              className="mt-4 w-full" 
-              disabled={!operatorName}
-              onClick={handlePrint}
-            >
+            <Button className="mt-4 w-full" disabled={!operatorName} onClick={handlePrint}>
               <Printer className="mr-2 h-4 w-4" />
               Print Document
             </Button>
@@ -182,33 +126,13 @@ const PrintPage = () => {
         
         <div className="hidden">
           <div ref={printRef}>
-            {printType === "hard-out" && hardDrive && (
-              <HardDriveOutPrint
-                hardDrive={hardDrive}
-                project={project}
-                operatorName={operatorName}
-              />
-            )}
+            {printType === "hard-out" && hardDrive && <HardDriveOutPrint hardDrive={hardDrive} project={project} operatorName={operatorName} />}
 
-            {printType === "hard-in" && hardDrive && (
-              <HardDriveInPrint
-                hardDrive={hardDrive}
-                project={project}
-                operatorName={operatorName}
-              />
-            )}
+            {printType === "hard-in" && hardDrive && <HardDriveInPrint hardDrive={hardDrive} project={project} operatorName={operatorName} />}
 
-            {printType === "all-hards" && (
-              <AllHardsPrint
-                hardDrives={hardDrives}
-                project={project}
-                operatorName={operatorName}
-              />
-            )}
+            {printType === "all-hards" && <AllHardsPrint hardDrives={hardDrives} project={project} operatorName={operatorName} />}
 
-            {printType === "hard-label" && hardDrive && (
-              <HardDriveLabelPrint hardDrive={hardDrive} />
-            )}
+            {printType === "hard-label" && hardDrive && <HardDriveLabelPrint hardDrive={hardDrive} />}
           </div>
         </div>
         
@@ -217,51 +141,22 @@ const PrintPage = () => {
             <CardTitle>Preview</CardTitle>
           </CardHeader>
           <CardContent>
-            {!operatorName ? (
-              <div className="text-center p-6 border border-dashed rounded-md">
+            {!operatorName ? <div className="text-center p-6 border border-dashed rounded-md">
                 <p className="text-muted-foreground">
                   Please enter the operator name to see the preview
                 </p>
-              </div>
-            ) : (
-              <div className="border rounded-md p-4 bg-white">
-                {printType === "hard-out" && hardDrive && (
-                  <HardDriveOutPrint
-                    hardDrive={hardDrive}
-                    project={project}
-                    operatorName={operatorName}
-                    isPreviewing={true}
-                  />
-                )}
+              </div> : <div className="border rounded-md p-4 bg-white">
+                {printType === "hard-out" && hardDrive && <HardDriveOutPrint hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
 
-                {printType === "hard-in" && hardDrive && (
-                  <HardDriveInPrint
-                    hardDrive={hardDrive}
-                    project={project}
-                    operatorName={operatorName}
-                    isPreviewing={true}
-                  />
-                )}
+                {printType === "hard-in" && hardDrive && <HardDriveInPrint hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
 
-                {printType === "all-hards" && (
-                  <AllHardsPrint
-                    hardDrives={hardDrives}
-                    project={project}
-                    operatorName={operatorName}
-                    isPreviewing={true}
-                  />
-                )}
+                {printType === "all-hards" && <AllHardsPrint hardDrives={hardDrives} project={project} operatorName={operatorName} isPreviewing={true} />}
 
-                {printType === "hard-label" && hardDrive && (
-                  <HardDriveLabelPrint hardDrive={hardDrive} />
-                )}
-              </div>
-            )}
+                {printType === "hard-label" && hardDrive && <HardDriveLabelPrint hardDrive={hardDrive} />}
+              </div>}
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
-  );
+    </MainLayout>;
 };
-
 export default PrintPage;
