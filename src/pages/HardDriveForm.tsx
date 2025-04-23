@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -32,7 +33,6 @@ const HardDriveForm = () => {
     capacity: "",
     freeSpace: "",
     data: "",
-    taxiHard: false,
     cables: {
       thunderbolt3: false,
       typeC: false,
@@ -53,7 +53,6 @@ const HardDriveForm = () => {
           capacity: hardDrive.capacity,
           freeSpace: hardDrive.freeSpace,
           data: hardDrive.data,
-          taxiHard: !!hardDrive.taxiHard,
           cables: hardDrive.cables,
         });
       }
@@ -81,13 +80,9 @@ const HardDriveForm = () => {
     }));
   };
 
-  const handleTaxiHardChange = (checked: boolean) => {
-    setFormData((prev) => ({ ...prev, taxiHard: checked }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!formData.name || !formData.serialNumber || !formData.projectId) {
       toast({
         title: "Error",
@@ -96,7 +91,7 @@ const HardDriveForm = () => {
       });
       return;
     }
-
+    
     try {
       if (isEditMode) {
         const hardDrive = getHardDrive(id);
@@ -104,8 +99,6 @@ const HardDriveForm = () => {
           updateHardDrive({
             ...hardDrive,
             ...formData,
-            taxiHard: formData.taxiHard,
-            updatedAt: new Date().toISOString(),
           });
           toast({
             title: "Success",
@@ -113,10 +106,7 @@ const HardDriveForm = () => {
           });
         }
       } else {
-        const newId = addHardDrive({
-          ...formData,
-          taxiHard: formData.taxiHard,
-        });
+        const newId = addHardDrive(formData);
         toast({
           title: "Success",
           description: "Hard drive added successfully",
@@ -124,7 +114,7 @@ const HardDriveForm = () => {
         navigate(`/hard-drives/${newId}`);
         return; // Return early to prevent the second navigation
       }
-
+      
       navigate("/hard-drives");
     } catch (error) {
       toast({
@@ -164,7 +154,7 @@ const HardDriveForm = () => {
                     required
                   />
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber">Serial Number *</Label>
                   <Input
@@ -175,7 +165,7 @@ const HardDriveForm = () => {
                     required
                   />
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="projectId">Project *</Label>
                   <Select
@@ -197,7 +187,7 @@ const HardDriveForm = () => {
                     </SelectContent>
                   </Select>
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="capacity">Capacity</Label>
                   <Input
@@ -208,7 +198,7 @@ const HardDriveForm = () => {
                     placeholder="e.g. 2TB"
                   />
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="freeSpace">Free Space</Label>
                   <Input
@@ -218,21 +208,6 @@ const HardDriveForm = () => {
                     onChange={handleChange}
                     placeholder="e.g. 500GB"
                   />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Checkbox
-                      id="taxiHard"
-                      checked={formData.taxiHard}
-                      onCheckedChange={(checked) =>
-                        handleTaxiHardChange(!!checked)
-                      }
-                    />
-                    <label htmlFor="taxiHard" className="text-sm font-medium">
-                      Taxi Hard (do not count this hard drive)
-                    </label>
-                  </div>
-                  <span className="text-xs text-muted-foreground">Temporary option for hardware count exclusion</span>
                 </div>
               </CardContent>
             </Card>
@@ -253,7 +228,7 @@ const HardDriveForm = () => {
                     rows={5}
                   />
                 </div>
-
+                
                 <div>
                   <Label className="mb-2 block">Available Cables</Label>
                   <div className="space-y-2">
@@ -272,7 +247,7 @@ const HardDriveForm = () => {
                         Thunderbolt 3
                       </label>
                     </div>
-
+                    
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="typeC"
@@ -288,7 +263,7 @@ const HardDriveForm = () => {
                         USB Type C
                       </label>
                     </div>
-
+                    
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="power"
@@ -304,7 +279,7 @@ const HardDriveForm = () => {
                         Power
                       </label>
                     </div>
-
+                    
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="usb3"
@@ -322,9 +297,9 @@ const HardDriveForm = () => {
                     </div>
                   </div>
                 </div>
-
+                
                 <div className="space-y-2">
-                  <Label htmlFor="cablesOther">Other Cables</Label>
+                  <Label htmlFor="cablesOther">Other Files</Label>
                   <Input
                     id="cablesOther"
                     value={formData.cables.other}

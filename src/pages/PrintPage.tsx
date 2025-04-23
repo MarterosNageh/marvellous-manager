@@ -13,7 +13,6 @@ import { PrintType } from "@/types";
 import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
-import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
 const PrintPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,29 +20,29 @@ const PrintPage = () => {
   const navigate = useNavigate();
   const { getHardDrive, getProject, getHardDrivesByProject } = useData();
   const { currentUser } = useAuth();
-
+  
   const defaultType = searchParams.get("type") as PrintType || "hard-out";
   const [printType, setPrintType] = useState<PrintType>(defaultType);
   const [operatorName, setOperatorName] = useState(currentUser?.username || "");
-
+  
   const printRef = useRef<HTMLDivElement>(null);
-
+  
   // Determine if we're printing for a hard drive or a project
   const isProjectPrint = window.location.pathname.includes("/projects/");
-
+  
   const hardDrive = !isProjectPrint ? getHardDrive(id || "") : null;
-  const project = isProjectPrint
+  const project = isProjectPrint 
     ? getProject(id || "")
-    : hardDrive
+    : hardDrive 
       ? getProject(hardDrive.projectId)
       : null;
-
-  const hardDrives = isProjectPrint && project
+  
+  const hardDrives = isProjectPrint && project 
     ? getHardDrivesByProject(project.id)
-    : hardDrive
+    : hardDrive 
       ? [hardDrive]
       : [];
-
+  
   if ((!hardDrive && !isProjectPrint) || (isProjectPrint && !project) || !hardDrives.length) {
     return (
       <MainLayout>
@@ -58,26 +57,26 @@ const PrintPage = () => {
       </MainLayout>
     );
   }
-
+  
   const handlePrint = () => {
     if (!printRef.current) return;
-
+    
     const content = printRef.current;
     const printWindow = window.open('', '_blank');
-
+    
     if (!printWindow) {
       alert("Please allow popups for this website");
       return;
     }
-
+    
     printWindow.document.write(`
       <html>
         <head>
           <title>Print Document - Marvellous Manager</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background:#fff; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
             @media print {
-              body { padding: 0; background:#fff; }
+              body { padding: 0; }
               button { display: none; }
             }
           </style>
@@ -90,10 +89,10 @@ const PrintPage = () => {
         </body>
       </html>
     `);
-
+    
     printWindow.document.close();
   };
-
+  
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -103,7 +102,7 @@ const PrintPage = () => {
           </Button>
           <h1 className="text-3xl font-bold">Print Document</h1>
         </div>
-
+        
         <Card>
           <CardHeader>
             <CardTitle>Print Options</CardTitle>
@@ -121,13 +120,12 @@ const PrintPage = () => {
                   <>
                     <option value="hard-out">Hard Drive Out</option>
                     <option value="hard-in">Hard Drive In</option>
-                    <option value="label">Print Label</option>
                   </>
                 )}
                 <option value="all-hards">All Hard Drives Info</option>
               </select>
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="operatorName">Operator Name</Label>
               <Input
@@ -138,9 +136,9 @@ const PrintPage = () => {
                 required
               />
             </div>
-
-            <Button
-              className="mt-4 w-full"
+            
+            <Button 
+              className="mt-4 w-full" 
               disabled={!operatorName}
               onClick={handlePrint}
             >
@@ -149,7 +147,7 @@ const PrintPage = () => {
             </Button>
           </CardContent>
         </Card>
-
+        
         <div className="hidden">
           <div ref={printRef}>
             {printType === "hard-out" && hardDrive && (
@@ -159,7 +157,7 @@ const PrintPage = () => {
                 operatorName={operatorName}
               />
             )}
-
+            
             {printType === "hard-in" && hardDrive && (
               <HardDriveInPrint
                 hardDrive={hardDrive}
@@ -167,11 +165,7 @@ const PrintPage = () => {
                 operatorName={operatorName}
               />
             )}
-
-            {printType === "label" && hardDrive && (
-              <HardDriveLabelPrint hardDrive={hardDrive} project={project} />
-            )}
-
+            
             {printType === "all-hards" && (
               <AllHardsPrint
                 hardDrives={hardDrives}
@@ -181,14 +175,14 @@ const PrintPage = () => {
             )}
           </div>
         </div>
-
+        
         {/* Preview of the print */}
         <Card>
           <CardHeader>
             <CardTitle>Preview</CardTitle>
           </CardHeader>
           <CardContent>
-            {!operatorName && printType !== "label" ? (
+            {!operatorName ? (
               <div className="text-center p-6 border border-dashed rounded-md">
                 <p className="text-muted-foreground">
                   Please enter the operator name to see the preview
@@ -204,7 +198,7 @@ const PrintPage = () => {
                     isPreviewing={true}
                   />
                 )}
-
+                
                 {printType === "hard-in" && hardDrive && (
                   <HardDriveInPrint
                     hardDrive={hardDrive}
@@ -213,11 +207,7 @@ const PrintPage = () => {
                     isPreviewing={true}
                   />
                 )}
-
-                {printType === "label" && hardDrive && (
-                  <HardDriveLabelPrint hardDrive={hardDrive} project={project} />
-                )}
-
+                
                 {printType === "all-hards" && (
                   <AllHardsPrint
                     hardDrives={hardDrives}

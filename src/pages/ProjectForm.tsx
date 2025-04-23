@@ -21,7 +21,6 @@ const ProjectForm = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    type: ""
   });
 
   useEffect(() => {
@@ -31,7 +30,6 @@ const ProjectForm = () => {
         setFormData({
           name: project.name,
           description: project.description || "",
-          type: project.type || ""
         });
       }
     }
@@ -44,13 +42,9 @@ const ProjectForm = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData((prev) => ({ ...prev, type: e.target.value }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!formData.name) {
       toast({
         title: "Error",
@@ -59,7 +53,7 @@ const ProjectForm = () => {
       });
       return;
     }
-
+    
     try {
       if (isEditMode) {
         const project = getProject(id);
@@ -82,7 +76,7 @@ const ProjectForm = () => {
         navigate(`/projects/${newId}`);
         return; // Return early to prevent the second navigation
       }
-
+      
       navigate("/projects");
     } catch (error) {
       toast({
@@ -122,24 +116,6 @@ const ProjectForm = () => {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="type">Project Type</Label>
-                <select
-                  id="type"
-                  name="type"
-                  className="w-full p-2 border rounded-md"
-                  value={formData.type}
-                  onChange={handleTypeChange}
-                >
-                  <option value="">Select Type</option>
-                  <option value="Feature Film">Feature Film</option>
-                  <option value="Commercial">Commercial</option>
-                  <option value="Documentary">Documentary</option>
-                  <option value="Music Video">Music Video</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
