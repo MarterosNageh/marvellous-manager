@@ -7,6 +7,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Check, XCircle, Edit, Trash, ArrowLeft, Printer } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRef } from "react";
+import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
 const HardDriveDetail = () => {
   const { id } = useParams<{ id: string }>();
