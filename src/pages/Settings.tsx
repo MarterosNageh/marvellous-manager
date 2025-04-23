@@ -135,8 +135,9 @@ const Settings = () => {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="users">
+            {/* Only show UserManagement, nothing else */}
             <UserManagement />
           </TabsContent>
           
