@@ -103,7 +103,6 @@ const HardDriveForm = () => {
         
         navigate(`/hard-drives/${id}`);
       } else {
-        // Add hard drive and wait for the id to be returned
         const newId = await addHardDrive(formData);
         
         toast({
@@ -111,7 +110,6 @@ const HardDriveForm = () => {
           description: "Hard drive created successfully",
         });
         
-        // Short delay to ensure the data is available in the context
         setTimeout(() => {
           navigate(`/hard-drives/${newId}`);
         }, 100);
@@ -175,7 +173,7 @@ const HardDriveForm = () => {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
                     ))}
