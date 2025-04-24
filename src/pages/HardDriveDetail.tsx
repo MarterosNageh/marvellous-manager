@@ -71,7 +71,7 @@ const HardDriveDetail = () => {
     printWindow.document.close();
   };
   return <MainLayout>
-      <div className="space-y-6 px-[15px]">
+      <div className="space-y-6 px-[15px] mx-[5px] py-[7px]">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="icon" onClick={() => navigate("/hard-drives")}>
