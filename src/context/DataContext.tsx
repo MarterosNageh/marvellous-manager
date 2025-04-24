@@ -47,21 +47,51 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           .from('projects')
           .select('*');
         if (projectsError) throw projectsError;
-        setProjects(projectsData);
+        
+        // Map database columns to our interface properties
+        setProjects(projectsData.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || undefined,
+          createdAt: p.created_at,
+          type: p.type || undefined,
+        })));
 
         // Fetch hard drives
         const { data: hardDrivesData, error: hardDrivesError } = await supabase
           .from('hard_drives')
           .select('*');
         if (hardDrivesError) throw hardDrivesError;
-        setHardDrives(hardDrivesData);
+        
+        // Map database columns to our interface properties
+        setHardDrives(hardDrivesData.map(h => ({
+          id: h.id,
+          name: h.name,
+          serialNumber: h.serial_number,
+          projectId: h.project_id || "",
+          capacity: h.capacity || "",
+          freeSpace: h.free_space || "",
+          data: h.data || "",
+          cables: h.cables as HardDrive["cables"],
+          createdAt: h.created_at,
+          updatedAt: h.updated_at,
+        })));
 
         // Fetch print history
         const { data: historyData, error: historyError } = await supabase
           .from('print_history')
           .select('*');
         if (historyError) throw historyError;
-        setPrintHistory(historyData);
+        
+        // Map database columns to our interface properties
+        setPrintHistory(historyData.map(h => ({
+          id: h.id,
+          type: h.type as PrintType,
+          hardDriveId: h.hard_drive_id,
+          projectId: h.project_id,
+          operatorName: h.operator_name,
+          timestamp: h.timestamp,
+        })));
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
@@ -80,10 +110,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setProjects(current => [...current, payload.new as Project]);
+            const newProject = {
+              id: payload.new.id,
+              name: payload.new.name,
+              description: payload.new.description || undefined,
+              createdAt: payload.new.created_at,
+              type: payload.new.type || undefined,
+            };
+            setProjects(current => [...current, newProject]);
           } else if (payload.eventType === 'UPDATE') {
+            const updatedProject = {
+              id: payload.new.id,
+              name: payload.new.name,
+              description: payload.new.description || undefined,
+              createdAt: payload.new.created_at,
+              type: payload.new.type || undefined,
+            };
             setProjects(current => 
-              current.map(p => p.id === payload.new.id ? payload.new as Project : p)
+              current.map(p => p.id === payload.new.id ? updatedProject : p)
             );
           } else if (payload.eventType === 'DELETE') {
             setProjects(current => current.filter(p => p.id !== payload.old.id));
@@ -97,10 +141,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setHardDrives(current => [...current, payload.new as HardDrive]);
+            const newHardDrive = {
+              id: payload.new.id,
+              name: payload.new.name,
+              serialNumber: payload.new.serial_number,
+              projectId: payload.new.project_id || "",
+              capacity: payload.new.capacity || "",
+              freeSpace: payload.new.free_space || "",
+              data: payload.new.data || "",
+              cables: payload.new.cables as HardDrive["cables"],
+              createdAt: payload.new.created_at,
+              updatedAt: payload.new.updated_at,
+            };
+            setHardDrives(current => [...current, newHardDrive]);
           } else if (payload.eventType === 'UPDATE') {
+            const updatedHardDrive = {
+              id: payload.new.id,
+              name: payload.new.name,
+              serialNumber: payload.new.serial_number,
+              projectId: payload.new.project_id || "",
+              capacity: payload.new.capacity || "",
+              freeSpace: payload.new.free_space || "",
+              data: payload.new.data || "",
+              cables: payload.new.cables as HardDrive["cables"],
+              createdAt: payload.new.created_at,
+              updatedAt: payload.new.updated_at,
+            };
             setHardDrives(current => 
-              current.map(h => h.id === payload.new.id ? payload.new as HardDrive : h)
+              current.map(h => h.id === payload.new.id ? updatedHardDrive : h)
             );
           } else if (payload.eventType === 'DELETE') {
             setHardDrives(current => current.filter(h => h.id !== payload.old.id));
@@ -116,9 +184,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
 
   const addProject = async (project: Omit<Project, "id" | "createdAt">) => {
+    // Convert from our interface to database column names
+    const dbProject = {
+      name: project.name,
+      description: project.description,
+      type: project.type
+    };
+
     const { data, error } = await supabase
       .from('projects')
-      .insert([project])
+      .insert([dbProject])
       .select()
       .single();
 
@@ -135,9 +210,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateProject = async (project: Project) => {
+    // Convert from our interface to database column names
+    const dbProject = {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      type: project.type
+    };
+
     const { error } = await supabase
       .from('projects')
-      .update(project)
+      .update(dbProject)
       .eq('id', project.id);
 
     if (error) {
@@ -167,9 +250,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
+    // Convert from our interface to database column names
+    const dbHardDrive = {
+      name: hardDrive.name,
+      serial_number: hardDrive.serialNumber,
+      project_id: hardDrive.projectId,
+      capacity: hardDrive.capacity,
+      free_space: hardDrive.freeSpace,
+      data: hardDrive.data,
+      cables: hardDrive.cables
+    };
+
     const { data, error } = await supabase
       .from('hard_drives')
-      .insert([hardDrive])
+      .insert([dbHardDrive])
       .select()
       .single();
 
@@ -186,9 +280,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateHardDrive = async (hardDrive: HardDrive) => {
+    // Convert from our interface to database column names
+    const dbHardDrive = {
+      name: hardDrive.name,
+      serial_number: hardDrive.serialNumber,
+      project_id: hardDrive.projectId,
+      capacity: hardDrive.capacity,
+      free_space: hardDrive.freeSpace,
+      data: hardDrive.data,
+      cables: hardDrive.cables
+    };
+
     const { error } = await supabase
       .from('hard_drives')
-      .update(hardDrive)
+      .update(dbHardDrive)
       .eq('id', hardDrive.id);
 
     if (error) {
@@ -229,14 +334,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return hardDrives.filter((h) => h.projectId === projectId);
   };
 
-  const addPrintHistory = async (
-    history: Omit<PrintHistory, "id" | "timestamp">
-  ) => {
+  const addPrintHistory = async (history: Omit<PrintHistory, "id" | "timestamp">) => {
+    // Convert from our interface to database column names
+    const dbHistory = {
+      type: history.type,
+      hard_drive_id: history.hardDriveId,
+      project_id: history.projectId,
+      operator_name: history.operatorName
+    };
+
     const { error } = await supabase
       .from('print_history')
-      .insert([history])
-      .select()
-      .single();
+      .insert([dbHistory]);
 
     if (error) {
       toast({
