@@ -6,23 +6,27 @@ import { Button } from "@/components/ui/button";
 import { HardDrive, FolderOpen, Plus, Files } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useMemo } from "react";
-
 const COLORS = ["#9b87f5", "#33C3F0", "#F97316", "#E5DEFF"];
-
 const Dashboard = () => {
-  const { projects, hardDrives } = useData();
-
+  const {
+    projects,
+    hardDrives
+  } = useData();
   const hardDrivesByProject = useMemo(() => {
-    const map: { [k: string]: number } = {};
-    hardDrives.forEach((hd) => {
+    const map: {
+      [k: string]: number;
+    } = {};
+    hardDrives.forEach(hd => {
       map[hd.projectId] = (map[hd.projectId] || 0) + 1;
     });
     return Object.entries(map).map(([projectId, count]) => {
-      const project = projects.find((p) => p.id === projectId);
-      return { name: project?.name || "Unassigned", value: count };
+      const project = projects.find(p => p.id === projectId);
+      return {
+        name: project?.name || "Unassigned",
+        value: count
+      };
     });
   }, [projects, hardDrives]);
-
   const hardDriveTypeData = useMemo(() => {
     const typeMap: { [k in string]: number } = {};
     hardDrives.forEach((hd: any) => {
@@ -32,17 +36,12 @@ const Dashboard = () => {
     return Object.entries(typeMap).map(([type, count], idx) => ({
       name: type,
       value: count,
-      color: COLORS[idx % COLORS.length],
+      color: COLORS[idx % COLORS.length]
     }));
   }, [hardDrives]);
-
-  const percentUsed = projects.length > 0
-    ? Math.round((hardDrives.length / (projects.length * 10)) * 100)
-    : 0;
-
-  return (
-    <MainLayout>
-      <div className="space-y-6">
+  const percentUsed = projects.length > 0 ? Math.round(hardDrives.length / (projects.length * 10) * 100) : 0;
+  return <MainLayout>
+      <div className="space-y-6 mx-0 px-[14px]">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <div className="flex gap-2">
@@ -94,13 +93,14 @@ const Dashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Hard Drives by Project</CardTitle>
             </CardHeader>
-            <CardContent style={{ width: "100%", height: 150 }}>
+            <CardContent style={{
+            width: "100%",
+            height: 150
+          }}>
               <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
                   <Pie data={hardDrivesByProject} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={48}>
-                    {hardDrivesByProject.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
-                    ))}
+                    {hardDrivesByProject.map((entry, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <Tooltip />
                 </PieChart>
@@ -111,13 +111,14 @@ const Dashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Hard Drives by Category</CardTitle>
             </CardHeader>
-            <CardContent style={{ width: "100%", height: 150 }}>
+            <CardContent style={{
+            width: "100%",
+            height: 150
+          }}>
               <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
                   <Pie data={hardDriveTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={48}>
-                    {hardDriveTypeData.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={entry.color} />
-                    ))}
+                    {hardDriveTypeData.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} />)}
                   </Pie>
                   <Tooltip />
                 </PieChart>
@@ -130,11 +131,11 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="w-full bg-gray-100 h-5 rounded-lg overflow-hidden flex items-center">
-                <div
-                  className="bg-primary h-full transition-all"
-                  style={{ width: `${percentUsed}%`, minWidth: 8, borderRadius: 8 }}
-                  aria-label="Utilization percent"
-                />
+                <div className="bg-primary h-full transition-all" style={{
+                width: `${percentUsed}%`,
+                minWidth: 8,
+                borderRadius: 8
+              }} aria-label="Utilization percent" />
                 <span className="pl-2 text-xs">{percentUsed}% utilized</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -154,8 +155,7 @@ const Dashboard = () => {
             </Link>
           </div>
           
-          {projects.length === 0 ? (
-            <Card>
+          {projects.length === 0 ? <Card>
               <CardContent className="p-6 text-center">
                 <p className="text-muted-foreground">No projects found. Create your first project!</p>
                 <Link to="/projects/new" className="mt-4 inline-block">
@@ -165,11 +165,8 @@ const Dashboard = () => {
                   </Button>
                 </Link>
               </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.slice(0, 3).map((project) => (
-                <Link key={project.id} to={`/projects/${project.id}`}>
+            </Card> : <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {projects.slice(0, 3).map(project => <Link key={project.id} to={`/projects/${project.id}`}>
                   <Card className="h-full hover:shadow-md transition-shadow">
                     <CardHeader>
                       <CardTitle>{project.name}</CardTitle>
@@ -184,10 +181,8 @@ const Dashboard = () => {
                       </p>
                     </CardContent>
                   </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+                </Link>)}
+            </div>}
         </div>
 
         <div className="space-y-6">
@@ -200,8 +195,7 @@ const Dashboard = () => {
             </Link>
           </div>
           
-          {hardDrives.length === 0 ? (
-            <Card>
+          {hardDrives.length === 0 ? <Card>
               <CardContent className="p-6 text-center">
                 <p className="text-muted-foreground">No hard drives found. Register your first hard drive!</p>
                 <Link to="/hard-drives/new" className="mt-4 inline-block">
@@ -211,11 +205,8 @@ const Dashboard = () => {
                   </Button>
                 </Link>
               </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {hardDrives.slice(0, 3).map((hardDrive) => (
-                <Link key={hardDrive.id} to={`/hard-drives/${hardDrive.id}`}>
+            </Card> : <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {hardDrives.slice(0, 3).map(hardDrive => <Link key={hardDrive.id} to={`/hard-drives/${hardDrive.id}`}>
                   <Card className="h-full hover:shadow-md transition-shadow">
                     <CardHeader>
                       <CardTitle>{hardDrive.name}</CardTitle>
@@ -232,10 +223,8 @@ const Dashboard = () => {
                       </p>
                     </CardContent>
                   </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+                </Link>)}
+            </div>}
         </div>
 
         <div>
@@ -254,8 +243,6 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
-    </MainLayout>
-  );
+    </MainLayout>;
 };
-
 export default Dashboard;
