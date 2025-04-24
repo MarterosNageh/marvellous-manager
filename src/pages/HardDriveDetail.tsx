@@ -8,17 +8,21 @@ import { Check, XCircle, Edit, Trash, ArrowLeft, Printer } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRef } from "react";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
-
 const HardDriveDetail = () => {
-  const { id } = useParams<{ id: string }>();
+  const {
+    id
+  } = useParams<{
+    id: string;
+  }>();
   const navigate = useNavigate();
-  const { getHardDrive, getProject, deleteHardDrive } = useData();
-  
+  const {
+    getHardDrive,
+    getProject,
+    deleteHardDrive
+  } = useData();
   const hardDrive = getHardDrive(id || "");
-  
   if (!hardDrive) {
-    return (
-      <MainLayout>
+    return <MainLayout>
         <div className="text-center p-12">
           <h2 className="text-2xl font-bold mb-4">Hard Drive Not Found</h2>
           <p className="mb-6">The hard drive you're looking for doesn't exist or has been removed.</p>
@@ -27,20 +31,15 @@ const HardDriveDetail = () => {
             Back to Hard Drives
           </Button>
         </div>
-      </MainLayout>
-    );
+      </MainLayout>;
   }
-  
   const project = getProject(hardDrive.projectId);
   const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
-
   const labelRef = useRef<HTMLDivElement>(null);
-
   const handleDelete = () => {
     deleteHardDrive(hardDrive.id);
     navigate("/hard-drives");
   };
-
   const handlePrintLabel = () => {
     if (!labelRef.current) return;
     const content = labelRef.current;
@@ -71,10 +70,8 @@ const HardDriveDetail = () => {
     `);
     printWindow.document.close();
   };
-
-  return (
-    <MainLayout>
-      <div className="space-y-6">
+  return <MainLayout>
+      <div className="space-y-6 px-[15px]">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="icon" onClick={() => navigate("/hard-drives")}>
@@ -140,13 +137,9 @@ const HardDriveDetail = () => {
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Project</dt>
                     <dd className="text-lg">
-                      {project ? (
-                        <Link to={`/projects/${project.id}`} className="text-blue-600 hover:underline">
+                      {project ? <Link to={`/projects/${project.id}`} className="text-blue-600 hover:underline">
                           {project.name}
-                        </Link>
-                      ) : (
-                        "Unknown Project"
-                      )}
+                        </Link> : "Unknown Project"}
                     </dd>
                   </div>
                   <div>
@@ -172,44 +165,26 @@ const HardDriveDetail = () => {
               <CardContent>
                 <ul className="grid grid-cols-2 gap-2">
                   <li className="flex items-center">
-                    {hardDrive.cables.thunderbolt3 ? (
-                      <Check className="h-5 w-5 text-green-500 mr-2" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
-                    )}
+                    {hardDrive.cables.thunderbolt3 ? <Check className="h-5 w-5 text-green-500 mr-2" /> : <XCircle className="h-5 w-5 text-red-500 mr-2" />}
                     <span>Thunderbolt 3</span>
                   </li>
                   <li className="flex items-center">
-                    {hardDrive.cables.typeC ? (
-                      <Check className="h-5 w-5 text-green-500 mr-2" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
-                    )}
+                    {hardDrive.cables.typeC ? <Check className="h-5 w-5 text-green-500 mr-2" /> : <XCircle className="h-5 w-5 text-red-500 mr-2" />}
                     <span>USB Type C</span>
                   </li>
                   <li className="flex items-center">
-                    {hardDrive.cables.power ? (
-                      <Check className="h-5 w-5 text-green-500 mr-2" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
-                    )}
+                    {hardDrive.cables.power ? <Check className="h-5 w-5 text-green-500 mr-2" /> : <XCircle className="h-5 w-5 text-red-500 mr-2" />}
                     <span>Power</span>
                   </li>
                   <li className="flex items-center">
-                    {hardDrive.cables.usb3 ? (
-                      <Check className="h-5 w-5 text-green-500 mr-2" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
-                    )}
+                    {hardDrive.cables.usb3 ? <Check className="h-5 w-5 text-green-500 mr-2" /> : <XCircle className="h-5 w-5 text-red-500 mr-2" />}
                     <span>USB 3</span>
                   </li>
                 </ul>
-                {hardDrive.cables.other && (
-                  <div className="mt-4">
+                {hardDrive.cables.other && <div className="mt-4">
                     <h4 className="text-sm font-medium text-muted-foreground">Other Files</h4>
                     <p>{hardDrive.cables.other}</p>
-                  </div>
-                )}
+                  </div>}
               </CardContent>
             </Card>
           </div>
@@ -265,8 +240,6 @@ const HardDriveDetail = () => {
           </div>
         </div>
       </div>
-    </MainLayout>
-  );
+    </MainLayout>;
 };
-
 export default HardDriveDetail;
