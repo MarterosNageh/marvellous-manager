@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,17 +37,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [printHistory, setPrintHistory] = useState<PrintHistory[]>([]);
   const { toast } = useToast();
 
-  // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch projects
         const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('*');
         if (projectsError) throw projectsError;
         
-        // Map database columns to our interface properties
         setProjects(projectsData.map(p => ({
           id: p.id,
           name: p.name,
@@ -57,13 +53,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           type: p.type || undefined,
         })));
 
-        // Fetch hard drives
         const { data: hardDrivesData, error: hardDrivesError } = await supabase
           .from('hard_drives')
           .select('*');
         if (hardDrivesError) throw hardDrivesError;
         
-        // Map database columns to our interface properties
         setHardDrives(hardDrivesData.map(h => ({
           id: h.id,
           name: h.name,
@@ -77,13 +71,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           updatedAt: h.updated_at,
         })));
 
-        // Fetch print history
         const { data: historyData, error: historyError } = await supabase
           .from('print_history')
           .select('*');
         if (historyError) throw historyError;
         
-        // Map database columns to our interface properties
         setPrintHistory(historyData.map(h => ({
           id: h.id,
           type: h.type as PrintType,
@@ -104,7 +96,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     fetchData();
 
-    // Subscribe to real-time changes
     const projectsSubscription = supabase
       .channel('public:projects')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
@@ -184,7 +175,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
 
   const addProject = async (project: Omit<Project, "id" | "createdAt">) => {
-    // Convert from our interface to database column names
     const dbProject = {
       name: project.name,
       description: project.description,
@@ -210,7 +200,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateProject = async (project: Project) => {
-    // Convert from our interface to database column names
     const dbProject = {
       id: project.id,
       name: project.name,
@@ -250,7 +239,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
-    // Convert from our interface to database column names
     const dbHardDrive = {
       name: hardDrive.name,
       serial_number: hardDrive.serialNumber,
@@ -280,7 +268,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateHardDrive = async (hardDrive: HardDrive) => {
-    // Convert from our interface to database column names
     const dbHardDrive = {
       name: hardDrive.name,
       serial_number: hardDrive.serialNumber,
@@ -335,7 +322,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addPrintHistory = async (history: Omit<PrintHistory, "id" | "timestamp">) => {
-    // Convert from our interface to database column names
     const dbHistory = {
       type: history.type,
       hard_drive_id: history.hardDriveId,

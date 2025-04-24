@@ -1,14 +1,13 @@
 
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -17,19 +16,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
 const HardDriveForm = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get("project");
   const navigate = useNavigate();
   const { getHardDrive, addHardDrive, updateHardDrive, projects } = useData();
   const { toast } = useToast();
-  const isEditMode = !!id;
-
+  
   const [formData, setFormData] = useState({
     name: "",
     serialNumber: "",
-    projectId: "",
+    projectId: projectId || "",
     capacity: "",
     freeSpace: "",
     data: "",
@@ -38,12 +39,14 @@ const HardDriveForm = () => {
       typeC: false,
       power: false,
       usb3: false,
-      other: "",
-    },
+      other: ""
+    }
   });
-
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   useEffect(() => {
-    if (isEditMode) {
+    if (id) {
       const hardDrive = getHardDrive(id);
       if (hardDrive) {
         setFormData({
@@ -53,97 +56,92 @@ const HardDriveForm = () => {
           capacity: hardDrive.capacity,
           freeSpace: hardDrive.freeSpace,
           data: hardDrive.data,
-          cables: hardDrive.cables,
+          cables: hardDrive.cables
         });
       }
     }
-  }, [isEditMode, id, getHardDrive]);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  }, [id, getHardDrive]);
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-  const handleCableChange = (cable: keyof typeof formData.cables, checked: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      cables: { ...prev.cables, [cable]: checked },
-    }));
-  };
-
-  const handleCableOtherChange = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      cables: { ...prev.cables, other: value },
-    }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.name || !formData.serialNumber || !formData.projectId) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
+  
+  const handleCheckboxChange = (key: keyof typeof formData.cables, checked: boolean) => {
+    if (typeof checked === "boolean") {
+      setFormData(prev => ({
+        ...prev,
+        cables: {
+          ...prev.cables,
+          [key]: checked
+        }
+      }));
     }
+  };
+  
+  const handleProjectChange = (value: string) => {
+    setFormData(prev => ({ ...prev, projectId: value }));
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
     
     try {
-      if (isEditMode) {
+      if (id) {
         const hardDrive = getHardDrive(id);
-        if (hardDrive) {
-          updateHardDrive({
-            ...hardDrive,
-            ...formData,
-          });
-          toast({
-            title: "Success",
-            description: "Hard drive updated successfully",
-          });
-        }
-      } else {
-        const newId = addHardDrive(formData);
+        if (!hardDrive) throw new Error("Hard drive not found");
+        
+        await updateHardDrive({
+          ...hardDrive,
+          ...formData
+        });
+        
         toast({
           title: "Success",
-          description: "Hard drive added successfully",
+          description: "Hard drive updated successfully",
         });
+        
+        navigate(`/hard-drives/${id}`);
+      } else {
+        const newId = await addHardDrive(formData);
+        
+        toast({
+          title: "Success",
+          description: "Hard drive created successfully",
+        });
+        
         navigate(`/hard-drives/${newId}`);
-        return; // Return early to prevent the second navigation
       }
-      
-      navigate("/hard-drives");
     } catch (error) {
+      console.error("Error saving hard drive:", error);
       toast({
         title: "Error",
-        description: "An error occurred while saving the hard drive",
+        description: "Failed to save hard drive",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
+  
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="icon" onClick={() => navigate("/hard-drives")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-3xl font-bold">
-            {isEditMode ? "Edit Hard Drive" : "Add Hard Drive"}
-          </h1>
+          <h1 className="text-3xl font-bold">{id ? "Edit Hard Drive" : "New Hard Drive"}</h1>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Hard Drive Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>{id ? "Edit Hard Drive Details" : "Add New Hard Drive"}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Hard Drive Name *</Label>
                   <Input
@@ -165,29 +163,24 @@ const HardDriveForm = () => {
                     required
                   />
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="projectId">Project *</Label>
-                  <Select
-                    value={formData.projectId}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({ ...prev, projectId: value }))
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="project">Project</Label>
+                <Select value={formData.projectId} onValueChange={handleProjectChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="capacity">Capacity</Label>
                   <Input
@@ -195,7 +188,7 @@ const HardDriveForm = () => {
                     name="capacity"
                     value={formData.capacity}
                     onChange={handleChange}
-                    placeholder="e.g. 2TB"
+                    placeholder="E.g., 4TB"
                   />
                 </div>
                 
@@ -206,124 +199,89 @@ const HardDriveForm = () => {
                     name="freeSpace"
                     value={formData.freeSpace}
                     onChange={handleChange}
-                    placeholder="e.g. 500GB"
+                    placeholder="E.g., 2.5TB"
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="data">Data</Label>
-                  <Textarea
-                    id="data"
-                    name="data"
-                    value={formData.data}
-                    onChange={handleChange}
-                    placeholder="Describe the data stored on this hard drive"
-                    rows={5}
-                  />
-                </div>
-                
-                <div>
-                  <Label className="mb-2 block">Available Cables</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="thunderbolt3"
-                        checked={formData.cables.thunderbolt3}
-                        onCheckedChange={(checked) =>
-                          handleCableChange("thunderbolt3", checked as boolean)
-                        }
-                      />
-                      <label
-                        htmlFor="thunderbolt3"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Thunderbolt 3
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="typeC"
-                        checked={formData.cables.typeC}
-                        onCheckedChange={(checked) =>
-                          handleCableChange("typeC", checked as boolean)
-                        }
-                      />
-                      <label
-                        htmlFor="typeC"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        USB Type C
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="power"
-                        checked={formData.cables.power}
-                        onCheckedChange={(checked) =>
-                          handleCableChange("power", checked as boolean)
-                        }
-                      />
-                      <label
-                        htmlFor="power"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Power
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="usb3"
-                        checked={formData.cables.usb3}
-                        onCheckedChange={(checked) =>
-                          handleCableChange("usb3", checked as boolean)
-                        }
-                      />
-                      <label
-                        htmlFor="usb3"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        USB 3
-                      </label>
-                    </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="data">Data Description</Label>
+                <Textarea
+                  id="data"
+                  name="data"
+                  value={formData.data}
+                  onChange={handleChange}
+                  rows={3}
+                  placeholder="What's stored on this drive?"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Available Cables</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="thunderbolt3" 
+                      checked={formData.cables.thunderbolt3} 
+                      onCheckedChange={(checked) => handleCheckboxChange("thunderbolt3", !!checked)}
+                    />
+                    <Label htmlFor="thunderbolt3" className="cursor-pointer">Thunderbolt 3</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="typeC" 
+                      checked={formData.cables.typeC} 
+                      onCheckedChange={(checked) => handleCheckboxChange("typeC", !!checked)}
+                    />
+                    <Label htmlFor="typeC" className="cursor-pointer">USB Type C</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="power" 
+                      checked={formData.cables.power} 
+                      onCheckedChange={(checked) => handleCheckboxChange("power", !!checked)}
+                    />
+                    <Label htmlFor="power" className="cursor-pointer">Power Cable</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="usb3" 
+                      checked={formData.cables.usb3} 
+                      onCheckedChange={(checked) => handleCheckboxChange("usb3", !!checked)}
+                    />
+                    <Label htmlFor="usb3" className="cursor-pointer">USB 3.0</Label>
                   </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="cablesOther">Other Files</Label>
+                <div className="mt-2">
+                  <Label htmlFor="otherCables">Other Cables</Label>
                   <Input
-                    id="cablesOther"
+                    id="otherCables"
                     value={formData.cables.other}
-                    onChange={(e) => handleCableOtherChange(e.target.value)}
-                    placeholder="Specify other cables if any"
+                    onChange={(e) => handleCheckboxChange("other", e.target.value as any)}
+                    placeholder="List any other cables"
                   />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-6 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(-1)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              {isEditMode ? "Update Hard Drive" : "Add Hard Drive"}
-            </Button>
-          </div>
-        </form>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  variant="outline" 
+                  type="button" 
+                  onClick={() => navigate("/hard-drives")}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : (id ? "Update Hard Drive" : "Create Hard Drive")}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );
