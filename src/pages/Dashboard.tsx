@@ -42,7 +42,7 @@ const Dashboard = () => {
   const percentUsed = projects.length > 0 ? Math.round(hardDrives.length / (projects.length * 10) * 100) : 0;
   return <MainLayout>
       <div className="space-y-6 mx-0 px-[14px]">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between my-[16px]">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <div className="flex gap-2">
             <Link to="/projects/new">
