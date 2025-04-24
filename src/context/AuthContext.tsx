@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,14 +71,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setCurrentUser(user);
       sessionStorage.setItem("currentUser", JSON.stringify(user));
       
-      setTimeout(() => {
-        logout();
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        });
-      }, 30 * 60 * 1000); // Extended to 30 minutes
+      // Removing the timeout that forces logout
+      // The session will now persist until the browser is closed
+      // or the user explicitly logs out
       
       return true;
     }
