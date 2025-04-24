@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -112,8 +111,10 @@ const HardDriveForm = () => {
           description: "Hard drive created successfully",
         });
         
-        // Navigate to the new hard drive page
-        navigate(`/hard-drives/${newId}`);
+        // Short delay to ensure the data is available in the context
+        setTimeout(() => {
+          navigate(`/hard-drives/${newId}`);
+        }, 100);
       }
     } catch (error) {
       console.error("Error saving hard drive:", error);

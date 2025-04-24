@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -196,6 +197,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
 
+    // Create a new project object with proper mapping of properties
+    const newProject: Project = {
+      id: data.id,
+      name: data.name,
+      description: data.description || undefined,
+      createdAt: data.created_at,
+      type: data.type || undefined,
+    };
+
+    // Add to state immediately instead of waiting for subscription
+    setProjects(currentProjects => [...currentProjects, newProject]);
+
     return data.id;
   };
 
@@ -264,6 +277,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
 
+    // Create a new hard drive object with proper mapping of properties
+    const newHardDrive: HardDrive = {
+      id: data.id,
+      name: data.name,
+      serialNumber: data.serial_number,
+      projectId: data.project_id || "",
+      capacity: data.capacity || "",
+      freeSpace: data.free_space || "",
+      data: data.data || "",
+      cables: data.cables as HardDrive["cables"],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+
+    // Add to state immediately instead of waiting for subscription
+    setHardDrives(currentHardDrives => [...currentHardDrives, newHardDrive]);
+
     return data.id;
   };
 
@@ -329,9 +359,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       operator_name: history.operatorName
     };
 
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('print_history')
-      .insert([dbHistory]);
+      .insert([dbHistory])
+      .select();
 
     if (error) {
       toast({
@@ -340,6 +371,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         variant: "destructive",
       });
       throw error;
+    }
+
+    if (data && data.length > 0) {
+      // Add to state immediately
+      const newPrintHistory: PrintHistory = {
+        id: data[0].id,
+        type: data[0].type as PrintType,
+        hardDriveId: data[0].hard_drive_id,
+        projectId: data[0].project_id,
+        operatorName: data[0].operator_name,
+        timestamp: data[0].timestamp,
+      };
+
+      setPrintHistory(currentHistory => [...currentHistory, newPrintHistory]);
     }
   };
 

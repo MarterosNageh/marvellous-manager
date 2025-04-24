@@ -68,13 +68,15 @@ const ProjectForm = () => {
           ...formData,
           createdAt: getProject(id)?.createdAt || new Date().toISOString()
         });
+        
         toast({
           title: "Success",
           description: "Project updated successfully",
         });
+        
         navigate(`/projects/${id}`);
       } else {
-        // Add project and wait for the id to be returned
+        // Add project and wait for the ID to be returned
         const newId = await addProject(formData);
         
         toast({
@@ -82,8 +84,10 @@ const ProjectForm = () => {
           description: "Project created successfully",
         });
         
-        // Navigate to the new project page
-        navigate(`/projects/${newId}`);
+        // Short delay to ensure the data is available in the context
+        setTimeout(() => {
+          navigate(`/projects/${newId}`);
+        }, 100);
       }
     } catch (error) {
       console.error("Error saving project:", error);
