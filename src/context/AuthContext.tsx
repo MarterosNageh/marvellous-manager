@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (event, session) => {
         if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || !session) {
           setCurrentUser(null);
-          localStorage.removeItem("currentUser");
+          sessionStorage.removeItem("currentUser");
           toast({
             title: "Session Expired",
             description: "Please log in again to continue.",
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setCurrentUser(null);
-        localStorage.removeItem("currentUser");
+        sessionStorage.removeItem("currentUser");
       }
     });
 
@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (user) {
       setCurrentUser(user);
-      localStorage.setItem("currentUser", JSON.stringify(user));
+      sessionStorage.setItem("currentUser", JSON.stringify(user));
       
       setTimeout(() => {
         logout();
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           description: "Your session has expired. Please log in again.",
           variant: "destructive",
         });
-      }, 15 * 60 * 1000); // 15 minutes
+      }, 30 * 60 * 1000); // Extended to 30 minutes
       
       return true;
     }
@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem("currentUser");
+    sessionStorage.removeItem("currentUser");
   };
 
   const addUser = (user: Omit<User, "id">) => {
