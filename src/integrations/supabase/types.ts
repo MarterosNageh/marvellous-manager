@@ -9,7 +9,119 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      hard_drives: {
+        Row: {
+          cables: Json
+          capacity: string | null
+          created_at: string
+          data: string | null
+          free_space: string | null
+          id: string
+          name: string
+          project_id: string | null
+          serial_number: string
+          updated_at: string
+        }
+        Insert: {
+          cables?: Json
+          capacity?: string | null
+          created_at?: string
+          data?: string | null
+          free_space?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+          serial_number: string
+          updated_at?: string
+        }
+        Update: {
+          cables?: Json
+          capacity?: string | null
+          created_at?: string
+          data?: string | null
+          free_space?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+          serial_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hard_drives_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      print_history: {
+        Row: {
+          hard_drive_id: string | null
+          id: string
+          operator_name: string
+          project_id: string | null
+          timestamp: string
+          type: string
+        }
+        Insert: {
+          hard_drive_id?: string | null
+          id?: string
+          operator_name: string
+          project_id?: string | null
+          timestamp?: string
+          type: string
+        }
+        Update: {
+          hard_drive_id?: string | null
+          id?: string
+          operator_name?: string
+          project_id?: string | null
+          timestamp?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_history_hard_drive_id_fkey"
+            columns: ["hard_drive_id"]
+            isOneToOne: false
+            referencedRelation: "hard_drives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          type?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

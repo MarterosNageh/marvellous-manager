@@ -1,5 +1,8 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface PrintHistory {
   id: string;
@@ -13,100 +16,205 @@ interface PrintHistory {
 interface DataContextType {
   projects: Project[];
   hardDrives: HardDrive[];
-  addProject: (project: Omit<Project, "id" | "createdAt">) => string;
-  updateProject: (project: Project) => void;
-  deleteProject: (id: string) => void;
-  addHardDrive: (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => string;
-  updateHardDrive: (hardDrive: HardDrive) => void;
-  deleteHardDrive: (id: string) => void;
+  addProject: (project: Omit<Project, "id" | "createdAt">) => Promise<string>;
+  updateProject: (project: Project) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  addHardDrive: (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => Promise<string>;
+  updateHardDrive: (hardDrive: HardDrive) => Promise<void>;
+  deleteHardDrive: (id: string) => Promise<void>;
   getHardDrive: (id: string) => HardDrive | undefined;
   getProject: (id: string) => Project | undefined;
   getHardDrivesByProject: (projectId: string) => HardDrive[];
   printHistory: PrintHistory[];
-  addPrintHistory: (history: Omit<PrintHistory, "id" | "timestamp">) => void;
+  addPrintHistory: (history: Omit<PrintHistory, "id" | "timestamp">) => Promise<void>;
   getPrintHistory: () => PrintHistory[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const storedProjects = localStorage.getItem("projects");
-    return storedProjects ? JSON.parse(storedProjects) : [];
-  });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [hardDrives, setHardDrives] = useState<HardDrive[]>([]);
+  const [printHistory, setPrintHistory] = useState<PrintHistory[]>([]);
+  const { toast } = useToast();
 
-  const [hardDrives, setHardDrives] = useState<HardDrive[]>(() => {
-    const storedHardDrives = localStorage.getItem("hardDrives");
-    return storedHardDrives ? JSON.parse(storedHardDrives) : [];
-  });
-
-  const [printHistory, setPrintHistory] = useState<PrintHistory[]>(() => {
-    const stored = localStorage.getItem("printHistory");
-    return stored ? JSON.parse(stored) : [];
-  });
-
+  // Fetch initial data
   useEffect(() => {
-    localStorage.setItem("projects", JSON.stringify(projects));
-  }, [projects]);
+    const fetchData = async () => {
+      try {
+        // Fetch projects
+        const { data: projectsData, error: projectsError } = await supabase
+          .from('projects')
+          .select('*');
+        if (projectsError) throw projectsError;
+        setProjects(projectsData);
 
-  useEffect(() => {
-    localStorage.setItem("hardDrives", JSON.stringify(hardDrives));
-  }, [hardDrives]);
+        // Fetch hard drives
+        const { data: hardDrivesData, error: hardDrivesError } = await supabase
+          .from('hard_drives')
+          .select('*');
+        if (hardDrivesError) throw hardDrivesError;
+        setHardDrives(hardDrivesData);
 
-  useEffect(() => {
-    localStorage.setItem("printHistory", JSON.stringify(printHistory));
-  }, [printHistory]);
-
-  const addProject = (project: Omit<Project, "id" | "createdAt">) => {
-    const id = `project-${Date.now()}`;
-    const newProject: Project = {
-      ...project,
-      id,
-      createdAt: new Date().toISOString(),
+        // Fetch print history
+        const { data: historyData, error: historyError } = await supabase
+          .from('print_history')
+          .select('*');
+        if (historyError) throw historyError;
+        setPrintHistory(historyData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load data",
+          variant: "destructive",
+        });
+      }
     };
-    
-    setProjects((prev) => [...prev, newProject]);
-    return id;
-  };
 
-  const updateProject = (project: Project) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === project.id ? project : p))
-    );
-  };
+    fetchData();
 
-  const deleteProject = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setHardDrives((prev) => prev.filter((h) => h.projectId !== id));
-  };
+    // Subscribe to real-time changes
+    const projectsSubscription = supabase
+      .channel('public:projects')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setProjects(current => [...current, payload.new as Project]);
+          } else if (payload.eventType === 'UPDATE') {
+            setProjects(current => 
+              current.map(p => p.id === payload.new.id ? payload.new as Project : p)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setProjects(current => current.filter(p => p.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
 
-  const addHardDrive = (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
-    const now = new Date().toISOString();
-    const id = `hard-${Date.now()}`;
-    const newHardDrive: HardDrive = {
-      ...hardDrive,
-      id,
-      createdAt: now,
-      updatedAt: now,
+    const hardDrivesSubscription = supabase
+      .channel('public:hard_drives')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setHardDrives(current => [...current, payload.new as HardDrive]);
+          } else if (payload.eventType === 'UPDATE') {
+            setHardDrives(current => 
+              current.map(h => h.id === payload.new.id ? payload.new as HardDrive : h)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setHardDrives(current => current.filter(h => h.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      projectsSubscription.unsubscribe();
+      hardDrivesSubscription.unsubscribe();
     };
-    
-    setHardDrives((prev) => [...prev, newHardDrive]);
-    return id;
+  }, [toast]);
+
+  const addProject = async (project: Omit<Project, "id" | "createdAt">) => {
+    const { data, error } = await supabase
+      .from('projects')
+      .insert([project])
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    return data.id;
   };
 
-  const updateHardDrive = (hardDrive: HardDrive) => {
-    const updatedHardDrive = {
-      ...hardDrive,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setHardDrives((prev) =>
-      prev.map((h) => (h.id === hardDrive.id ? updatedHardDrive : h))
-    );
+  const updateProject = async (project: Project) => {
+    const { error } = await supabase
+      .from('projects')
+      .update(project)
+      .eq('id', project.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update project",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
-  const deleteHardDrive = (id: string) => {
-    setHardDrives((prev) => prev.filter((h) => h.id !== id));
+  const deleteProject = async (id: string) => {
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
+    const { data, error } = await supabase
+      .from('hard_drives')
+      .insert([hardDrive])
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create hard drive",
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    return data.id;
+  };
+
+  const updateHardDrive = async (hardDrive: HardDrive) => {
+    const { error } = await supabase
+      .from('hard_drives')
+      .update(hardDrive)
+      .eq('id', hardDrive.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update hard drive",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const deleteHardDrive = async (id: string) => {
+    const { error } = await supabase
+      .from('hard_drives')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete hard drive",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const getHardDrive = (id: string) => {
@@ -121,15 +229,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return hardDrives.filter((h) => h.projectId === projectId);
   };
 
-  const addPrintHistory = (
+  const addPrintHistory = async (
     history: Omit<PrintHistory, "id" | "timestamp">
   ) => {
-    const newHistory: PrintHistory = {
-      ...history,
-      id: `print-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-    };
-    setPrintHistory((prev) => [...prev, newHistory]);
+    const { error } = await supabase
+      .from('print_history')
+      .insert([history])
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save print history",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const getPrintHistory = () => {
