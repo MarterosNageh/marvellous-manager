@@ -1,10 +1,12 @@
+
 import { Link, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut, ChevronLeft } from "lucide-react";
+import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut } from "lucide-react";
 import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
 const items = [{
   title: "Dashboard",
   url: "/dashboard",
@@ -26,11 +28,13 @@ const items = [{
   url: "/shifts-schedule",
   icon: CalendarDays
 }];
+
 const adminItems = [{
   title: "Settings",
   url: "/settings",
   icon: Settings
 }];
+
 export function AppSidebar() {
   const {
     currentUser,
@@ -42,6 +46,7 @@ export function AppSidebar() {
     toggleSidebar
   } = useSidebar();
   const fullMenu = [...items, ...(currentUser?.isAdmin ? adminItems : [])];
+  
   return <Sidebar collapsible="icon">
       <SidebarContent className="flex flex-col h-full bg-gray-900">
         <SidebarGroup className="flex-none">
@@ -75,7 +80,12 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild className="text-white hover:bg-red-600/20 hover:text-red-500 transition-colors" tooltip={state === "collapsed" ? "Logout" : undefined}>
                   <button onClick={logout} className="flex items-center gap-2 w-full">
                     <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
+                    <span>
+                      {state !== "collapsed" && currentUser?.username ? 
+                        `Logout (${currentUser.username})` : 
+                        "Logout"
+                      }
+                    </span>
                   </button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
