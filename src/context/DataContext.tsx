@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -197,7 +196,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
 
-    // Create a new project object with proper mapping of properties
     const newProject: Project = {
       id: data.id,
       name: data.name,
@@ -206,7 +204,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       type: data.type || undefined,
     };
 
-    // Add to state immediately instead of waiting for subscription
     setProjects(currentProjects => [...currentProjects, newProject]);
 
     return data.id;
@@ -249,6 +246,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
       throw error;
     }
+
+    setProjects(currentProjects => currentProjects.filter(p => p.id !== id));
+    
+    setHardDrives(currentHardDrives => currentHardDrives.filter(h => h.projectId !== id));
   };
 
   const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
@@ -277,7 +278,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
 
-    // Create a new hard drive object with proper mapping of properties
     const newHardDrive: HardDrive = {
       id: data.id,
       name: data.name,
@@ -291,7 +291,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       updatedAt: data.updated_at,
     };
 
-    // Add to state immediately instead of waiting for subscription
     setHardDrives(currentHardDrives => [...currentHardDrives, newHardDrive]);
 
     return data.id;
@@ -374,7 +373,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (data && data.length > 0) {
-      // Add to state immediately
       const newPrintHistory: PrintHistory = {
         id: data[0].id,
         type: data[0].type as PrintType,

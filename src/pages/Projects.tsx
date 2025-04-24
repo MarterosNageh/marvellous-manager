@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
@@ -17,6 +18,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const CATEGORY_OPTIONS = [
   "Drama",
@@ -29,6 +31,7 @@ const Projects = () => {
   const { projects, getHardDrivesByProject } = useData();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const isMobile = useIsMobile();
 
   const filteredProjects = projects
     .filter((project) =>
@@ -38,9 +41,9 @@ const Projects = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projects</h1>
           <Link to="/projects/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -49,18 +52,18 @@ const Projects = () => {
           </Link>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:space-x-2">
+          <div className="relative flex-1 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search projects..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
+              className="pl-8 w-full"
             />
           </div>
           <select
-            className="border rounded bg-white h-10 text-sm px-2"
+            className="border rounded bg-white h-10 text-sm px-2 w-full sm:w-auto"
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
           >
@@ -92,44 +95,51 @@ const Projects = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Creation Date</TableHead>
-                  <TableHead>Hard Drives</TableHead>
-                  <TableHead>Description</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjects.map((project) => {
-                  const hardDriveCount = getHardDrivesByProject(project.id).length;
+          <div className="overflow-x-auto">
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Project Name</TableHead>
+                    {!isMobile && <TableHead>Type</TableHead>}
+                    <TableHead className="hidden sm:table-cell">Creation Date</TableHead>
+                    <TableHead className="hidden md:table-cell">Hard Drives</TableHead>
+                    <TableHead className="hidden lg:table-cell">Description</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProjects.map((project) => {
+                    const hardDriveCount = getHardDrivesByProject(project.id).length;
 
-                  return (
-                    <TableRow key={project.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          to={`/projects/${project.id}`}
-                          className="hover:underline"
-                        >
-                          {project.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{project.type || "N/A"}</TableCell>
-                      <TableCell>
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{hardDriveCount}</TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {project.description || "No description"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    return (
+                      <TableRow key={project.id}>
+                        <TableCell className="font-medium">
+                          <Link
+                            to={`/projects/${project.id}`}
+                            className="hover:underline"
+                          >
+                            {project.name}
+                          </Link>
+                          {isMobile && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {project.type || "N/A"} • {hardDriveCount} drives
+                            </div>
+                          )}
+                        </TableCell>
+                        {!isMobile && <TableCell>{project.type || "N/A"}</TableCell>}
+                        <TableCell className="hidden sm:table-cell">
+                          {new Date(project.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">{hardDriveCount}</TableCell>
+                        <TableCell className="hidden lg:table-cell max-w-xs truncate">
+                          {project.description || "No description"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </div>

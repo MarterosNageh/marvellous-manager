@@ -14,13 +14,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject, deleteProject, getHardDrivesByProject } = useData();
+  const isMobile = useIsMobile();
   
   const project = getProject(id || "");
+  
+  // If project doesn't exist, redirect to projects page
+  useEffect(() => {
+    if (id && !project) {
+      navigate("/projects", { replace: true });
+    }
+  }, [id, project, navigate]);
   
   if (!project) {
     return (
@@ -46,30 +56,30 @@ const ProjectDetail = () => {
   
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="icon" onClick={() => navigate("/projects")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-3xl font-bold">{project.name}</h1>
+            <h1 className="text-xl sm:text-3xl font-bold truncate">{project.name}</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link to={`/projects/${project.id}/print`}>
-              <Button variant="outline">
+              <Button variant="outline" size={isMobile ? "sm" : "default"} className="whitespace-nowrap">
                 <Printer className="mr-2 h-4 w-4" />
-                Print All Hards
+                {isMobile ? "Print" : "Print All Hards"}
               </Button>
             </Link>
             <Link to={`/projects/${project.id}/edit`}>
-              <Button variant="outline">
+              <Button variant="outline" size={isMobile ? "sm" : "default"}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             </Link>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">
+                <Button variant="destructive" size={isMobile ? "sm" : "default"}>
                   <Trash className="mr-2 h-4 w-4" />
                   Delete
                 </Button>
@@ -121,7 +131,7 @@ const ProjectDetail = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Hard Drives</h2>
             <Link to={`/hard-drives/new?project=${project.id}`}>
-              <Button size="sm">
+              <Button size={isMobile ? "sm" : "default"}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Hard Drive
               </Button>
@@ -145,47 +155,50 @@ const ProjectDetail = () => {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Serial Number</TableHead>
-                      <TableHead>Capacity</TableHead>
-                      <TableHead>Free Space</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {hardDrives.map((hardDrive) => (
-                      <TableRow key={hardDrive.id}>
-                        <TableCell className="font-medium">
-                          <Link
-                            to={`/hard-drives/${hardDrive.id}`}
-                            className="hover:underline"
-                          >
-                            {hardDrive.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{hardDrive.serialNumber}</TableCell>
-                        <TableCell>{hardDrive.capacity}</TableCell>
-                        <TableCell>{hardDrive.freeSpace}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-1">
-                            <Link to={`/hard-drives/${hardDrive.id}`}>
-                              <Button variant="outline" size="sm">
-                                View
-                              </Button>
-                            </Link>
-                          </div>
-                        </TableCell>
+            <div className="overflow-x-auto">
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="hidden sm:table-cell">Serial Number</TableHead>
+                        <TableHead className="hidden md:table-cell">Capacity</TableHead>
+                        <TableHead className="hidden lg:table-cell">Free Space</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {hardDrives.map((hardDrive) => (
+                        <TableRow key={hardDrive.id}>
+                          <TableCell className="font-medium">
+                            <Link
+                              to={`/hard-drives/${hardDrive.id}`}
+                              className="hover:underline"
+                            >
+                              {hardDrive.name}
+                            </Link>
+                            {isMobile && <div className="text-xs text-muted-foreground mt-1">{hardDrive.serialNumber}</div>}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">{hardDrive.serialNumber}</TableCell>
+                          <TableCell className="hidden md:table-cell">{hardDrive.capacity}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{hardDrive.freeSpace}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <Link to={`/hard-drives/${hardDrive.id}`}>
+                                <Button variant="outline" size="sm">
+                                  View
+                                </Button>
+                              </Link>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       </div>
