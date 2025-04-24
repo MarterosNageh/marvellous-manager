@@ -1,8 +1,6 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
 
 interface AuthContextType {
   currentUser: User | null;
@@ -29,38 +27,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const storedUsers = localStorage.getItem("users");
     return storedUsers ? JSON.parse(storedUsers) : [defaultAdminUser];
   });
-  const { toast } = useToast();
 
   useEffect(() => {
     localStorage.setItem("users", JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || !session) {
-          setCurrentUser(null);
-          sessionStorage.removeItem("currentUser");
-          toast({
-            title: "Session Expired",
-            description: "Please log in again to continue.",
-            variant: "destructive",
-          });
-        }
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setCurrentUser(null);
-        sessionStorage.removeItem("currentUser");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [toast]);
+    const user = localStorage.getItem("currentUser");
+    if (user) {
+      setCurrentUser(JSON.parse(user));
+    }
+  }, []);
 
   const login = (username: string, password: string): boolean => {
     const user = users.find(
@@ -69,12 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (user) {
       setCurrentUser(user);
-      sessionStorage.setItem("currentUser", JSON.stringify(user));
-      
-      // Removing the timeout that forces logout
-      // The session will now persist until the browser is closed
-      // or the user explicitly logs out
-      
+      localStorage.setItem("currentUser", JSON.stringify(user));
       return true;
     }
     
@@ -83,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     setCurrentUser(null);
-    sessionStorage.removeItem("currentUser");
+    localStorage.removeItem("currentUser");
   };
 
   const addUser = (user: Omit<User, "id">) => {
