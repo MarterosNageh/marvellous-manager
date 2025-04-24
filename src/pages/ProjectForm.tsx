@@ -10,6 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Project type options
+const PROJECT_TYPES = ["Drama", "Cinema", "Promotions", "TVC"];
 
 const ProjectForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +52,10 @@ const ProjectForm = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleTypeChange = (value: string) => {
+    setFormData(prev => ({ ...prev, type: value }));
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +74,15 @@ const ProjectForm = () => {
         });
         navigate(`/projects/${id}`);
       } else {
+        // Add project and wait for the id to be returned
         const newId = await addProject(formData);
+        
         toast({
           title: "Success",
           description: "Project created successfully",
         });
+        
+        // Navigate to the new project page
         navigate(`/projects/${newId}`);
       }
     } catch (error) {
@@ -108,13 +126,16 @@ const ProjectForm = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="type">Project Type</Label>
-                <Input
-                  id="type"
-                  name="type"
-                  value={formData.type}
-                  onChange={handleChange}
-                  placeholder="E.g., Feature Film, Commercial, etc."
-                />
+                <Select value={formData.type} onValueChange={handleTypeChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="space-y-2">

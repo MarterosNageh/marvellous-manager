@@ -104,6 +104,7 @@ const HardDriveForm = () => {
         
         navigate(`/hard-drives/${id}`);
       } else {
+        // Add hard drive and wait for the id to be returned
         const newId = await addHardDrive(formData);
         
         toast({
@@ -111,6 +112,7 @@ const HardDriveForm = () => {
           description: "Hard drive created successfully",
         });
         
+        // Navigate to the new hard drive page
         navigate(`/hard-drives/${newId}`);
       }
     } catch (error) {
