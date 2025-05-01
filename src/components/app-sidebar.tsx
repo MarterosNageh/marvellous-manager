@@ -52,7 +52,7 @@ export function AppSidebar() {
         <SidebarGroup className="flex-none">
           <div className={cn("flex items-center justify-between py-4 px-4", state === "collapsed" ? "justify-center" : "")}>
             <Link to="/dashboard" className={cn("transition-opacity", state === "collapsed" ? "w-8 h-8" : "w-32")}>
-              <LogoMarvellous className="h-full w-full" />
+              <LogoMarvellous className="h-full w-full filter invert" />
             </Link>
             
           </div>

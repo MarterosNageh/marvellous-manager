@@ -82,13 +82,84 @@ const PrintPage = () => {
               body { padding: 0; }
               button { display: none; }
             }
+             #Container {
+                width: 767px;
+                height: 1087px;
+                margin-top: 8px;
+            }
+            #label {
+                height: 271.7;
+                position: relative;
+                left: 0px;
+                width: 383.5px;
+                text-align: center;
+                padding: 5px;
+                top: 0px;
+            }
+            #card{
+            rotate:90deg;
+            }
           </style>
         </head>
         <body>
-          ${content.innerHTML}
-          <div style="text-align: center; margin-top: 20px;">
-            <button onclick="window.print()">Print</button>
+          <div style="text-align: center; margin-top: 20px;position: absolute;left:363.5px;z-index:99;">
+            <button id="1" >01</button>
+            <button id="2" >02</button>
+                          <br>
+            <button id="3" >03</button>
+            <button id="4" >04</button>
+                          <br>
+            <button id="5" >05</button>
+            <button id="6" >06</button>
+                          <br>
+            <button id="7" >07</button>
+            <button id="8" >08</button>
+
           </div>
+          ${content.innerHTML}
+<script>
+var Container =document.getElementById("Container");
+var label =document.getElementById("label");
+
+let btn = [];
+for(let x=0;x<=7;x++){
+      btn[x] =document.getElementById(x+1);
+
+      btn[x].addEventListener("click",()=>{
+      // listner Left side
+      if(x % 2== 0){
+      label.style.left="0px";
+      label.style.top=(x/2*271.7)+"px";
+      window.print();
+       // listner Right side
+      }else{
+
+      label.style.left="383.5px";
+      label.style.top=(((x+1)/2-1)*271.7)+"px";
+      window.print();
+      }
+            });
+            
+}
+/*
+var one =document.getElementById("1");
+var two =document.getElementById("2");
+var three =document.getElementById("3");
+var four =document.getElementById("4");
+var five =document.getElementById("5");
+var six =document.getElementById("6");
+var seven =document.getElementById("7");
+var eight =document.getElementById("8");
+
+// one 
+one.addEventListener("click",()=>{
+      label.style.left="0px";
+      label.style.top="0px";
+    window.print();
+});
+*/
+
+</script>
         </body>
       </html>
     `);
