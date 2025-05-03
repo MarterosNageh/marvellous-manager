@@ -23,6 +23,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Fetch users on component mount
   useEffect(() => {
     fetchUsers();
+    
+    // Create admin user if it doesn't exist
+    checkAndCreateAdminUser();
   }, []);
 
   // Check for current session on component mount
@@ -46,6 +49,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // This function will check if admin user exists and create it if not
+  const checkAndCreateAdminUser = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('*')
+        .eq('username', 'admin')
+        .single();
+      
+      if (error || !data) {
+        console.log("Admin user doesn't exist, creating it...");
+        // Create the admin user
+        const { error: insertError } = await supabase
+          .from('auth_users')
+          .insert([
+            { 
+              username: 'admin', 
+              password: 'admin123',
+              is_admin: true
+            }
+          ]);
+        
+        if (insertError) {
+          console.error("Error creating admin user:", insertError);
+        } else {
+          console.log("Admin user created successfully");
+          await fetchUsers(); // Refresh users list
+        }
+      }
+    } catch (error) {
+      console.error("Error checking for admin user:", error);
+    }
+  };
 
   const checkSession = async () => {
     try {
@@ -131,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // If user doesn't exist or password doesn't match
+      // If user doesn't exist
       if (!userData) {
         console.error("User not found");
         return false;
@@ -139,6 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Found user data:", userData.username);
       
+      // Check if password matches
       if (userData.password !== password) {
         console.error("Invalid password");
         return false;
@@ -146,7 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Password matched, proceeding with auth");
 
-      // Special handling for admin user - direct login without Supabase Auth
+      // Admin user - direct login without Supabase Auth
       if (username === 'admin' && password === 'admin123') {
         setCurrentUser({
           id: userData.id,
