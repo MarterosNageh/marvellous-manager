@@ -22,6 +22,11 @@ const Login = () => {
           <p className="text-gray-600 mt-2">Hard Drive Management Solutions</p>
         </div>
         <LoginForm />
+        <div className="text-center mt-4 text-sm text-gray-500">
+          <p>Available users:</p>
+          <p>Admin: username <span className="font-bold">admin</span> / password <span className="font-bold">admin123</span></p>
+          <p>or go to User Management to add more users</p>
+        </div>
       </div>
     </div>
   );
