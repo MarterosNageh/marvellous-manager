@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -91,7 +90,7 @@ const HardDriveDetail = () => {
   };
   
   const copyQRUrl = () => {
-    const url = `${window.location.origin}/public/hard-drives/${hardDrive.id}`;
+    const url = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
     navigator.clipboard.writeText(url);
     toast({
       description: "QR code URL copied to clipboard",
@@ -233,7 +232,7 @@ const HardDriveDetail = () => {
               <CardContent className="flex flex-col items-center">
                 <div className="bg-white p-4 rounded-lg">
                   <QRCodeSVG
-                    value={`${window.location.origin}/public/hard-drives/${hardDrive.id}`}
+                    value={`${window.location.origin}/hard-drives/${hardDrive.id}/view`}
                     size={200}
                     level="H"
                     includeMargin
