@@ -1,10 +1,9 @@
-
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash, ArrowLeft, Plus, Printer, HardDrive as HardDriveIcon } from "lucide-react";
+import { Edit, Trash, ArrowLeft, Plus, Printer, HardDrive as HardDriveIcon, History } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import {
   Table,
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
 
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +48,26 @@ const ProjectDetail = () => {
   }
   
   const hardDrives = getHardDrivesByProject(project.id);
+  
+  // Get print history for this project (both project-specific and for all related hard drives)
+  const { printHistory: allPrintHistory } = useData();
+  const printHistory = allPrintHistory
+    .filter(item => 
+      item.projectId === project.id || 
+      (item.hardDriveId && hardDrives.some(hd => hd.id === item.hardDriveId))
+    )
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .map(item => {
+      // Add hard drive name to the print history item if it's a hard drive print
+      if (item.hardDriveId) {
+        const hardDrive = hardDrives.find(hd => hd.id === item.hardDriveId);
+        return {
+          ...item,
+          hardDriveName: hardDrive ? hardDrive.name : 'Unknown'
+        };
+      }
+      return item;
+    });
   
   const handleDelete = () => {
     deleteProject(project.id);
@@ -126,6 +146,19 @@ const ProjectDetail = () => {
             </dl>
           </CardContent>
         </Card>
+        
+        {/* Print History Card */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold flex items-center">
+            <History className="h-5 w-5 mr-2" />
+            Print History
+          </h2>
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <PrintHistoryTable history={printHistory} showHardDriveName={true} />
+            </CardContent>
+          </Card>
+        </div>
         
         <div className="space-y-4">
           <div className="flex items-center justify-between">
