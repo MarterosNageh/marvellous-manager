@@ -10,6 +10,7 @@ interface HardDriveLabelPrintProps {
 }
 
 export const HardDriveLabelPrint = ({ hardDrive, project }: HardDriveLabelPrintProps) => {
+  // Use the standard view URL for QR code to ensure consistency across the app
   const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
   return (
     <div id="Container" >

@@ -56,6 +56,9 @@ const PublicHardDriveView = () => {
   
   const project = getProject(hardDrive.projectId);
   
+  // Use the same QR code URL format as in the label to ensure consistency
+  const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
+  
   return (
     <div className="min-h-screen bg-gray-50 p-4 py-8">
       <div className="max-w-4xl mx-auto">
