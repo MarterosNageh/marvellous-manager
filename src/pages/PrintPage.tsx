@@ -1,3 +1,4 @@
+
 import { useRef, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -61,6 +62,22 @@ const PrintPage = () => {
         type: printType as PrintType,
         hardDriveId: hardDrive.id,
         projectId: project?.id || null,
+        operatorName,
+      });
+    } else if (printType === "hard-label" && hardDrive) {
+      // Add print history for label prints too
+      addPrintHistory({
+        type: "all-hards", // Use this type for hard drive labels since it's not covered by the PrintType
+        hardDriveId: hardDrive.id,
+        projectId: project?.id || null,
+        operatorName,
+      });
+    } else if (printType === "all-hards" && isProjectPrint && project) {
+      // Add print history for project prints
+      addPrintHistory({
+        type: printType,
+        hardDriveId: null,
+        projectId: project.id,
         operatorName,
       });
     }

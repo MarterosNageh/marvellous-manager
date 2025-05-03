@@ -4,10 +4,12 @@ import { useData } from "@/context/DataContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, XCircle, Edit, Trash, ArrowLeft, Printer } from "lucide-react";
+import { Check, XCircle, Edit, Trash, ArrowLeft, Printer, History } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRef } from "react";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
+import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
+
 const HardDriveDetail = () => {
   const {
     id
@@ -18,7 +20,8 @@ const HardDriveDetail = () => {
   const {
     getHardDrive,
     getProject,
-    deleteHardDrive
+    deleteHardDrive,
+    printHistory
   } = useData();
   const hardDrive = getHardDrive(id || "");
   if (!hardDrive) {
@@ -36,6 +39,12 @@ const HardDriveDetail = () => {
   const project = getProject(hardDrive.projectId);
   const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
   const labelRef = useRef<HTMLDivElement>(null);
+  
+  // Filter print history for this hard drive
+  const printHistory = printHistory.filter(
+    (item) => item.hardDriveId === hardDrive.id
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  
   const handleDelete = () => {
     deleteHardDrive(hardDrive.id);
     navigate("/hard-drives");
@@ -70,6 +79,7 @@ const HardDriveDetail = () => {
     `);
     printWindow.document.close();
   };
+  
   return <MainLayout>
       <div className="space-y-6 px-[15px] mx-[5px] py-[7px]">
         <div className="flex justify-between items-center">
@@ -239,7 +249,21 @@ const HardDriveDetail = () => {
             </div>
           </div>
         </div>
+        
+        {/* Print History Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center">
+              <History className="h-5 w-5 mr-2" />
+              Print History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PrintHistoryTable history={printHistory} />
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>;
 };
+
 export default HardDriveDetail;
