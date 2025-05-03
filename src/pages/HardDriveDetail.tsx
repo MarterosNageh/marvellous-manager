@@ -1,3 +1,4 @@
+
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
@@ -21,7 +22,8 @@ const HardDriveDetail = () => {
     getHardDrive,
     getProject,
     deleteHardDrive,
-    printHistory
+    printHistory,
+    addPrintHistory
   } = useData();
   const hardDrive = getHardDrive(id || "");
   if (!hardDrive) {
@@ -41,7 +43,7 @@ const HardDriveDetail = () => {
   const labelRef = useRef<HTMLDivElement>(null);
   
   // Filter print history for this hard drive
-  const printHistory = printHistory.filter(
+  const hardDriveHistory = printHistory.filter(
     (item) => item.hardDriveId === hardDrive.id
   ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   
@@ -49,8 +51,18 @@ const HardDriveDetail = () => {
     deleteHardDrive(hardDrive.id);
     navigate("/hard-drives");
   };
+  
   const handlePrintLabel = () => {
     if (!labelRef.current) return;
+    
+    // Log the label print in print history
+    addPrintHistory({
+      type: "label",
+      hardDriveId: hardDrive.id,
+      projectId: hardDrive.projectId,
+      operatorName: "Current User" // In a real app, this would use the current user's name
+    });
+    
     const content = labelRef.current;
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -259,7 +271,7 @@ const HardDriveDetail = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <PrintHistoryTable history={printHistory} />
+            <PrintHistoryTable history={hardDriveHistory} />
           </CardContent>
         </Card>
       </div>
