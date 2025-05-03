@@ -3,11 +3,35 @@ import { useParams, Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, XCircle, LogIn } from "lucide-react";
+import { Check, XCircle, LogIn, Printer } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const PublicHardDriveView = () => {
   const { id } = useParams<{ id: string }>();
   const { getHardDrive, getProject } = useData();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  useEffect(() => {
+    // Check if user is authenticated via localStorage
+    const checkAuth = () => {
+      const currentUser = localStorage.getItem('currentUser');
+      setIsAuthenticated(!!currentUser);
+    };
+    
+    // Check authentication on component mount
+    checkAuth();
+    
+    // Set up an event listener for storage changes
+    const handleStorageChange = () => {
+      checkAuth();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
   
   const hardDrive = getHardDrive(id || "");
   
@@ -118,12 +142,21 @@ const PublicHardDriveView = () => {
             )}
             
             <div className="mt-8 text-center">
-              <Link to="/login">
-                <Button>
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Login to System
-                </Button>
-              </Link>
+              {isAuthenticated ? (
+                <Link to={`/hard-drives/${hardDrive.id}/print`}>
+                  <Button>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Forms
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/login">
+                  <Button>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Login to System
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
