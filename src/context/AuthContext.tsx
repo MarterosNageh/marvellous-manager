@@ -117,24 +117,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      // First, fetch user by username
+      // First, check if the user exists in auth_users table
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
         .select('*')
         .eq('username', username)
-        .single();
+        .maybeSingle();
 
-      if (userError || !userData) {
-        console.error("User not found or error:", userError);
+      if (userError) {
+        console.error("Error fetching user:", userError);
         return false;
       }
 
-      // Verify password (Note: In production, use proper password hashing)
-      if (userData.password !== password) {
+      // If user doesn't exist or password doesn't match
+      if (!userData || userData.password !== password) {
+        console.error("Invalid username or password");
         return false;
       }
 
-      // Sign in with Supabase Auth
+      // If credentials are valid, try to sign in with Supabase Auth
       const { error } = await supabase.auth.signInWithPassword({
         email: `${username}@example.com`, // Using username as email for Supabase auth
         password: password,
