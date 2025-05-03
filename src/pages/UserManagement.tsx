@@ -26,11 +26,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const UserManagement = () => {
   const { users, currentUser, addUser, removeUser } = useAuth();
-  const { toast } = useToast();
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
@@ -41,21 +40,13 @@ const UserManagement = () => {
 
   const handleAddUser = async () => {
     if (!newUser.username || !newUser.password) {
-      toast({
-        title: "Error",
-        description: "Username and password are required",
-        variant: "destructive",
-      });
+      toast.error("Username and password are required");
       return;
     }
     
     // Check if username already exists
     if (users.some((user) => user.username === newUser.username)) {
-      toast({
-        title: "Error",
-        description: "Username already exists",
-        variant: "destructive",
-      });
+      toast.error("Username already exists");
       return;
     }
     
@@ -65,18 +56,8 @@ const UserManagement = () => {
       await addUser(newUser);
       setNewUser({ username: "", password: "", isAdmin: false });
       setIsDialogOpen(false);
-      
-      toast({
-        title: "Success",
-        description: "User added successfully",
-      });
     } catch (error) {
       console.error("Error adding user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add user. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -87,10 +68,7 @@ const UserManagement = () => {
     
     // Check if test user already exists
     if (users.some((user) => user.username === "test")) {
-      toast({
-        title: "Info",
-        description: "Test user already exists",
-      });
+      toast.info("Test user already exists");
       setIsLoading(false);
       return;
     }
@@ -102,17 +80,9 @@ const UserManagement = () => {
         isAdmin: false,
       });
       
-      toast({
-        title: "Success",
-        description: "Test user added successfully. Username: test, Password: test123",
-      });
+      toast.success("Test user added successfully. Username: test, Password: test123");
     } catch (error) {
       console.error("Error adding test user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add test user. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -123,17 +93,8 @@ const UserManagement = () => {
     
     try {
       await removeUser(userId);
-      toast({
-        title: "Success",
-        description: "User removed successfully",
-      });
     } catch (error) {
       console.error("Error removing user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to remove user. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }

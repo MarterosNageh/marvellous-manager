@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AuthContextType {
   currentUser: User | null;
@@ -67,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!data) {
         console.log("Admin user doesn't exist, creating it...");
         // Create the admin user
-        const { error: insertError } = await supabase
+        const { data: insertData, error: insertError } = await supabase
           .from('auth_users')
           .insert([
             { 
@@ -75,10 +76,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               password: 'admin123',
               is_admin: true
             }
-          ]);
+          ])
+          .select();
         
         if (insertError) {
           console.error("Error creating admin user:", insertError);
+          toast.error("Failed to create admin user. Please check the console for details.");
         } else {
           console.log("Admin user created successfully");
           await fetchUsers(); // Refresh users list
@@ -218,6 +221,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addUser = async (user: Omit<User, "id">) => {
     try {
+      console.log("Adding user:", user);
+      
+      // Check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('auth_users')
+        .select('*')
+        .eq('username', user.username)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking existing user:", checkError);
+        toast.error("Error checking if user already exists");
+        return;
+      }
+      
+      if (existingUser) {
+        console.log("User already exists:", existingUser);
+        toast.error("Username already exists");
+        return;
+      }
+
       // Create user in auth_users table
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
@@ -228,17 +252,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             is_admin: user.isAdmin
           }
         ])
-        .select();
+        .select('*');
 
       if (userError) {
-        console.error("Error adding user to auth_users:", userError);
+        console.error("Error adding user:", userError);
+        toast.error("Failed to add user: " + userError.message);
         return;
       }
+      
+      console.log("User added successfully:", userData);
+      toast.success(`User ${user.username} added successfully`);
 
       // Refresh users list
       await fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding user:", error);
+      toast.error("Failed to add user: " + error.message);
     }
   };
 
@@ -252,13 +281,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error("Error removing user:", error);
+        toast.error("Failed to remove user: " + error.message);
         return;
       }
 
+      toast.success("User removed successfully");
+      
       // Refresh users list
       await fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error removing user:", error);
+      toast.error("Failed to remove user: " + error.message);
     }
   };
 
