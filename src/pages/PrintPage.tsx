@@ -1,4 +1,3 @@
-
 import { useRef, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -94,15 +93,23 @@ const PrintPage = () => {
         <head>
           <title>Print Document - Marvellous Manager</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            body { 
+              font-family: 'Inter', Arial, sans-serif; 
+              margin: 0; 
+              padding: 0; 
+            }
             @media print {
               body { padding: 0; }
               button { display: none; }
+              @page { margin: 0; }
             }
              #Container {
                 width: 767px;
                 height: 1087px;
-                margin-top: 8px;
+                margin: 0 auto;
+                position: relative;
+                background-color: white;
             }
             #label {
                 height: 271.7;
@@ -113,69 +120,88 @@ const PrintPage = () => {
                 padding: 5px;
                 top: 0px;
             }
-            #card{
-            rotate:90deg;
+            #card {
+              rotate: 90deg;
+            }
+            .print-controls {
+              padding: 20px;
+              background: #f5f5f5;
+              border-bottom: 1px solid #ddd;
+              text-align: center;
+              display: flex;
+              justify-content: center;
+              flex-wrap: wrap;
+              gap: 10px;
+            }
+            .print-controls button {
+              background: #0070f3;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 4px;
+              cursor: pointer;
+              font-weight: 500;
+              margin: 5px;
+            }
+            .print-controls button:hover {
+              background: #0051a8;
+            }
+            .content-wrapper {
+              padding: 20px;
+            }
+            h1, h2, h3 {
+              margin-top: 0;
+            }
+            p {
+              margin: 5px 0;
             }
           </style>
         </head>
         <body>
-          <div style="text-align: center; margin-top: 20px;position: absolute;left:363.5px;z-index:99;">
-            <button id="1" >01</button>
-            <button id="2" >02</button>
-                          <br>
-            <button id="3" >03</button>
-            <button id="4" >04</button>
-                          <br>
-            <button id="5" >05</button>
-            <button id="6" >06</button>
-                          <br>
-            <button id="7" >07</button>
-            <button id="8" >08</button>
-
+          <div class="print-controls">
+            <button onclick="window.print();return false;">Print Document</button>
+            <button onclick="window.close();">Close</button>
+            ${printType === "hard-label" ? `
+              <div style="width: 100%; text-align:center; margin-top: 10px;">
+                <button id="1">Position 1</button>
+                <button id="2">Position 2</button>
+                <button id="3">Position 3</button>
+                <button id="4">Position 4</button>
+                <button id="5">Position 5</button>
+                <button id="6">Position 6</button>
+                <button id="7">Position 7</button>
+                <button id="8">Position 8</button>
+              </div>
+            ` : ''}
           </div>
-          ${content.innerHTML}
+          <div class="content-wrapper">
+            ${content.innerHTML}
+          </div>
 <script>
-var Container =document.getElementById("Container");
-var label =document.getElementById("label");
+var Container = document.getElementById("Container");
+var label = document.getElementById("label");
 
-let btn = [];
-for(let x=0;x<=7;x++){
-      btn[x] =document.getElementById(x+1);
-
-      btn[x].addEventListener("click",()=>{
-      // listner Left side
-      if(x % 2== 0){
-      label.style.left="0px";
-      label.style.top=(x/2*271.7)+"px";
-      window.print();
-       // listner Right side
-      }else{
-
-      label.style.left="383.5px";
-      label.style.top=(((x+1)/2-1)*271.7)+"px";
-      window.print();
-      }
-            });
-            
+if (label) {
+  let btn = [];
+  for(let x=0; x<=7; x++){
+    btn[x] = document.getElementById(x+1);
+    if (btn[x]) {
+      btn[x].addEventListener("click", () => {
+        // Left side
+        if(x % 2 === 0){
+          label.style.left = "0px";
+          label.style.top = (x/2*271.7) + "px";
+          window.print();
+        // Right side
+        } else {
+          label.style.left = "383.5px";
+          label.style.top = (((x+1)/2-1)*271.7) + "px";
+          window.print();
+        }
+      });
+    }
+  }
 }
-/*
-var one =document.getElementById("1");
-var two =document.getElementById("2");
-var three =document.getElementById("3");
-var four =document.getElementById("4");
-var five =document.getElementById("5");
-var six =document.getElementById("6");
-var seven =document.getElementById("7");
-var eight =document.getElementById("8");
-
-// one 
-one.addEventListener("click",()=>{
-      label.style.left="0px";
-      label.style.top="0px";
-    window.print();
-});
-*/
-
 </script>
         </body>
       </html>
@@ -198,9 +224,6 @@ one.addEventListener("click",()=>{
           </CardHeader>
           <CardContent className="space-y-4">
             {!isProjectPrint && <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                
-                
-                
               </div>}
             
             <div className="space-y-2">
