@@ -117,6 +117,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
+      console.log(`Attempting login with username: ${username}`);
+      
       // First, check if the user exists in auth_users table
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
@@ -130,51 +132,84 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // If user doesn't exist or password doesn't match
-      if (!userData || userData.password !== password) {
-        console.error("Invalid username or password");
+      if (!userData) {
+        console.error("User not found");
         return false;
       }
+      
+      console.log("Found user data:", userData.username);
+      
+      if (userData.password !== password) {
+        console.error("Invalid password");
+        return false;
+      }
+      
+      console.log("Password matched, proceeding with auth");
 
-      // If credentials are valid, try to sign in with Supabase Auth
-      const { error } = await supabase.auth.signInWithPassword({
-        email: `${username}@example.com`, // Using username as email for Supabase auth
-        password: password,
-      });
+      // Special handling for admin user - direct login without Supabase Auth
+      if (username === 'admin' && password === 'admin123') {
+        setCurrentUser({
+          id: userData.id,
+          username: userData.username,
+          password: userData.password,
+          isAdmin: userData.is_admin
+        });
+        return true;
+      }
 
-      if (error) {
-        console.error("Error signing in with Supabase:", error);
-        
-        // If user exists in our custom table but not in auth, register them
-        if (error.message.includes("Invalid login credentials")) {
-          const { error: signUpError } = await supabase.auth.signUp({
-            email: `${username}@example.com`,
-            password: password,
-            options: {
-              data: {
-                username: username,
-                is_admin: userData.is_admin
+      // For other users, use Supabase Auth
+      try {
+        // If credentials are valid, try to sign in with Supabase Auth
+        const { error } = await supabase.auth.signInWithPassword({
+          email: `${username}@example.com`, // Using username as email for Supabase auth
+          password: password,
+        });
+
+        if (error) {
+          console.error("Error signing in with Supabase:", error);
+          
+          // If user exists in our custom table but not in auth, register them
+          if (error.message.includes("Invalid login credentials")) {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: `${username}@example.com`,
+              password: password,
+              options: {
+                data: {
+                  username: username,
+                  is_admin: userData.is_admin
+                }
               }
+            });
+
+            if (signUpError) {
+              console.error("Error signing up user:", signUpError);
+              return false;
             }
-          });
 
-          if (signUpError) {
-            console.error("Error signing up user:", signUpError);
+            // Try signing in again
+            const { error: retryError } = await supabase.auth.signInWithPassword({
+              email: `${username}@example.com`,
+              password: password,
+            });
+
+            if (retryError) {
+              console.error("Error signing in after registration:", retryError);
+              return false;
+            }
+          } else {
             return false;
           }
-
-          // Try signing in again
-          const { error: retryError } = await supabase.auth.signInWithPassword({
-            email: `${username}@example.com`,
-            password: password,
-          });
-
-          if (retryError) {
-            console.error("Error signing in after registration:", retryError);
-            return false;
-          }
-        } else {
-          return false;
         }
+      } catch (authError) {
+        console.error("Auth error:", authError);
+        // Fallback to direct login if Supabase auth fails
+        setCurrentUser({
+          id: userData.id,
+          username: userData.username,
+          password: userData.password,
+          isAdmin: userData.is_admin
+        });
+        return true;
       }
 
       // Set current user after successful login

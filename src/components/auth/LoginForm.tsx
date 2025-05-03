@@ -29,9 +29,17 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
+      console.log(`Submitting login for user: ${username}`);
+      
       const success = await login(username, password);
       
-      if (!success) {
+      if (success) {
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+        });
+      } else {
+        console.error("Login failed");
         toast({
           title: "Login Failed",
           description: "Invalid username or password. Please check your credentials and try again.",
