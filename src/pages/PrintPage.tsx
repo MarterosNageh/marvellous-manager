@@ -158,20 +158,23 @@ const PrintPage = () => {
           </style>
         </head>
         <body>
-          <div class="print-controls">
-            <button onclick="window.print();return false;">Print Document</button>
-            <button onclick="window.close();">Close</button>
+          <div >
+
             ${printType === "hard-label" ? `
-              <div style="width: 100%; text-align:center; margin-top: 10px;">
-                <button id="1">Position 1</button>
-                <button id="2">Position 2</button>
-                <button id="3">Position 3</button>
-                <button id="4">Position 4</button>
-                <button id="5">Position 5</button>
-                <button id="6">Position 6</button>
-                <button id="7">Position 7</button>
-                <button id="8">Position 8</button>
-              </div>
+          <div style="text-align: center; margin-top: 20px;position: absolute;left:363.5px;z-index:99;">
+            <button id="1" >01</button>
+            <button id="2" >02</button>
+                          <br>
+            <button id="3" >03</button>
+            <button id="4" >04</button>
+                          <br>
+            <button id="5" >05</button>
+            <button id="6" >06</button>
+                          <br>
+            <button id="7" >07</button>
+            <button id="8" >08</button>
+
+          </div>
             ` : ''}
           </div>
           <div class="content-wrapper">
