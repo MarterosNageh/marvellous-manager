@@ -5,21 +5,14 @@ import { useAuth } from "@/context/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
 
 const Login = () => {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Store authentication state in localStorage
-      localStorage.setItem('currentUser', JSON.stringify({
-        id: currentUser?.id,
-        username: currentUser?.username,
-        isAdmin: currentUser?.isAdmin
-      }));
-      
       navigate("/dashboard");
     }
-  }, [isAuthenticated, currentUser, navigate]);
+  }, [isAuthenticated, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

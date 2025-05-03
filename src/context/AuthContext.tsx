@@ -27,6 +27,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     // Create admin user if it doesn't exist
     checkAndCreateAdminUser();
+
+    // Check for user in localStorage on initial load
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setCurrentUser(parsedUser);
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem('currentUser');
+      }
+    }
   }, []);
 
   // Check for current session on component mount
@@ -196,12 +208,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Password matched, setting current user");
 
       // Set current user without using Supabase Auth
-      setCurrentUser({
+      const user = {
         id: userData.id,
         username: userData.username,
         password: userData.password,
         isAdmin: userData.is_admin
-      });
+      };
+      
+      setCurrentUser(user);
+      
+      // Store user in localStorage for session persistence
+      localStorage.setItem('currentUser', JSON.stringify(user));
 
       return true;
     } catch (error) {
