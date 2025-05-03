@@ -57,9 +57,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('auth_users')
         .select('*')
         .eq('username', 'admin')
-        .single();
+        .maybeSingle();
       
-      if (error || !data) {
+      if (error) {
+        console.error("Error checking for admin user:", error);
+        return;
+      }
+      
+      if (!data) {
         console.log("Admin user doesn't exist, creating it...");
         // Create the admin user
         const { error: insertError } = await supabase
@@ -78,6 +83,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log("Admin user created successfully");
           await fetchUsers(); // Refresh users list
         }
+      } else {
+        console.log("Admin user exists:", data.username);
       }
     } catch (error) {
       console.error("Error checking for admin user:", error);
@@ -106,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .from('auth_users')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error("Error fetching user data:", error);
@@ -147,6 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }));
 
       setUsers(formattedUsers);
+      console.log("Fetched users:", formattedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -156,37 +164,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log(`Attempting login with username: ${username}`);
       
-      // Handle admin user login immediately without further checks if credentials match
-      if (username === 'admin' && password === 'admin123') {
-        console.log("Admin credentials detected, fetching admin user data");
-        
-        const { data: userData, error: userError } = await supabase
-          .from('auth_users')
-          .select('*')
-          .eq('username', 'admin')
-          .maybeSingle();
-
-        if (userError) {
-          console.error("Error fetching admin user:", userError);
-          return false;
-        }
-
-        if (!userData) {
-          console.error("Admin user not found in database");
-          return false;
-        }
-        
-        console.log("Admin user found, setting current user");
-        setCurrentUser({
-          id: userData.id,
-          username: userData.username,
-          password: userData.password,
-          isAdmin: userData.is_admin
-        });
-        return true;
-      }
-      
-      // For non-admin users, check if the user exists in auth_users table
+      // Direct database login without going through Supabase Auth for simplicity
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
         .select('*')
@@ -212,64 +190,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       
-      console.log("Password matched, proceeding with auth");
+      console.log("Password matched, setting current user");
 
-      // For non-admin users, use Supabase Auth
-      try {
-        // If credentials are valid, try to sign in with Supabase Auth
-        const { error } = await supabase.auth.signInWithPassword({
-          email: `${username}@example.com`, // Using username as email for Supabase auth
-          password: password,
-        });
-
-        if (error) {
-          console.error("Error signing in with Supabase:", error);
-          
-          // If user exists in our custom table but not in auth, register them
-          if (error.message.includes("Invalid login credentials")) {
-            const { error: signUpError } = await supabase.auth.signUp({
-              email: `${username}@example.com`,
-              password: password,
-              options: {
-                data: {
-                  username: username,
-                  is_admin: userData.is_admin
-                }
-              }
-            });
-
-            if (signUpError) {
-              console.error("Error signing up user:", signUpError);
-              return false;
-            }
-
-            // Try signing in again
-            const { error: retryError } = await supabase.auth.signInWithPassword({
-              email: `${username}@example.com`,
-              password: password,
-            });
-
-            if (retryError) {
-              console.error("Error signing in after registration:", retryError);
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-      } catch (authError) {
-        console.error("Auth error:", authError);
-        // Fallback to direct login if Supabase auth fails
-        setCurrentUser({
-          id: userData.id,
-          username: userData.username,
-          password: userData.password,
-          isAdmin: userData.is_admin
-        });
-        return true;
-      }
-
-      // Set current user after successful login
+      // Set current user without using Supabase Auth
       setCurrentUser({
         id: userData.id,
         username: userData.username,
@@ -295,7 +218,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addUser = async (user: Omit<User, "id">) => {
     try {
-      // First, create user in auth_users table
+      // Create user in auth_users table
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
         .insert([
@@ -310,22 +233,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (userError) {
         console.error("Error adding user to auth_users:", userError);
         return;
-      }
-
-      // Then, create user in Supabase Auth (if needed)
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: `${user.username}@example.com`,
-        password: user.password,
-        options: {
-          data: {
-            username: user.username,
-            is_admin: user.isAdmin
-          }
-        }
-      });
-
-      if (signUpError) {
-        console.error("Error adding user to Supabase Auth:", signUpError);
       }
 
       // Refresh users list

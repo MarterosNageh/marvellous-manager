@@ -29,7 +29,7 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
-      console.log(`Submitting login for user: ${username}`);
+      console.log(`Attempting login for user: ${username}`);
       
       const success = await login(username, password);
       
@@ -91,8 +91,10 @@ const LoginForm = () => {
               disabled={isLoading}
             />
           </div>
-          <div className="text-sm text-gray-500">
-            <p>Admin login: username: admin, password: admin123</p>
+          <div className="text-sm text-gray-500 space-y-1">
+            <p className="font-medium">Available users:</p>
+            <p>Admin login: <span className="font-semibold">admin</span> / <span className="font-semibold">admin123</span></p>
+            <p>Test user: <span className="font-semibold">test</span> / <span className="font-semibold">test123</span> (if created)</p>
           </div>
         </CardContent>
         <CardFooter>
