@@ -67,7 +67,7 @@ const PrintPage = () => {
     } else if (printType === "hard-label" && hardDrive) {
       // Add print history for label prints too
       addPrintHistory({
-        type: "all-hards", // Use this type for hard drive labels since it's not covered by the PrintType
+        type: "label", // Now this is a valid PrintType
         hardDriveId: hardDrive.id,
         projectId: project?.id || null,
         operatorName,
