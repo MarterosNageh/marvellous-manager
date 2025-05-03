@@ -33,7 +33,7 @@ export interface HardDrive {
   updatedAt: string;
 }
 
-export type PrintType = 'hard-out' | 'hard-in' | 'all-hards';
+export type PrintType = 'hard-out' | 'hard-in' | 'all-hards' | 'label';
 
 export interface PrintData {
   type: PrintType;
