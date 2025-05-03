@@ -9,6 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      auth_users: {
+        Row: {
+          created_at: string
+          id: string
+          is_admin: boolean
+          password: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          password: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          password?: string
+          username?: string
+        }
+        Relationships: []
+      }
       hard_drives: {
         Row: {
           cables: Json

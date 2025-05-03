@@ -37,8 +37,9 @@ const UserManagement = () => {
     isAdmin: false,
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUser.username || !newUser.password) {
       toast({
         title: "Error",
@@ -58,22 +59,48 @@ const UserManagement = () => {
       return;
     }
     
-    addUser(newUser);
-    setNewUser({ username: "", password: "", isAdmin: false });
-    setIsDialogOpen(false);
+    setIsLoading(true);
     
-    toast({
-      title: "Success",
-      description: "User added successfully",
-    });
+    try {
+      await addUser(newUser);
+      setNewUser({ username: "", password: "", isAdmin: false });
+      setIsDialogOpen(false);
+      
+      toast({
+        title: "Success",
+        description: "User added successfully",
+      });
+    } catch (error) {
+      console.error("Error adding user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add user. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRemoveUser = (userId: string) => {
-    removeUser(userId);
-    toast({
-      title: "Success",
-      description: "User removed successfully",
-    });
+  const handleRemoveUser = async (userId: string) => {
+    setIsLoading(true);
+    
+    try {
+      await removeUser(userId);
+      toast({
+        title: "Success",
+        description: "User removed successfully",
+      });
+    } catch (error) {
+      console.error("Error removing user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove user. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -143,7 +170,9 @@ const UserManagement = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddUser}>Add User</Button>
+                <Button onClick={handleAddUser} disabled={isLoading}>
+                  {isLoading ? "Adding..." : "Add User"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -188,6 +217,7 @@ const UserManagement = () => {
                               <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={isLoading}
                               >
                                 <Trash className="h-4 w-4" />
                               </Button>
@@ -205,6 +235,7 @@ const UserManagement = () => {
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleRemoveUser(user.id)}
+                                  disabled={isLoading}
                                 >
                                   Delete
                                 </AlertDialogAction>
