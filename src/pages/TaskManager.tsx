@@ -1,4 +1,3 @@
-Task manager   
 import { MainLayout } from "@/components/layout/MainLayout";
 
 const TaskManager = () => {
