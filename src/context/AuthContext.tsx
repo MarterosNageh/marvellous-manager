@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,46 +20,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch users on component mount
+  // Initialize - check for stored user first before any other operations
   useEffect(() => {
-    fetchUsers();
-    
-    // Create admin user if it doesn't exist
-    checkAndCreateAdminUser();
-
-    // Check for user in localStorage on initial load
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
+    const initializeAuth = async () => {
+      // First check for stored user in localStorage to restore session
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setCurrentUser(parsedUser);
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setCurrentUser(parsedUser);
+          console.log("Session restored from localStorage:", parsedUser.username);
+        }
       } catch (error) {
         console.error("Error parsing stored user:", error);
         localStorage.removeItem('currentUser');
       }
-    }
-  }, []);
 
-  // Check for current session on component mount
-  useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session) {
-          // If session exists, fetch the user from the database
-          await fetchCurrentUser();
-        } else {
-          setCurrentUser(null);
-        }
-        setIsLoading(false);
-      }
-    );
-
-    // Initial session check
-    checkSession();
-
-    return () => {
-      authListener.subscription.unsubscribe();
+      // Then fetch users and check/create admin user
+      await fetchUsers();
+      await checkAndCreateAdminUser();
+      setIsLoading(false);
     };
+
+    initializeAuth();
   }, []);
 
   // This function will check if admin user exists and create it if not
@@ -324,6 +306,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     users,
   };
 
+  // Only render children when authentication is initialized
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
