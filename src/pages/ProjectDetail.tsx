@@ -1,3 +1,4 @@
+
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
@@ -147,19 +148,6 @@ const ProjectDetail = () => {
           </CardContent>
         </Card>
         
-        {/* Print History Card */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold flex items-center">
-            <History className="h-5 w-5 mr-2" />
-            Print History
-          </h2>
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              <PrintHistoryTable history={printHistory} showHardDriveName={true} />
-            </CardContent>
-          </Card>
-        </div>
-        
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Hard Drives</h2>
@@ -233,6 +221,19 @@ const ProjectDetail = () => {
               </Card>
             </div>
           )}
+        </div>
+        
+        {/* Print History Card - Now positioned below Hard Drives */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold flex items-center">
+            <History className="h-5 w-5 mr-2" />
+            Print History
+          </h2>
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <PrintHistoryTable history={printHistory} showHardDriveName={true} />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </MainLayout>
