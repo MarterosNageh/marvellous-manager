@@ -47,6 +47,8 @@ export const PrintHistoryTable = ({
         return "Hard Drive In";
       case "all-hards":
         return "All Hard Drives";
+      case "label":
+        return "Hard Drive Label";
       default:
         return type;
     }
