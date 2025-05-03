@@ -91,6 +91,9 @@ const LoginForm = () => {
               disabled={isLoading}
             />
           </div>
+          <div className="text-sm text-gray-500">
+            <p>Admin login: username: admin, password: admin123</p>
+          </div>
         </CardContent>
         <CardFooter>
           <Button 
