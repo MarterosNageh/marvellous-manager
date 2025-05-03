@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash, User } from "lucide-react";
+import { Plus, Trash, User, UserPlus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -82,6 +82,42 @@ const UserManagement = () => {
     }
   };
 
+  const handleAddTestUser = async () => {
+    setIsLoading(true);
+    
+    // Check if test user already exists
+    if (users.some((user) => user.username === "test")) {
+      toast({
+        title: "Info",
+        description: "Test user already exists",
+      });
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      await addUser({
+        username: "test",
+        password: "test123",
+        isAdmin: false,
+      });
+      
+      toast({
+        title: "Success",
+        description: "Test user added successfully. Username: test, Password: test123",
+      });
+    } catch (error) {
+      console.error("Error adding test user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add test user. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRemoveUser = async (userId: string) => {
     setIsLoading(true);
     
@@ -108,74 +144,80 @@ const UserManagement = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add User
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New User</DialogTitle>
-                <DialogDescription>
-                  Create a new user account
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    value={newUser.username}
-                    onChange={(e) =>
-                      setNewUser((prev) => ({
-                        ...prev,
-                        username: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) =>
-                      setNewUser((prev) => ({
-                        ...prev,
-                        password: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isAdmin"
-                    checked={newUser.isAdmin}
-                    onCheckedChange={(checked) =>
-                      setNewUser((prev) => ({
-                        ...prev,
-                        isAdmin: !!checked,
-                      }))
-                    }
-                  />
-                  <label
-                    htmlFor="isAdmin"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Admin User
-                  </label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleAddUser} disabled={isLoading}>
-                  {isLoading ? "Adding..." : "Add User"}
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={handleAddTestUser} disabled={isLoading}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Test User
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add User
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>
+                    Create a new user account
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      value={newUser.username}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          username: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isAdmin"
+                      checked={newUser.isAdmin}
+                      onCheckedChange={(checked) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          isAdmin: !!checked,
+                        }))
+                      }
+                    />
+                    <label
+                      htmlFor="isAdmin"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Admin User
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={handleAddUser} disabled={isLoading}>
+                    {isLoading ? "Adding..." : "Add User"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
