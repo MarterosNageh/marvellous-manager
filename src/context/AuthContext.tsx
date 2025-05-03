@@ -214,6 +214,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await supabase.auth.signOut();
       setCurrentUser(null);
+      // Clear authentication state from localStorage
+      localStorage.removeItem('currentUser');
     } catch (error) {
       console.error("Error during logout:", error);
     }
