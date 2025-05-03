@@ -156,7 +156,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log(`Attempting login with username: ${username}`);
       
-      // First, check if the user exists in auth_users table
+      // Handle admin user login immediately without further checks if credentials match
+      if (username === 'admin' && password === 'admin123') {
+        console.log("Admin credentials detected, fetching admin user data");
+        
+        const { data: userData, error: userError } = await supabase
+          .from('auth_users')
+          .select('*')
+          .eq('username', 'admin')
+          .maybeSingle();
+
+        if (userError) {
+          console.error("Error fetching admin user:", userError);
+          return false;
+        }
+
+        if (!userData) {
+          console.error("Admin user not found in database");
+          return false;
+        }
+        
+        console.log("Admin user found, setting current user");
+        setCurrentUser({
+          id: userData.id,
+          username: userData.username,
+          password: userData.password,
+          isAdmin: userData.is_admin
+        });
+        return true;
+      }
+      
+      // For non-admin users, check if the user exists in auth_users table
       const { data: userData, error: userError } = await supabase
         .from('auth_users')
         .select('*')
@@ -184,18 +214,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Password matched, proceeding with auth");
 
-      // Admin user - direct login without Supabase Auth
-      if (username === 'admin' && password === 'admin123') {
-        setCurrentUser({
-          id: userData.id,
-          username: userData.username,
-          password: userData.password,
-          isAdmin: userData.is_admin
-        });
-        return true;
-      }
-
-      // For other users, use Supabase Auth
+      // For non-admin users, use Supabase Auth
       try {
         // If credentials are valid, try to sign in with Supabase Auth
         const { error } = await supabase.auth.signInWithPassword({
