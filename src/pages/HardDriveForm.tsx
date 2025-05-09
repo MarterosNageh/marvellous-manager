@@ -285,7 +285,10 @@ const HardDriveForm = () => {
                   <Label htmlFor="otherCables">Other Cables</Label>
                   <Input
                     id="otherCables"
+<<<<<<< HEAD
                     name="otherCables"
+=======
+>>>>>>> 4a4ba42 (Fix: Realtime updates for hard drives)
                     value={formData.cables.other || ""}
                     onChange={handleOtherCablesChange}
                     placeholder="List any other cables"
