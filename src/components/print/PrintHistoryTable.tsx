@@ -1,6 +1,6 @@
 
 import React from "react";
-import { format, formatDistanceToNow } from "date-fns";  // Fixed import here
+import { format as dateFormat, formatDistanceToNow as distanceToNow } from "date-fns";  
 import { 
   Table,
   TableBody,
@@ -20,10 +20,12 @@ interface PrintHistoryItem {
   projectId: string | null;
   operatorName: string;
   timestamp: string;
+  hardDriveName?: string;
 }
 
 interface PrintHistoryTableProps {
   history: PrintHistoryItem[];
+  showHardDriveName?: boolean;
 }
 
 // Function to get a friendly print type name
@@ -42,7 +44,10 @@ const getPrintTypeName = (type: string): string => {
   }
 };
 
-export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history }) => {
+export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ 
+  history, 
+  showHardDriveName = false 
+}) => {
   if (!history || history.length === 0) {
     return (
       <div className="text-center p-4 text-muted-foreground">
@@ -57,6 +62,7 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history })
       <TableHeader>
         <TableRow>
           <TableHead>Type</TableHead>
+          {showHardDriveName && <TableHead>Hard Drive</TableHead>}
           <TableHead>Operator</TableHead>
           <TableHead>Date</TableHead>
           <TableHead>Time</TableHead>
@@ -66,12 +72,13 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history })
         {history.map((item) => (
           <TableRow key={item.id}>
             <TableCell className="font-medium">{getPrintTypeName(item.type)}</TableCell>
+            {showHardDriveName && <TableCell>{item.hardDriveName || "Unknown"}</TableCell>}
             <TableCell>{item.operatorName}</TableCell>
-            <TableCell>{format(new Date(item.timestamp), "PPP")}</TableCell>
+            <TableCell>{dateFormat(new Date(item.timestamp), "PPP")}</TableCell>
             <TableCell>
-              {format(new Date(item.timestamp), "p")} 
+              {dateFormat(new Date(item.timestamp), "p")} 
               <span className="text-muted-foreground text-sm ml-2">
-                ({formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })})
+                ({distanceToNow(new Date(item.timestamp), { addSuffix: true })})
               </span>
             </TableCell>
           </TableRow>
