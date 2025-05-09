@@ -50,13 +50,6 @@ const HardDriveDetail = () => {
   }
   
   const generateLabelToPrint = () => {
-    const labelData = {
-      type: "label" as const,
-      hardDriveId: hardDrive.id,
-      projectId: project?.id || null,
-      operatorName: "System",
-    };
-    
     navigate(`/hard-drives/${hardDrive.id}/print?type=hard-label`);
   };
   
@@ -84,6 +77,7 @@ const HardDriveDetail = () => {
     if (hardDrive.cables.typeC) cableItems.push("USB-C");
     if (hardDrive.cables.power) cableItems.push("Power");
     if (hardDrive.cables.usb3) cableItems.push("USB 3.0");
+    if (hardDrive.cables.passport) cableItems.push("Passport Cable");
     if (hardDrive.cables.other) cableItems.push(hardDrive.cables.other);
     
     return cableItems.length > 0 ? cableItems.join(", ") : "None";

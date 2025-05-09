@@ -127,6 +127,14 @@ const PublicHardDriveView = () => {
                     )}
                     <span>USB 3</span>
                   </li>
+                  <li className="flex items-center">
+                    {hardDrive.cables.passport ? (
+                      <Check className="h-5 w-5 text-green-500 mr-2" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
+                    )}
+                    <span>Passport Cable</span>
+                  </li>
                 </ul>
                 {hardDrive.cables.other && (
                   <div className="mt-2">

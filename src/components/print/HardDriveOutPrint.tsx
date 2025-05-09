@@ -114,6 +114,7 @@ export const HardDriveOutPrint = ({
               {hardDrive.cables.typeC && <li>USB Type C</li>}
               {hardDrive.cables.power && <li>Power</li>}
               {hardDrive.cables.usb3 && <li>USB 3</li>}
+              {hardDrive.cables.passport && <li>Passport Cable</li>}
               {hardDrive.cables.other && <li>{hardDrive.cables.other}</li>}
             </ul>
           </div>

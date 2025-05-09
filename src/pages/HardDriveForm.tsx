@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -38,6 +39,7 @@ const HardDriveForm = () => {
       typeC: false,
       power: false,
       usb3: false,
+      passport: false,
       other: ""
     }
   });
@@ -48,6 +50,12 @@ const HardDriveForm = () => {
     if (id) {
       const hardDrive = getHardDrive(id);
       if (hardDrive) {
+        // Ensure the passport cable property exists (for backward compatibility)
+        const updatedCables = {
+          ...hardDrive.cables,
+          passport: hardDrive.cables.passport || false
+        };
+        
         setFormData({
           name: hardDrive.name,
           serialNumber: hardDrive.serialNumber,
@@ -55,7 +63,7 @@ const HardDriveForm = () => {
           capacity: hardDrive.capacity,
           freeSpace: hardDrive.freeSpace,
           data: hardDrive.data,
-          cables: hardDrive.cables
+          cables: updatedCables
         });
       }
     }
@@ -76,6 +84,16 @@ const HardDriveForm = () => {
         }
       }));
     }
+  };
+  
+  const handleOtherCablesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      cables: {
+        ...prev.cables,
+        other: e.target.value
+      }
+    }));
   };
   
   const handleProjectChange = (value: string) => {
@@ -110,9 +128,7 @@ const HardDriveForm = () => {
           description: "Hard drive created successfully",
         });
         
-        setTimeout(() => {
-          navigate(`/hard-drives/${newId}`);
-        }, 100);
+        navigate(`/hard-drives/${newId}`);
       }
     } catch (error) {
       console.error("Error saving hard drive:", error);
@@ -255,6 +271,15 @@ const HardDriveForm = () => {
                     />
                     <Label htmlFor="usb3" className="cursor-pointer">USB 3.0</Label>
                   </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="passport" 
+                      checked={formData.cables.passport} 
+                      onCheckedChange={(checked) => handleCheckboxChange("passport", !!checked)}
+                    />
+                    <Label htmlFor="passport" className="cursor-pointer">Passport Cable</Label>
+                  </div>
                 </div>
                 
                 <div className="mt-2">
@@ -262,7 +287,7 @@ const HardDriveForm = () => {
                   <Input
                     id="otherCables"
                     value={formData.cables.other}
-                    onChange={(e) => handleCheckboxChange("other", e.target.value as any)}
+                    onChange={handleOtherCablesChange}
                     placeholder="List any other cables"
                   />
                 </div>

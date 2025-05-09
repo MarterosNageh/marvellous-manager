@@ -27,6 +27,7 @@ export interface HardDrive {
     typeC: boolean;
     power: boolean;
     usb3: boolean;
+    passport: boolean;
     other: string;
   };
   createdAt: string;
