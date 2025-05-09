@@ -286,7 +286,7 @@ const HardDriveForm = () => {
                   <Label htmlFor="otherCables">Other Cables</Label>
                   <Input
                     id="otherCables"
-                    value={formData.cables.other}
+                    value={formData.cables.other || ""}
                     onChange={handleOtherCablesChange}
                     placeholder="List any other cables"
                   />
