@@ -42,3 +42,12 @@ export interface PrintData {
   projectId?: string;
   operatorName: string;
 }
+
+export interface PrintHistory {
+  id: string;
+  type: PrintType;
+  hardDriveId: string | null;
+  projectId: string | null;
+  operatorName: string;
+  timestamp: string;
+}
