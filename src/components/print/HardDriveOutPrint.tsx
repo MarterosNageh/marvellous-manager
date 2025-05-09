@@ -20,9 +20,15 @@ export const HardDriveOutPrint = ({
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString();
 
+  // Use consistent styling between preview and print
+  const containerClass = "bg-white max-w-4xl mx-auto";
+  const contentClass = "print:p-0";
+  const paddingClass = isPreviewing ? "p-4" : "p-6";
+  const textSizeClass = isPreviewing ? "text-sm" : "text-base";
+
   return (
-    <div id="Container" className={`${isPreviewing ? 'p-4 text-sm' : 'p-6 text-base'} bg-white max-w-4xl mx-auto`}>
-      <div id="label" className={`${isPreviewing ? 'print:text-sm' : 'print:text-base'} print:p-0`}>
+    <div id="Container" className={`${paddingClass} ${textSizeClass} ${containerClass}`}>
+      <div id="label" className={`${contentClass}`}>
         <div className="text-center mb-4">
           <LogoMarvellous className="h-12 mx-auto mb-2" />
           <h1 className="text-xl font-bold">Hard Drive Transfer Out</h1>

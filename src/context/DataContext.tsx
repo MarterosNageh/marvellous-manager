@@ -96,6 +96,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     fetchData();
 
+    // Set up Supabase real-time subscriptions for both tables
     const projectsSubscription = supabase
       .channel('public:projects')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
@@ -168,9 +169,31 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       )
       .subscribe();
 
+    // Add subscription for print history as well
+    const printHistorySubscription = supabase
+      .channel('public:print_history')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newHistory = {
+              id: payload.new.id,
+              type: payload.new.type as PrintType,
+              hardDriveId: payload.new.hard_drive_id,
+              projectId: payload.new.project_id,
+              operatorName: payload.new.operator_name,
+              timestamp: payload.new.timestamp,
+            };
+            setPrintHistory(current => [...current, newHistory]);
+          }
+          // We typically don't update or delete print history, but we could add those handlers if needed
+        }
+      )
+      .subscribe();
+
     return () => {
       projectsSubscription.unsubscribe();
       hardDrivesSubscription.unsubscribe();
+      printHistorySubscription.unsubscribe();
     };
   }, [toast]);
 
