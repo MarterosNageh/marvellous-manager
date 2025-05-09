@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PrintType } from "@/types";
 import { formatDistanceToNow } from "date-fns";
@@ -12,7 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 
 export interface PrintHistoryItem {
   id: string;
