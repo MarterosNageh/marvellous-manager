@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { PrintType } from "@/types";
-import { formatDistanceToNow as formatDistance } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { History, Printer, Search } from "lucide-react";
 import {
   Table,
@@ -138,7 +138,7 @@ export const PrintHistoryTable = ({
                       <span>{new Date(item.timestamp).toLocaleDateString()}</span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(item.timestamp).toLocaleTimeString()} 
-                        <span className="ml-1">({formatDistance(new Date(item.timestamp), { addSuffix: true })})</span>
+                        <span className="ml-1">({formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })})</span>
                       </span>
                     </div>
                   </TableCell>
