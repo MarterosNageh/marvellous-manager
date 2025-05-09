@@ -314,8 +314,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       updatedAt: data.updated_at,
     };
 
-    setHardDrives(currentHardDrives => [...currentHardDrives, newHardDrive]);
-
+    // No need to manually update state - the realtime subscription will handle this
     return data.id;
   };
 
@@ -343,6 +342,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
       throw error;
     }
+
+    // Update the local state immediately for better UX
+    setHardDrives(current => 
+      current.map(h => h.id === hardDrive.id ? {
+        ...hardDrive,
+        updatedAt: new Date().toISOString() // Update the updatedAt timestamp
+      } : h)
+    );
   };
 
   const deleteHardDrive = async (id: string) => {
@@ -359,6 +366,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
       throw error;
     }
+
+    // Update the local state immediately
+    setHardDrives(current => current.filter(h => h.id !== id));
   };
 
   const getHardDrive = (id: string) => {
@@ -405,6 +415,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         timestamp: data[0].timestamp,
       };
 
+      // Update the local state immediately
       setPrintHistory(currentHistory => [...currentHistory, newPrintHistory]);
     }
   };
