@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CalendarClock, Users } from "lucide-react";
 
 // Define interfaces for shift data
 interface Employee {
@@ -44,13 +45,16 @@ const ShiftsSchedule = () => {
     try {
       const { data, error } = await supabase.functions.invoke("connecteam-shifts");
       
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
+      
       return data?.shifts || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching shifts:", error);
       toast({
         title: "Error fetching shifts",
-        description: error.message,
+        description: error.message || "Failed to load shifts from Connecteam",
         variant: "destructive",
       });
       return [];
@@ -58,7 +62,7 @@ const ShiftsSchedule = () => {
   };
 
   // Use tanstack query to fetch and cache shifts
-  const { data: shifts, isLoading, error } = useQuery({
+  const { data: shifts, isLoading, error, refetch } = useQuery({
     queryKey: ["shifts"],
     queryFn: fetchShifts,
   });
@@ -98,7 +102,15 @@ const ShiftsSchedule = () => {
   return (
     <MainLayout>
       <div className="flex flex-col space-y-6">
-        <h1 className="text-2xl font-bold">Shifts Schedule</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Shifts Schedule</h1>
+          <button 
+            onClick={() => refetch()} 
+            className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            Refresh Shifts
+          </button>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1">
@@ -118,14 +130,24 @@ const ShiftsSchedule = () => {
           
           <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle>
-                {date ? format(date, "MMMM d, yyyy") : "All Shifts"}
-              </CardTitle>
-              <CardDescription>
-                {filteredShifts?.length 
-                  ? `${filteredShifts.length} shift${filteredShifts.length !== 1 ? 's' : ''} scheduled`
-                  : "No shifts scheduled for this date"}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {date ? format(date, "MMMM d, yyyy") : "All Shifts"}
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredShifts?.length 
+                      ? `${filteredShifts.length} shift${filteredShifts.length !== 1 ? 's' : ''} scheduled`
+                      : "No shifts scheduled for this date"}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <CalendarClock className="h-5 w-5" />
+                  <span className="text-sm">
+                    Showing shifts from {shifts?.length || 0} days
+                  </span>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -146,13 +168,17 @@ const ShiftsSchedule = () => {
                       <TableHead>Shift</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Status</TableHead>
+                      {date ? null : <TableHead>Date</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredShifts.map((shift: Shift) => (
                       <TableRow key={shift.id}>
                         <TableCell className="font-medium">
-                          {shift.employee?.name || "Unassigned"}
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-400" />
+                            {shift.employee?.name || "Unassigned"}
+                          </div>
                         </TableCell>
                         <TableCell>{shift.title}</TableCell>
                         <TableCell>
@@ -163,6 +189,11 @@ const ShiftsSchedule = () => {
                             {shift.status}
                           </Badge>
                         </TableCell>
+                        {date ? null : (
+                          <TableCell>
+                            {format(parseISO(shift.startTime), "MMM d, yyyy")}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
