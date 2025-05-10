@@ -19,52 +19,47 @@ export const AllHardsPrint = ({
   const timeStr = now.toLocaleTimeString();
 
   return (
-    <div className={`p-6 ${isPreviewing ? 'text-sm' : 'text-base'}`}>
-      <div className="text-center mb-6">
-        <LogoMarvellous className="h-12 mx-auto mb-2" />
-        <h1 className="text-xl font-bold">Hard Drives Report</h1>
-        <p className="text-muted-foreground">Marvellous Manager</p>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div>
-          <div className="mb-4">
-            <h3 className="font-bold text-sm">Project Information</h3>
-            <p><span className="font-medium">Project Name:</span> {project?.name || 'All Projects'}</p>
-            {project?.description && (
-              <p><span className="font-medium">Description:</span> {project.description}</p>
-            )}
-          </div>
-        </div>
-        
-        <div>
-          <div className="mb-4">
-            <h3 className="font-bold text-sm">Report Information</h3>
-            <p><span className="font-medium">Date:</span> {dateStr}</p>
-            <p><span className="font-medium">Time:</span> {timeStr}</p>
-            <p><span className="font-medium">Operator:</span> {operatorName}</p>
-            <p><span className="font-medium">Total Hard Drives:</span> {hardDrives.length}</p>
-          </div>
+  <div id="ContainerHard">
+    <div id="header">
+        <LogoMarvellous  className="h-10" />
+      <h1 id="text-xl font-bold">Hard Drives Report</h1>
+    </div>
+
+    <div id="grid mb-6">
+      <div>
+        <div id="mb-4">
+          <h3 id="font-bold text-sm">Project Information</h3>
+          <p><span id="font-medium">Project Name:</span>  {project?.name || 'All Projects'}</p>
         </div>
       </div>
-      
-      <h3 className="font-bold text-sm mb-2">Hard Drives List</h3>
-      <table className="min-w-full border border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2 text-left">Name</th>
-            <th className="border p-2 text-left">Serial Number</th>
-            <th className="border p-2 text-left">Capacity</th>
-            <th className="border p-2 text-left">Free Space</th>
-          </tr>
-        </thead>
+      <div>
+        <div id="mb-4">
+          <h3 id="font-bold text-sm">Report Information</h3>
+          <p><span id="font-medium">Date:</span> {dateStr}</p>
+          <p><span id="font-medium">Time:</span> {timeStr}</p>
+          <p><span id="font-medium">Operator:</span>  {operatorName}</p>
+          <p><span id="font-medium">Total Hard Drives:</span> {hardDrives.length}</p>
+        </div>
+      </div>
+    </div>
+
+    <h3 id="font-bold text-sm mb-2">Hard Drives List</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Serial Number</th>
+          <th>Capacity</th>
+          <th>Data</th>
+        </tr>
+      </thead>
         <tbody>
           {hardDrives.map((hd) => (
             <tr key={hd.id}>
               <td className="border p-2">{hd.name}</td>
               <td className="border p-2">{hd.serialNumber}</td>
               <td className="border p-2">{hd.capacity}</td>
-              <td className="border p-2">{hd.freeSpace}</td>
+              <td className="border p-2">{hd.data}</td>
             </tr>
           ))}
           {hardDrives.length === 0 && (
@@ -73,19 +68,18 @@ export const AllHardsPrint = ({
             </tr>
           )}
         </tbody>
-      </table>
-      
+    </table>
       {hardDrives.length > 0 && (
-        <div className="mt-6">
-          <h3 className="font-bold text-sm mb-2">Available Cables Summary</h3>
-          <table className="min-w-full border border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2 text-left">Cable Type</th>
-                <th className="border p-2 text-left">Count</th>
-              </tr>
-            </thead>
-            <tbody>
+    <div id="mt-6">
+      <h3 id="font-bold text-sm mb-2">Available Cables Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Cable Type</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
               <tr>
                 <td className="border p-2">Thunderbolt 3</td>
                 <td className="border p-2">
@@ -111,21 +105,15 @@ export const AllHardsPrint = ({
                 </td>
               </tr>
             </tbody>
-          </table>
-        </div>
+      </table>
+    </div>
       )}
-      
-      <div className="grid grid-cols-2 gap-10 mt-10">
-        <div>
-          <h3 className="font-bold text-sm">Operator Signature</h3>
-          <div className="border-b border-black h-8 mt-8"></div>
-        </div>
-        
-        <div>
-          <h3 className="font-bold text-sm">Recipient Signature</h3>
-          <div className="border-b border-black h-8 mt-8"></div>
-        </div>
+
+      <div id="signature">
+        <h3 id="signTitle">Recipient Signature</h3>
+        <div id="signature-line"></div>
       </div>
     </div>
+
   );
 };
