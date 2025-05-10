@@ -1,10 +1,8 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut, BookOpen } from "lucide-react";
 import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const items = [{
