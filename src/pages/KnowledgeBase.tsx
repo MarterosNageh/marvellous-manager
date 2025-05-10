@@ -10,7 +10,7 @@ const KnowledgeBase = () => {
         <div className="flex-1 bg-white rounded-lg shadow overflow-hidden">
           <iframe 
             src={googleSheetUrl}
-            className="w-full h-[calc(100vh-160px)]"
+            className="w-full h-[calc(100vh-100px)]"
             title="Knowledge Base"
             frameBorder="0"
           />
