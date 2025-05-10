@@ -40,20 +40,48 @@ serve(async (req) => {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Connecteam API error:', errorData);
+      // Try to get error details
+      let errorDetails;
+      try {
+        // Attempt to parse as JSON first
+        errorDetails = await response.json();
+      } catch (e) {
+        // If not JSON, get as text
+        errorDetails = await response.text();
+        console.error('Non-JSON error response:', errorDetails);
+      }
+      
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch shifts', details: errorData }),
+        JSON.stringify({ 
+          error: 'Failed to fetch shifts', 
+          status: response.status,
+          statusText: response.statusText,
+          details: typeof errorDetails === 'string' ? errorDetails.substring(0, 1000) : errorDetails 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: response.status }
       );
     }
 
-    const data = await response.json();
+    // Attempt to parse response as JSON
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
+      const textResponse = await response.text();
+      console.error('Raw response:', textResponse.substring(0, 500)); // Log the first 500 chars
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON response from Connecteam API', details: parseError.message }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
     console.log(`Successfully fetched ${data.shifts?.length || 0} shifts from Connecteam`);
     
     return new Response(

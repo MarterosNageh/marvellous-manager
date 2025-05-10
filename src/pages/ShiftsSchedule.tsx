@@ -17,7 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarClock, Users } from "lucide-react";
+import { CalendarClock, Users, AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // Define interfaces for shift data
 interface Employee {
@@ -39,16 +40,27 @@ interface Shift {
 const ShiftsSchedule = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   // Fetch shifts from our edge function
   const fetchShifts = async () => {
     try {
+      console.log("Invoking connecteam-shifts function...");
       const { data, error } = await supabase.functions.invoke("connecteam-shifts");
       
       if (error) {
-        throw new Error(error.message);
+        console.error("Supabase function error:", error);
+        throw new Error(error.message || "Failed to invoke shifts function");
       }
       
+      if (data?.error) {
+        console.error("API error:", data.error, data.details);
+        setErrorDetails(data.details || data.error);
+        throw new Error(data.error);
+      }
+      
+      console.log("Shifts fetched successfully:", data?.shifts?.length || 0);
+      setErrorDetails(null);
       return data?.shifts || [];
     } catch (error: any) {
       console.error("Error fetching shifts:", error);
@@ -57,7 +69,7 @@ const ShiftsSchedule = () => {
         description: error.message || "Failed to load shifts from Connecteam",
         variant: "destructive",
       });
-      return [];
+      throw error;
     }
   };
 
@@ -65,6 +77,7 @@ const ShiftsSchedule = () => {
   const { data: shifts, isLoading, error, refetch } = useQuery({
     queryKey: ["shifts"],
     queryFn: fetchShifts,
+    retry: 1,
   });
 
   // Filter shifts by selected date
@@ -112,6 +125,24 @@ const ShiftsSchedule = () => {
           </button>
         </div>
         
+        {errorDetails && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error connecting to Connecteam API</AlertTitle>
+            <AlertDescription className="max-h-40 overflow-auto">
+              <p>There was an issue fetching shifts from Connecteam. Please check:</p>
+              <ul className="list-disc list-inside ml-4 mt-2">
+                <li>Your API key is correct in Supabase secrets</li>
+                <li>Your Connecteam account has the necessary permissions</li>
+                <li>The API endpoint is accessible from the Supabase edge function</li>
+              </ul>
+              <div className="mt-2 p-2 bg-gray-900 text-white text-xs rounded">
+                <pre>{errorDetails}</pre>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1">
             <CardHeader>
@@ -157,8 +188,18 @@ const ShiftsSchedule = () => {
                   <Skeleton className="h-12 w-full" />
                 </div>
               ) : error ? (
-                <div className="text-center py-4 text-red-500">
-                  Failed to load shifts. Please try again later.
+                <div className="text-center py-6">
+                  <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
+                  <h3 className="text-lg font-medium mb-2">Failed to load shifts</h3>
+                  <p className="text-gray-500 mb-4">
+                    There was a problem connecting to the Connecteam API.
+                  </p>
+                  <button 
+                    onClick={() => refetch()} 
+                    className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Try Again
+                  </button>
                 </div>
               ) : filteredShifts?.length > 0 ? (
                 <Table>
