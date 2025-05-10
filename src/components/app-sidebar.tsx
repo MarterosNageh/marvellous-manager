@@ -66,7 +66,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {fullMenu.map(item => <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.url)} className={cn("text-white hover:bg-gray-800 transition-colors", location.pathname.startsWith(item.url) ? "bg-gray-800 font-semibold" : "")} tooltip={state === "collapsed" ? item.title : undefined}>
+                  <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.url)} className={cn("text-white hover:bg-gray-600 transition-colors hover:text-white", location.pathname.startsWith(item.url) ? "bg-gray-800 font-semibold" : "")} tooltip={state === "collapsed" ? item.title : undefined}>
                     <Link to={item.url} className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
