@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 const HardDriveForm = () => {
   const { id } = useParams<{ id: string }>();
