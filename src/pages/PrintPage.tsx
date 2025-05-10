@@ -10,7 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Printer, HardDrive } from "lucide-react";
 import { PrintType } from "@/types";
 import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
+import { HardDriveOutPrintPrev } from "@/components/print/HardDriveOutPrintPrev";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
+import { HardDriveInPrintPrev } from "@/components/print/HardDriveInPrintPrev";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
@@ -92,26 +94,45 @@ const PrintPage = () => {
       <html>
         <head>
           <title>Print Document - Marvellous Manager</title>
+          <link rel="icon" type="image/x-icon" href="/marvellous-logo-black.png">
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            
             body { 
-              font-family: 'Inter', Arial, sans-serif; 
+              font-family: "ui", sans-serif;
               margin: 0; 
               padding: 0; 
+
             }
+
             @media print {
               body { padding: 0; }
               button { display: none; }
-              @page { margin: 0; }
+
+              
+      #header, #info-box, #signature {
+        page-break-inside: avoid;
+      }
+
+      #ContainerHard {
+        max-width: 100%;
+        padding: 10mm;
+      }
+
+
+      #signature-text {
+        display: block;
+        text-align: center;
+      }
+
             }
-             #Container {
-                width: 767px;
+             #ContainerP {
                 height: 1087px;
                 margin: 0 auto;
                 position: relative;
                 background-color: white;
             }
-            #label {
+            #labelP {
                 height: 271.7;
                 position: relative;
                 left: 0px;
@@ -120,6 +141,13 @@ const PrintPage = () => {
                 padding: 5px;
                 top: 0px;
             }
+                #BtnContanier{
+                text-align: center;
+                margin-top: 20px;
+                position: absolute;
+                left: 363.5px;
+                z-index: 99;
+                }
             #card {
               rotate: 90deg;
             }
@@ -146,22 +174,136 @@ const PrintPage = () => {
             .print-controls button:hover {
               background: #0051a8;
             }
-            .content-wrapper {
-              padding: 20px;
-            }
-            h1, h2, h3 {
-              margin-top: 0;
-            }
-            p {
-              margin: 5px 0;
-            }
+
+
+    #ContainerHard {
+      width: 100%;
+      background-color: white;
+      border-radius: 8px;
+      max-height: 100%;
+      overflow: hidden;
+    }
+ .content-wrapper{
+    width:90%;
+          display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    /* Header */
+    #header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+
+    h1 {
+      font-size: 26px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    p {
+      font-size: 16px;
+      color: #6c757d;
+    }
+
+    /* Grid Layout */
+    #grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      #grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Info Box */
+    #info-box {
+      background-color: #ffffff;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    h3 {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #f1f1f1;
+      font-size: 14px;
+      color: #555;
+    }
+
+    table td:first-child {
+      font-weight: bold;
+    }
+
+    /* Cables List */
+    #cables {
+      margin-top: 30px;
+    }
+
+    #cables ul {
+      list-style-type: disc;
+      margin-left: 25px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    #cables li {
+      margin-bottom: 6px;
+    }
+
+    /* Signature Section */
+    #signature {
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    #signature-line {
+      height: 2px;
+      width: 250px; /* Adjusted width for signature space */
+      margin-left: auto;
+      margin-right: auto;
+
+      border-bottom: 1px dashed black;
+      margin-top: 50px;
+    }
+
+    #signature-text {
+      font-size: 14px;
+      color: #555;
+      margin-top: 8px;
+    }
+
+    #signTitle{
+    border-bottom: 0px solid white;
+    }
+   
+
           </style>
         </head>
         <body>
-          <div >
 
             ${printType === "hard-label" ? `
-          <div style="text-align: center; margin-top: 20px;position: absolute;left:363.5px;z-index:99;">
+          <div id="BtnContanier">
             <button id="1" >01</button>
             <button id="2" >02</button>
                           <br>
@@ -173,16 +315,18 @@ const PrintPage = () => {
                           <br>
             <button id="7" >07</button>
             <button id="8" >08</button>
-
           </div>
-            ` : ''}
-          </div>
-          <div class="content-wrapper">
+                      <div class="ContainerP">
             ${content.innerHTML}
           </div>
+            ` : `
+            <div class="content-wrapper">
+            ${content.innerHTML}
+          </div>
+            `}
+
 <script>
-var Container = document.getElementById("Container");
-var label = document.getElementById("label");
+var label = document.getElementById("labelP");
 
 if (label) {
   let btn = [];
@@ -275,9 +419,9 @@ if (label) {
                   Please enter the operator name to see the preview
                 </p>
               </div> : <div className="border rounded-md p-4 bg-white">
-                {printType === "hard-out" && hardDrive && <HardDriveOutPrint hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
+                {printType === "hard-out" && hardDrive && <HardDriveOutPrintPrev hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
 
-                {printType === "hard-in" && hardDrive && <HardDriveInPrint hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
+                {printType === "hard-in" && hardDrive && <HardDriveInPrintPrev hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
 
                 {printType === "all-hards" && <AllHardsPrint hardDrives={hardDrives} project={project} operatorName={operatorName} isPreviewing={true} />}
 
