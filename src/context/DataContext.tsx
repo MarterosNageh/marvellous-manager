@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface PrintHistory {
   id: string;
@@ -281,7 +281,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       serial_number: hardDrive.serialNumber,
       project_id: hardDrive.projectId,
       capacity: hardDrive.capacity,
-      free_space: hardDrive.freeSpace,
+      freeSpace: hardDrive.freeSpace,
       data: hardDrive.data,
       cables: hardDrive.cables
     };
@@ -324,7 +324,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       serial_number: hardDrive.serialNumber,
       project_id: hardDrive.projectId,
       capacity: hardDrive.capacity,
-      free_space: hardDrive.freeSpace,
+      freeSpace: hardDrive.freeSpace,
       data: hardDrive.data,
       cables: hardDrive.cables
     };
