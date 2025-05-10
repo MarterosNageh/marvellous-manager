@@ -100,7 +100,6 @@ export const HardDriveInPrint = ({
       <div id="signature">
         <h3 id="signTitle">Recipient Signature</h3>
         <div id="signature-line"></div>
-        
       </div>
     </div>
   </div>
