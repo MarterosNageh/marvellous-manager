@@ -1,6 +1,6 @@
 
 import React from "react";
-import { format as dateFormat, formatDistanceToNow as dateFormatDistanceToNow } from "date-fns";  
+import * as dateFns from "date-fns";  
 import { 
   Table,
   TableBody,
@@ -74,11 +74,11 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({
             <TableCell className="font-medium">{getPrintTypeName(item.type)}</TableCell>
             {showHardDriveName && <TableCell>{item.hardDriveName || "Unknown"}</TableCell>}
             <TableCell>{item.operatorName}</TableCell>
-            <TableCell>{dateFormat(new Date(item.timestamp), "PPP")}</TableCell>
+            <TableCell>{dateFns.format(new Date(item.timestamp), "PPP")}</TableCell>
             <TableCell>
-              {dateFormat(new Date(item.timestamp), "p")} 
+              {dateFns.format(new Date(item.timestamp), "p")} 
               <span className="text-muted-foreground text-sm ml-2">
-                ({dateFormatDistanceToNow(new Date(item.timestamp), { addSuffix: true })})
+                ({dateFns.formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })})
               </span>
             </TableCell>
           </TableRow>
