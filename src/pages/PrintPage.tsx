@@ -14,6 +14,7 @@ import { HardDriveOutPrintPrev } from "@/components/print/HardDriveOutPrintPrev"
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
 import { HardDriveInPrintPrev } from "@/components/print/HardDriveInPrintPrev";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
+import { AllHardsPrintPrev } from "@/components/print/AllHardsPrintPrev";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
 type ExtendedPrintType = PrintType | "hard-label";
@@ -423,7 +424,7 @@ if (label) {
 
                 {printType === "hard-in" && hardDrive && <HardDriveInPrintPrev hardDrive={hardDrive} project={project} operatorName={operatorName} isPreviewing={true} />}
 
-                {printType === "all-hards" && <AllHardsPrint hardDrives={hardDrives} project={project} operatorName={operatorName} isPreviewing={true} />}
+                {printType === "all-hards" && <AllHardsPrintPrev hardDrives={hardDrives} project={project} operatorName={operatorName} isPreviewing={true} />}
 
                 {printType === "hard-label" && hardDrive && <HardDriveLabelPrint hardDrive={hardDrive} />}
               </div>}
