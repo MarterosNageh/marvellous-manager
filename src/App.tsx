@@ -24,6 +24,7 @@ import TaskManager from "./pages/TaskManager";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import ShiftsSchedule from "./pages/ShiftsSchedule";
+import KnowledgeBase from "./pages/KnowledgeBase";
 
 const queryClient = new QueryClient();
 
@@ -66,8 +67,11 @@ const App = () => (
               {/* Task Manager */}
               <Route path="/task-manager" element={<TaskManager />} />
 
-              {/* New shifts schedule */}
+              {/* Shifts schedule */}
               <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
+              
+              {/* Knowledge Base */}
+              <Route path="/knowledge-base" element={<KnowledgeBase />} />
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
