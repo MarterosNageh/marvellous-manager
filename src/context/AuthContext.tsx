@@ -81,7 +81,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await fetchUsers(); // Refresh users list
         }
       } else {
-        console.log("Admin user exists:", data.username);
       }
     } catch (error) {
       console.error("Error checking for admin user:", error);
@@ -151,7 +150,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }));
 
       setUsers(formattedUsers);
-      console.log("Fetched users:", formattedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
