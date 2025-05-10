@@ -31,6 +31,8 @@ serve(async (req) => {
     const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
     const toDate = today.toISOString().split('T')[0];
 
+    console.log(`Fetching shifts from Connecteam from ${fromDate} to ${toDate}`);
+
     // Call the Connecteam API
     const response = await fetch(
       `https://api.connecteam.com/api/v2/shifts?fromDate=${fromDate}&toDate=${toDate}`,
@@ -52,6 +54,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    console.log(`Successfully fetched ${data.shifts?.length || 0} shifts from Connecteam`);
     
     return new Response(
       JSON.stringify(data),
