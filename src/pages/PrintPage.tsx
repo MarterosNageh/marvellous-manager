@@ -92,6 +92,7 @@ const PrintPage = () => {
       <html>
         <head>
           <title>Print Document - Marvellous Manager</title>
+          <link rel="icon" type="image/x-icon" href="/marvellous-logo-black.png">
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             body { 
@@ -104,14 +105,14 @@ const PrintPage = () => {
               button { display: none; }
               @page { margin: 0; }
             }
-             #Container {
+             #ContainerP {
                 width: 767px;
                 height: 1087px;
                 margin: 0 auto;
                 position: relative;
                 background-color: white;
             }
-            #label {
+            #labelP {
                 height: 271.7;
                 position: relative;
                 left: 0px;
@@ -174,15 +175,20 @@ const PrintPage = () => {
             <button id="7" >07</button>
             <button id="8" >08</button>
 
-          </div>
-            ` : ''}
-          </div>
-          <div class="content-wrapper">
+                      <div class="ContainerP">
             ${content.innerHTML}
           </div>
+          </div>
+            ` : `
+            <div class="content-wrapper">
+            ${content.innerHTML}
+          </div>
+            `}
+          </div>
+
 <script>
-var Container = document.getElementById("Container");
-var label = document.getElementById("label");
+var Container = document.getElementById("ContainerP");
+var label = document.getElementById("labelP");
 
 if (label) {
   let btn = [];

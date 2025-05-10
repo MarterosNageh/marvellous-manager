@@ -7,7 +7,6 @@ const KnowledgeBase = () => {
   return (
     <MainLayout>
       <div className="flex flex-col h-full">
-        <h1 className="text-2xl font-bold mb-4">Knowledge Base</h1>
         <div className="flex-1 bg-white rounded-lg shadow overflow-hidden">
           <iframe 
             src={googleSheetUrl}
