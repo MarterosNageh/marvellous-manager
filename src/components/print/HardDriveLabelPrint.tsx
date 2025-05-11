@@ -13,8 +13,8 @@ export const HardDriveLabelPrint = ({ hardDrive, project }: HardDriveLabelPrintP
   // Use the standard view URL for QR code to ensure consistency across the app
   const qrCodeUrl = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
   return (
-    <div id="ContainerP" >
-          <div id="labelP" >
+    <div id="Container" >
+          <div id="label" >
     <div id="card" className="p-4 border max-w-[400px] bg-white rounded-md shadow-md text-center ">
       {/* Logo at the top */}
       <div className="flex items-center justify-center mb-3 ">

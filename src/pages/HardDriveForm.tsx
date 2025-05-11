@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 const HardDriveForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -188,7 +188,7 @@ const HardDriveForm = () => {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Project</SelectItem>
+                    <SelectItem value="">None</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
                     ))}
@@ -285,10 +285,7 @@ const HardDriveForm = () => {
                   <Label htmlFor="otherCables">Other Cables</Label>
                   <Input
                     id="otherCables"
-<<<<<<< HEAD
                     name="otherCables"
-=======
->>>>>>> 4a4ba42 (Fix: Realtime updates for hard drives)
                     value={formData.cables.other || ""}
                     onChange={handleOtherCablesChange}
                     placeholder="List any other cables"
