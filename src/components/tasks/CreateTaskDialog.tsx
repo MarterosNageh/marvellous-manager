@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, X } from "lucide-react";
-import { formatDate } from "date-fns";
+import { format } from "date-fns";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -20,7 +20,7 @@ interface CreateTaskDialogProps {
 }
 
 export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) => {
-  const { addTask, projects, users } = useTask();
+  const { addTask, projects, users, currentUser } = useTask();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
@@ -33,7 +33,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !currentUser) return;
 
     setLoading(true);
     try {
@@ -45,9 +45,17 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
         due_date: dueDate?.toISOString(),
         project_id: projectId || null,
         supervisor_comments: null,
+        created_by: currentUser.id,
         assignees: [],
         tags: [],
-        subtasks: [],
+        subtasks: subtasks.map((subtask, index) => ({
+          id: `temp-${index}`,
+          title: subtask.title,
+          completed: subtask.completed,
+          parent_task_id: '',
+          order_index: index,
+          created_at: new Date().toISOString()
+        })),
         project: undefined
       }, assigneeIds);
 
@@ -179,7 +187,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? formatDate(dueDate, 'PPP') : "Pick a date"}
+                    {dueDate ? format(dueDate, 'PPP') : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -208,7 +216,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
                     htmlFor={`assignee-${user.id}`}
                     className="text-sm font-normal cursor-pointer"
                   >
-                    {user.username} {user.role === 'admin' && '(Admin)'}
+                    {user.username} {user.is_admin && '(Admin)'}
                   </Label>
                 </div>
               ))}

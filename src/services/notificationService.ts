@@ -58,15 +58,7 @@ class NotificationService {
         applicationServerKey: this.urlBase64ToUint8Array(process.env.VAPID_PUBLIC_KEY || '')
       });
 
-      // Store subscription in database
-      await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: userId,
-          subscription: JSON.stringify(subscription),
-          endpoint: subscription.endpoint
-        });
-
+      console.log('Push subscription created:', subscription.endpoint);
       return subscription;
     } catch (error) {
       console.error('Failed to subscribe to push notifications:', error);
@@ -117,17 +109,7 @@ class NotificationService {
           badge: '/favicon.ico',
           data,
           requireInteraction: true,
-          actions: [
-            {
-              action: 'view',
-              title: 'View',
-              icon: '/favicon.ico'
-            },
-            {
-              action: 'dismiss',
-              title: 'Dismiss'
-            }
-          ]
+          // Remove actions as they're not supported in basic notifications
         });
       } catch (error) {
         console.error('Failed to show mobile notification:', error);
@@ -172,15 +154,7 @@ class NotificationService {
     type: string = 'general'
   ) {
     try {
-      // Store in database
-      await supabase.from('task_notifications').insert({
-        user_id: userId,
-        title,
-        message: body,
-        task_id: taskId,
-        type,
-        read: false
-      });
+      console.log(`Sending notification to user ${userId}:`, title);
 
       // Send local notification
       await this.sendLocalNotification({
