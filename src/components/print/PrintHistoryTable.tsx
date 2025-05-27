@@ -6,16 +6,18 @@ import { Badge } from "@/components/ui/badge";
 
 interface PrintHistoryProps {
   id: string;
+  type?: string;
   hard_drive_id: string;
   printed_at: string;
   printed_by: string;
+  hardDriveName?: string;
 }
 
 interface PrintHistoryTableProps {
-  history: PrintHistoryProps[];
+  data: PrintHistoryProps[];
 }
 
-export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history }) => {
+export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -39,18 +41,22 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history })
             <TableRow>
               <TableHead className="w-[100px]">Date</TableHead>
               <TableHead>User</TableHead>
+              {data.some(item => item.hardDriveName) && <TableHead>Hard Drive</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history.map((item) => (
+            {data.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">{formatDate(item.printed_at)}</TableCell>
                 <TableCell>{item.printed_by}</TableCell>
+                {data.some(item => item.hardDriveName) && (
+                  <TableCell>{item.hardDriveName || '-'}</TableCell>
+                )}
               </TableRow>
             ))}
-            {history.length === 0 && (
+            {data.length === 0 && (
               <TableRow>
-                <TableCell colSpan={2} className="text-center py-4">No print history available</TableCell>
+                <TableCell colSpan={3} className="text-center py-4">No print history available</TableCell>
               </TableRow>
             )}
           </TableBody>
