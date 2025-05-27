@@ -92,11 +92,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         .select('*')
         .order('created_at', { ascending: false });
       
+      let formattedProjects: TaskProject[] = [];
       if (projectsError) {
         console.log('Projects fetch error:', projectsError);
         setProjects([]);
       } else {
-        const formattedProjects = projectsData?.map(project => ({
+        formattedProjects = projectsData?.map(project => ({
           id: project.id,
           name: project.name,
           description: project.description || undefined,
@@ -114,11 +115,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         .select('id, username, is_admin')
         .order('username');
       
+      let formattedUsers: TaskUser[] = [];
       if (usersError) {
         console.log('Users fetch error:', usersError);
         setUsers([]);
       } else {
-        const formattedUsers = usersData?.map(user => ({
+        formattedUsers = usersData?.map(user => ({
           id: user.id,
           username: user.username,
           role: user.is_admin ? 'admin' as const : 'member' as const
