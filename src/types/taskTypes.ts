@@ -1,6 +1,6 @@
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
-export type TaskStatus = 'todo' | 'in_progress' | 'done';
+export type TaskStatus = 'pending' | 'in_progress' | 'under_review' | 'completed';
 export type UserRole = 'admin' | 'member';
 export type NotificationType = 'mention' | 'assignment' | 'due_date' | 'comment';
 

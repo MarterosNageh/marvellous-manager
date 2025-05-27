@@ -29,12 +29,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
   onOpenChange,
 }) => {
-  const { addTask, projects, loading } = useTask();
+  const { addTask, projects, users, loading } = useTask();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [projectId, setProjectId] = useState<string>('none');
+  const [assigneeId, setAssigneeId] = useState<string>('none');
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -54,10 +55,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
-      status: 'todo',
+      status: 'pending',
       due_date: dueDate ? dueDate.toISOString() : undefined,
       project_id: projectId === 'none' ? undefined : projectId,
-      created_by: '', // Will be set in context
+      created_by: '',
     });
 
     // Reset form
@@ -66,6 +67,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setPriority('medium');
     setDueDate(undefined);
     setProjectId('none');
+    setAssigneeId('none');
     onOpenChange(false);
   };
 
@@ -147,27 +149,51 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                <SelectValue placeholder="Select a project (optional)" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="none">No Project</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: project.color }}
-                      />
-                      {project.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Select a project (optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="none">No Project</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: project.color }}
+                        />
+                        {project.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Assignee</Label>
+              <Select value={assigneeId} onValueChange={setAssigneeId}>
+                <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Assign to user (optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="none">No Assignee</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
+                          {user.username.charAt(0).toUpperCase()}
+                        </div>
+                        {user.username}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

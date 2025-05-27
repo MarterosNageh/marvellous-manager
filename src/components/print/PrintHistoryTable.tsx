@@ -1,10 +1,11 @@
+
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, formatDistanceToNow } from "date-fns";
+import { format as formatDate } from "date-fns";
 
-interface PrintHistory {
+interface PrintHistoryProps {
   id: string;
   hard_drive_id: string;
   printed_at: string;
@@ -12,7 +13,7 @@ interface PrintHistory {
 }
 
 interface PrintHistoryTableProps {
-  history: PrintHistory[];
+  history: PrintHistoryProps[];
 }
 
 export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history }) => {
@@ -32,7 +33,7 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history })
           <TableBody>
             {history.map((item) => (
               <TableRow key={item.id}>
-                <TableCell className="font-medium">{format(new Date(item.printed_at), "MMM d, yyyy h:mm a")}</TableCell>
+                <TableCell className="font-medium">{formatDate(new Date(item.printed_at), "MMM d, yyyy h:mm a")}</TableCell>
                 <TableCell>{item.printed_by}</TableCell>
               </TableRow>
             ))}

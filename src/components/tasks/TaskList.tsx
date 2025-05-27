@@ -4,8 +4,17 @@ import { TaskCard } from "@/components/tasks/TaskCard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useMemo } from "react";
 import { Search, Filter } from "lucide-react";
+import { TaskStatus } from "@/types/taskTypes";
+
+const statusSections = [
+  { status: 'pending' as TaskStatus, title: 'Pending', color: 'bg-gray-50' },
+  { status: 'in_progress' as TaskStatus, title: 'In Progress', color: 'bg-blue-50' },
+  { status: 'under_review' as TaskStatus, title: 'Under Review', color: 'bg-purple-50' },
+  { status: 'completed' as TaskStatus, title: 'Completed', color: 'bg-green-50' },
+];
 
 export const TaskList = () => {
   const { tasks, projects, users, loading } = useTask();
@@ -65,9 +74,10 @@ export const TaskList = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="todo">To Do</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value="under_review">Under Review</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
 
@@ -126,17 +136,37 @@ export const TaskList = () => {
         </div>
       </div>
 
-      {/* Task List */}
-      <div className="space-y-4">
-        {filteredTasks.length === 0 ? (
-          <div className="text-center text-muted-foreground py-12">
-            {tasks.length === 0 ? "No tasks found. Create your first task!" : "No tasks match your filters."}
-          </div>
-        ) : (
-          filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))
-        )}
+      {/* Task Sections by Status */}
+      <div className="grid gap-6">
+        {statusSections.map((section) => {
+          const sectionTasks = filteredTasks.filter(task => task.status === section.status);
+          
+          return (
+            <Card key={section.status} className="overflow-hidden">
+              <CardHeader className={`${section.color} pb-3`}>
+                <CardTitle className="flex items-center justify-between text-lg">
+                  {section.title}
+                  <Badge variant="secondary" className="ml-2">
+                    {sectionTasks.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {sectionTasks.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    No tasks in {section.title.toLowerCase()}
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {sectionTasks.map((task) => (
+                      <TaskCard key={task.id} task={task} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

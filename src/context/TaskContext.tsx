@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -74,60 +73,117 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser]);
 
+  const createNotification = async (notification: Omit<TaskNotification, "id" | "created_at">) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert([notification]);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // For now, use existing projects table as a fallback
-      // This creates some mock data to get the app working
-      const mockProjects: TaskProject[] = [
-        {
-          id: '1',
-          name: 'Website Redesign',
-          description: 'Complete redesign of company website',
-          color: '#3b82f6',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          created_by: currentUser?.id || ''
-        },
-        {
-          id: '2',
-          name: 'Mobile App',
-          description: 'Develop mobile application',
-          color: '#10b981',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          created_by: currentUser?.id || ''
-        }
-      ];
+      // Fetch real projects from database
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
       
-      setProjects(mockProjects);
+      if (projectsError) {
+        console.log('Projects fetch error:', projectsError);
+        setProjects([]);
+      } else {
+        const formattedProjects = projectsData?.map(project => ({
+          id: project.id,
+          name: project.name,
+          description: project.description || undefined,
+          color: '#3b82f6', // Default color since it's not in the original table
+          created_at: project.created_at,
+          updated_at: project.created_at, // Using created_at as fallback
+          created_by: 'system'
+        })) || [];
+        setProjects(formattedProjects);
+      }
 
-      // Create mock tasks
+      // Fetch users from auth_users table
+      const { data: usersData, error: usersError } = await supabase
+        .from('auth_users')
+        .select('id, username, is_admin')
+        .order('username');
+      
+      if (usersError) {
+        console.log('Users fetch error:', usersError);
+        setUsers([]);
+      } else {
+        const formattedUsers = usersData?.map(user => ({
+          id: user.id,
+          username: user.username,
+          role: user.is_admin ? 'admin' as const : 'member' as const
+        })) || [];
+        setUsers(formattedUsers);
+      }
+
+      // Create sample tasks with new statuses
       const mockTasks: Task[] = [
         {
           id: '1',
-          title: 'Design new homepage layout',
-          description: 'Create wireframes and mockups for the new homepage design',
+          title: 'Review project requirements',
+          description: 'Go through all project requirements and create initial assessment',
           priority: 'high',
-          status: 'todo',
-          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          project_id: '1',
+          status: 'pending',
+          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          project_id: projectsData?.[0]?.id,
           created_by: currentUser?.id || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          assignees: [],
+          assignees: usersData?.slice(0, 1).map(user => ({
+            id: user.id,
+            username: user.username,
+            role: user.is_admin ? 'admin' as const : 'member' as const
+          })) || [],
           tags: [],
           subtasks: [],
-          project: mockProjects[0]
+          project: projectsData?.[0] ? {
+            id: projectsData[0].id,
+            name: projectsData[0].name,
+            description: projectsData[0].description,
+            color: '#3b82f6',
+            created_at: projectsData[0].created_at,
+            updated_at: projectsData[0].created_at,
+            created_by: 'system'
+          } : undefined
         },
         {
           id: '2',
-          title: 'Set up development environment',
-          description: 'Configure build tools and development environment',
-          priority: 'medium',
+          title: 'Implement user authentication',
+          description: 'Set up secure user authentication system',
+          priority: 'urgent',
           status: 'in_progress',
-          project_id: '2',
+          project_id: projectsData?.[0]?.id,
+          created_by: currentUser?.id || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          assignees: usersData?.slice(0, 2).map(user => ({
+            id: user.id,
+            username: user.username,
+            role: user.is_admin ? 'admin' as const : 'member' as const
+          })) || [],
+          tags: [],
+          subtasks: []
+        },
+        {
+          id: '3',
+          title: 'Write API documentation',
+          description: 'Create comprehensive API documentation',
+          priority: 'medium',
+          status: 'under_review',
+          project_id: projectsData?.[1]?.id,
           created_by: currentUser?.id || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -136,55 +192,29 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           subtasks: []
         },
         {
-          id: '3',
-          title: 'Write user documentation',
-          description: 'Create comprehensive user guide and documentation',
+          id: '4',
+          title: 'Setup CI/CD pipeline',
+          description: 'Configure automated deployment pipeline',
           priority: 'low',
-          status: 'done',
-          project_id: '1',
+          status: 'completed',
+          project_id: projectsData?.[0]?.id,
           created_by: currentUser?.id || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           assignees: [],
           tags: [],
-          subtasks: [],
-          project: mockProjects[0]
+          subtasks: []
         }
       ];
       
       setTasks(mockTasks);
 
-      // Fetch users from existing auth_users table
-      const { data: usersData, error: usersError } = await supabase
-        .from('auth_users')
-        .select('id, username')
-        .order('username');
-      
-      if (usersError) {
-        console.log('Users fetch error:', usersError);
-        // Create mock users if the table structure is different
-        const mockUsers: TaskUser[] = [
-          {
-            id: currentUser?.id || '1',
-            username: currentUser?.username || 'Current User',
-            role: 'admin'
-          }
-        ];
-        setUsers(mockUsers);
-      } else {
-        const formattedUsers = usersData?.map(user => ({
-          id: user.id,
-          username: user.username,
-          role: 'member' as const
-        })) || [];
-        setUsers(formattedUsers);
-      }
-
-      // Set mock tags
+      // Set sample tags
       setTags([
         { id: '1', name: 'Frontend', color: '#3b82f6', created_at: new Date().toISOString() },
         { id: '2', name: 'Backend', color: '#10b981', created_at: new Date().toISOString() },
-        { id: '3', name: 'Design', color: '#f59e0b', created_at: new Date().toISOString() }
+        { id: '3', name: 'Design', color: '#f59e0b', created_at: new Date().toISOString() },
+        { id: '4', name: 'Documentation', color: '#8b5cf6', created_at: new Date().toISOString() }
       ]);
 
       setNotifications([]);
@@ -250,6 +280,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       };
       
       setTasks(prev => [newTask, ...prev]);
+      
+      // Create notification for task creation
+      await createNotification({
+        user_id: currentUser?.id || '',
+        type: 'assignment',
+        title: 'New Task Created',
+        message: `Task "${task.title}" has been created`,
+        task_id: newTask.id,
+        read: false
+      });
+      
       toast.success('Task created successfully');
     } catch (error) {
       console.error('Error adding task:', error);
@@ -259,7 +300,21 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const updateTask = async (task: Task) => {
     try {
+      const previousTask = tasks.find(t => t.id === task.id);
       setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+      
+      // Create notification for status change
+      if (previousTask && previousTask.status !== task.status) {
+        await createNotification({
+          user_id: currentUser?.id || '',
+          type: 'assignment',
+          title: 'Task Status Updated',
+          message: `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
+          task_id: task.id,
+          read: false
+        });
+      }
+      
       toast.success('Task updated successfully');
     } catch (error) {
       console.error('Error updating task:', error);
@@ -269,7 +324,20 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteTask = async (id: string) => {
     try {
+      const task = tasks.find(t => t.id === id);
       setTasks(prev => prev.filter(t => t.id !== id));
+      
+      if (task) {
+        await createNotification({
+          user_id: currentUser?.id || '',
+          type: 'assignment',
+          title: 'Task Deleted',
+          message: `Task "${task.title}" has been deleted`,
+          task_id: id,
+          read: false
+        });
+      }
+      
       toast.success('Task deleted successfully');
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -279,6 +347,28 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignUser = async (taskId: string, userId: string) => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      const user = users.find(u => u.id === userId);
+      
+      if (task && user) {
+        const updatedTask = {
+          ...task,
+          assignees: [...(task.assignees || []), { ...user, assigned_at: new Date().toISOString() }]
+        };
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        
+        // Create notification for assignment
+        await createNotification({
+          user_id: userId,
+          type: 'assignment',
+          title: 'Task Assigned',
+          message: `You have been assigned to task "${task.title}"`,
+          task_id: taskId,
+          read: false
+        });
+      }
+      
       toast.success('User assigned to task');
     } catch (error) {
       console.error('Error assigning user:', error);
@@ -288,6 +378,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const unassignUser = async (taskId: string, userId: string) => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      
+      if (task) {
+        const updatedTask = {
+          ...task,
+          assignees: task.assignees?.filter(a => a.id !== userId) || []
+        };
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+      }
+      
       toast.success('User unassigned from task');
     } catch (error) {
       console.error('Error unassigning user:', error);

@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { TaskStatus } from "@/types/taskTypes";
 
 const statusColumns: { status: TaskStatus; title: string; color: string }[] = [
-  { status: 'todo', title: 'To Do', color: 'bg-gray-100' },
+  { status: 'pending', title: 'Pending', color: 'bg-gray-100' },
   { status: 'in_progress', title: 'In Progress', color: 'bg-blue-100' },
-  { status: 'done', title: 'Done', color: 'bg-green-100' },
+  { status: 'under_review', title: 'Under Review', color: 'bg-purple-100' },
+  { status: 'completed', title: 'Completed', color: 'bg-green-100' },
 ];
 
 export const TaskBoard = () => {
@@ -23,7 +24,7 @@ export const TaskBoard = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {statusColumns.map((column) => {
         const columnTasks = tasks.filter(task => task.status === column.status);
         

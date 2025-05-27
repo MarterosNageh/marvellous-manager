@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Paperclip } from "lucide-react";
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 import { Task } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 
@@ -21,15 +21,16 @@ const priorityColors = {
 };
 
 const statusColors = {
-  todo: 'bg-gray-100 text-gray-800',
+  pending: 'bg-gray-100 text-gray-800',
   in_progress: 'bg-blue-100 text-blue-800',
-  done: 'bg-green-100 text-green-800',
+  under_review: 'bg-purple-100 text-purple-800',
+  completed: 'bg-green-100 text-green-800',
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { updateTask, deleteTask } = useTask();
 
-  const handleStatusChange = async (newStatus: 'todo' | 'in_progress' | 'done') => {
+  const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed') => {
     await updateTask({ ...task, status: newStatus });
   };
 
@@ -41,7 +42,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
   const formatDueDate = (dateString: string) => {
     const date = new Date(dateString);
-    return format(date, 'MMM d, yyyy');
+    return formatDate(date, 'MMM d, yyyy');
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'in_progress': return 'In Progress';
+      case 'under_review': return 'Under Review';
+      case 'completed': return 'Completed';
+      default: return status;
+    }
   };
 
   return (
@@ -63,14 +74,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleStatusChange('todo')}>
-                Move to To Do
+              <DropdownMenuItem onClick={() => handleStatusChange('pending')}>
+                Move to Pending
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
                 Move to In Progress
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange('done')}>
-                Move to Done
+              <DropdownMenuItem onClick={() => handleStatusChange('under_review')}>
+                Move to Under Review
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
+                Move to Completed
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDelete} className="text-red-600">
                 Delete Task
@@ -88,7 +102,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
           </Badge>
           
           <Badge className={`text-xs ${statusColors[task.status]}`}>
-            {task.status.replace('_', ' ').charAt(0).toUpperCase() + task.status.replace('_', ' ').slice(1)}
+            {getStatusLabel(task.status)}
           </Badge>
         </div>
 

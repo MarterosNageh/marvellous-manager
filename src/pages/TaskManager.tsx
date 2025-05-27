@@ -5,14 +5,12 @@ import { TaskProvider } from "@/context/TaskContext";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
-import { CreateProjectDialog } from "@/components/tasks/CreateProjectDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, FolderPlus, List, Kanban } from "lucide-react";
+import { Plus, List, Kanban } from "lucide-react";
 
 const TaskManager = () => {
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
-  const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   return (
     <TaskProvider>
@@ -21,13 +19,6 @@ const TaskManager = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Task Manager</h1>
             <div className="flex gap-2">
-              <Button
-                onClick={() => setCreateProjectOpen(true)}
-                variant="outline"
-              >
-                <FolderPlus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
               <Button onClick={() => setCreateTaskOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Task
@@ -59,11 +50,6 @@ const TaskManager = () => {
           <CreateTaskDialog 
             open={createTaskOpen}
             onOpenChange={setCreateTaskOpen}
-          />
-
-          <CreateProjectDialog 
-            open={createProjectOpen}
-            onOpenChange={setCreateProjectOpen}
           />
         </div>
       </MainLayout>
