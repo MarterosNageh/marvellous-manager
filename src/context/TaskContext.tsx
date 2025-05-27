@@ -86,7 +86,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       
-      // Fetch real projects from database
+      // Fetch projects from database
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
@@ -126,110 +126,66 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         setUsers(formattedUsers);
       }
 
-      // Create sample tasks with users assigned
-      const mockTasks: Task[] = [
-        {
-          id: '1',
-          title: 'Review project requirements',
-          description: 'Go through all project requirements and create initial assessment. This includes analyzing technical specifications, resource requirements, and timeline constraints.',
-          priority: 'high',
-          status: 'pending',
-          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-          project_id: projectsData?.[0]?.id,
-          created_by: currentUser?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          assignees: usersData?.slice(0, 1).map(user => ({
-            id: user.id,
-            username: user.username,
-            role: user.is_admin ? 'admin' as const : 'member' as const
+      // Fetch tasks from database
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          task_assignments!inner(
+            user_id,
+            assigned_at,
+            auth_users!inner(id, username, is_admin)
+          ),
+          subtasks(*),
+          projects(id, name, description)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (tasksError) {
+        console.log('Tasks fetch error:', tasksError);
+        // Create sample tasks as fallback
+        await createSampleTasks(formattedProjects, formattedUsers);
+      } else {
+        const formattedTasks = tasksData?.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          supervisor_comments: task.supervisor_comments,
+          priority: task.priority as TaskPriority,
+          status: task.status as TaskStatus,
+          due_date: task.due_date,
+          project_id: task.project_id,
+          created_by: task.created_by,
+          created_at: task.created_at,
+          updated_at: task.updated_at,
+          assignees: task.task_assignments?.map((assignment: any) => ({
+            id: assignment.auth_users.id,
+            username: assignment.auth_users.username,
+            role: assignment.auth_users.is_admin ? 'admin' as const : 'member' as const,
+            assigned_at: assignment.assigned_at
           })) || [],
           tags: [],
-          subtasks: [
-            { id: '1a', parent_task_id: '1', title: 'Gather requirements', completed: false, created_at: new Date().toISOString(), order_index: 1 },
-            { id: '1b', parent_task_id: '1', title: 'Create timeline', completed: false, created_at: new Date().toISOString(), order_index: 2 }
-          ],
-          project: projectsData?.[0] ? {
-            id: projectsData[0].id,
-            name: projectsData[0].name,
-            description: projectsData[0].description,
+          subtasks: task.subtasks?.map((subtask: any) => ({
+            id: subtask.id,
+            parent_task_id: subtask.parent_task_id,
+            title: subtask.title,
+            completed: subtask.completed,
+            created_at: subtask.created_at,
+            order_index: subtask.order_index
+          })) || [],
+          project: task.projects ? {
+            id: task.projects.id,
+            name: task.projects.name,
+            description: task.projects.description,
             color: '#3b82f6',
-            created_at: projectsData[0].created_at,
-            updated_at: projectsData[0].created_at,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             created_by: 'system'
           } : undefined
-        },
-        {
-          id: '2',
-          title: 'Implement user authentication',
-          description: 'Set up secure user authentication system with proper validation and security measures.',
-          priority: 'urgent',
-          status: 'in_progress',
-          project_id: projectsData?.[0]?.id,
-          created_by: currentUser?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          assignees: usersData?.slice(0, 2).map(user => ({
-            id: user.id,
-            username: user.username,
-            role: user.is_admin ? 'admin' as const : 'member' as const
-          })) || [],
-          tags: [],
-          subtasks: []
-        },
-        {
-          id: '3',
-          title: 'Write API documentation',
-          description: 'Create comprehensive API documentation for all endpoints.',
-          priority: 'medium',
-          status: 'under_review',
-          project_id: projectsData?.[1]?.id,
-          created_by: currentUser?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          assignees: usersData?.slice(1, 2).map(user => ({
-            id: user.id,
-            username: user.username,
-            role: user.is_admin ? 'admin' as const : 'member' as const
-          })) || [],
-          tags: [],
-          subtasks: []
-        },
-        {
-          id: '4',
-          title: 'Setup CI/CD pipeline',
-          description: 'Configure automated deployment pipeline with proper testing and validation.',
-          priority: 'low',
-          status: 'completed',
-          project_id: projectsData?.[0]?.id,
-          created_by: currentUser?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          assignees: [],
-          tags: [],
-          subtasks: []
-        },
-        {
-          id: '5',
-          title: 'Database optimization',
-          description: 'Optimize database queries and improve performance.',
-          priority: 'medium',
-          status: 'pending',
-          project_id: projectsData?.[0]?.id,
-          created_by: currentUser?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          assignees: usersData?.slice(0, 1).map(user => ({
-            id: user.id,
-            username: user.username,
-            role: user.is_admin ? 'admin' as const : 'member' as const
-          })) || [],
-          tags: [],
-          subtasks: []
-        }
-      ];
+        })) || [];
+        setTasks(formattedTasks);
+      }
       
-      setTasks(mockTasks);
       setTags([
         { id: '1', name: 'Frontend', color: '#3b82f6', created_at: new Date().toISOString() },
         { id: '2', name: 'Backend', color: '#10b981', created_at: new Date().toISOString() },
@@ -247,14 +203,59 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const createSampleTasks = async (projectsData: TaskProject[], usersData: TaskUser[]) => {
+    if (!currentUser || projectsData.length === 0) return;
+
+    const sampleTasks = [
+      {
+        title: 'Review project requirements',
+        description: 'Go through all project requirements and create initial assessment.',
+        priority: 'high' as TaskPriority,
+        status: 'pending' as TaskStatus,
+        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        project_id: projectsData[0]?.id,
+        created_by: currentUser.id
+      },
+      {
+        title: 'Implement user authentication',
+        description: 'Set up secure user authentication system.',
+        priority: 'urgent' as TaskPriority,
+        status: 'in_progress' as TaskStatus,
+        project_id: projectsData[0]?.id,
+        created_by: currentUser.id
+      }
+    ];
+
+    for (const task of sampleTasks) {
+      await addTask(task);
+    }
+  };
+
   const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
     try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: task.title,
+          description: task.description,
+          supervisor_comments: task.supervisor_comments,
+          priority: task.priority,
+          status: task.status,
+          due_date: task.due_date,
+          project_id: task.project_id,
+          created_by: currentUser?.id || ''
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       const newTask: Task = {
         ...task,
-        id: Math.random().toString(36).substr(2, 9),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: currentUser?.id || '',
+        id: data.id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        created_by: data.created_by,
         assignees: [],
         tags: [],
         subtasks: [],
@@ -280,6 +281,21 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const updateTask = async (task: Task) => {
     try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          title: task.title,
+          description: task.description,
+          supervisor_comments: task.supervisor_comments,
+          priority: task.priority,
+          status: task.status,
+          due_date: task.due_date,
+          project_id: task.project_id
+        })
+        .eq('id', task.id);
+
+      if (error) throw error;
+
       const previousTask = tasks.find(t => t.id === task.id);
       setTasks(prev => prev.map(t => t.id === task.id ? task : t));
       
@@ -314,8 +330,58 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const deleteTask = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      const task = tasks.find(t => t.id === id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+      
+      if (task) {
+        // Notify assignees about deletion
+        const assigneeIds = task.assignees?.map(a => a.id) || [];
+        if (assigneeIds.length > 0) {
+          await notificationService.sendNotificationToAssignees(
+            assigneeIds,
+            'Task Deleted',
+            `Task "${task.title}" has been deleted`,
+            id,
+            currentUser?.id
+          );
+        }
+
+        // Notify admins
+        await notificationService.sendNotificationToAdmins(
+          'Task Deleted',
+          `Task "${task.title}" has been deleted`,
+          id,
+          currentUser?.id
+        );
+      }
+      
+      toast.success('Task deleted successfully');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task');
+    }
+  };
+
   const assignUser = async (taskId: string, userId: string) => {
     try {
+      const { error } = await supabase
+        .from('task_assignments')
+        .insert({
+          task_id: taskId,
+          user_id: userId
+        });
+
+      if (error) throw error;
+
       const task = tasks.find(t => t.id === taskId);
       const user = users.find(u => u.id === userId);
       
@@ -352,37 +418,31 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteTask = async (id: string) => {
+  const unassignUser = async (taskId: string, userId: string) => {
     try {
-      const task = tasks.find(t => t.id === id);
-      setTasks(prev => prev.filter(t => t.id !== id));
+      const { error } = await supabase
+        .from('task_assignments')
+        .delete()
+        .eq('task_id', taskId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const task = tasks.find(t => t.id === taskId);
       
       if (task) {
-        // Notify assignees about deletion
-        const assigneeIds = task.assignees?.map(a => a.id) || [];
-        if (assigneeIds.length > 0) {
-          await notificationService.sendNotificationToAssignees(
-            assigneeIds,
-            'Task Deleted',
-            `Task "${task.title}" has been deleted`,
-            id,
-            currentUser?.id
-          );
-        }
-
-        // Notify admins
-        await notificationService.sendNotificationToAdmins(
-          'Task Deleted',
-          `Task "${task.title}" has been deleted`,
-          id,
-          currentUser?.id
-        );
+        const updatedTask = {
+          ...task,
+          assignees: task.assignees?.filter(a => a.id !== userId) || []
+        };
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
       }
       
-      toast.success('Task deleted successfully');
+      toast.success('User unassigned from task');
     } catch (error) {
-      console.error('Error deleting task:', error);
-      toast.error('Failed to delete task');
+      console.error('Error unassigning user:', error);
+      toast.error('Failed to unassign user');
     }
   };
 
@@ -424,26 +484,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const unassignUser = async (taskId: string, userId: string) => {
-    try {
-      const task = tasks.find(t => t.id === taskId);
-      
-      if (task) {
-        const updatedTask = {
-          ...task,
-          assignees: task.assignees?.filter(a => a.id !== userId) || []
-        };
-        
-        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-      }
-      
-      toast.success('User unassigned from task');
-    } catch (error) {
-      console.error('Error unassigning user:', error);
-      toast.error('Failed to unassign user');
-    }
-  };
-
   const addTag = async (tag: Omit<TaskTag, "id" | "created_at">) => {
     try {
       const newTag: TaskTag = {
@@ -471,6 +511,19 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const addSubtask = async (subtask: Omit<Subtask, "id" | "created_at">) => {
     try {
+      const { data, error } = await supabase
+        .from('subtasks')
+        .insert({
+          parent_task_id: subtask.parent_task_id,
+          title: subtask.title,
+          completed: subtask.completed,
+          order_index: subtask.order_index
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
       toast.success('Subtask added successfully');
     } catch (error) {
       console.error('Error adding subtask:', error);
@@ -480,7 +533,18 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSubtask = async (subtask: Subtask) => {
     try {
-      // Implementation for updating subtask
+      const { error } = await supabase
+        .from('subtasks')
+        .update({
+          title: subtask.title,
+          completed: subtask.completed,
+          order_index: subtask.order_index
+        })
+        .eq('id', subtask.id);
+
+      if (error) throw error;
+      
+      toast.success('Subtask updated successfully');
     } catch (error) {
       console.error('Error updating subtask:', error);
       toast.error('Failed to update subtask');
@@ -489,6 +553,13 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteSubtask = async (id: string) => {
     try {
+      const { error } = await supabase
+        .from('subtasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
       toast.success('Subtask deleted successfully');
     } catch (error) {
       console.error('Error deleting subtask:', error);

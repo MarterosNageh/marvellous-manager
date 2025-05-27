@@ -1,10 +1,11 @@
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle } from "lucide-react";
-import { format as formatDate } from "date-fns";
+import { format } from "date-fns";
 import { Task } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 import { TaskDetailDialog } from "./TaskDetailDialog";
@@ -50,7 +51,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
   const formatDueDate = (dateString: string) => {
     const date = new Date(dateString);
-    return formatDate(date, 'MMM d');
+    return format(date, 'MMM d');
   };
 
   const getStatusLabel = (status: string) => {
