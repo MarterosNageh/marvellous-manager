@@ -37,29 +37,40 @@ interface TaskContextType {
   notifications: TaskNotification[];
   markNotificationRead: (id: string) => Promise<void>;
   users: TaskUser[];
+  currentUser: TaskUser | null;
   loading: boolean;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 export const TaskProvider = ({ children }: { children: ReactNode }) => {
-  const { currentUser } = useAuth();
+  const { currentUser: authUser } = useAuth();
   const { toast } = useToast();
   const [projects, setProjects] = useState<TaskProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<TaskTag[]>([]);
   const [notifications, setNotifications] = useState<TaskNotification[]>([]);
   const [users, setUsers] = useState<TaskUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<TaskUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentUser) {
+    if (authUser) {
       console.log('TaskProvider: Current user available, fetching data');
+      
+      // Set current user from auth context
+      const taskUser: TaskUser = {
+        id: authUser.id,
+        username: authUser.username,
+        role: authUser.is_admin ? 'admin' : 'member'
+      };
+      setCurrentUser(taskUser);
+      
       fetchData();
       initializeNotifications();
       setupRealtimeSubscriptions();
     }
-  }, [currentUser]);
+  }, [authUser]);
 
   const setupRealtimeSubscriptions = () => {
     console.log('Setting up realtime subscriptions for tasks');
@@ -104,7 +115,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     console.log('Handling task realtime change:', payload);
     
     if (payload.eventType === 'INSERT') {
-      // Fetch the complete task data with relations
       const { data: newTaskData } = await supabase
         .from('tasks')
         .select(`
@@ -128,14 +138,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           return [formattedTask, ...prev];
         });
         
-        // Show notification for new tasks
-        if (payload.new.created_by !== currentUser?.id) {
+        if (payload.new.created_by !== authUser?.id) {
           toast({
             title: "New Task Created",
             description: `"${payload.new.title}" has been created`,
           });
           
-          // Send mobile notification
           await notificationService.sendMobileNotification(
             'New Task Created',
             `"${payload.new.title}" has been created`
@@ -143,7 +151,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } else if (payload.eventType === 'UPDATE') {
-      fetchTasks(); // Refetch to get updated data with relations
+      fetchTasks();
     } else if (payload.eventType === 'DELETE') {
       setTasks(prev => prev.filter(t => t.id !== payload.old.id));
       toast({
@@ -195,8 +203,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const initializeNotifications = async () => {
     const hasPermission = await notificationService.requestPermission();
-    if (hasPermission && currentUser) {
-      await notificationService.subscribeToPushNotifications(currentUser.id);
+    if (hasPermission && authUser) {
+      await notificationService.subscribeToPushNotifications(authUser.id);
     }
   };
 
@@ -300,7 +308,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">, assigneeIds: string[] = []): Promise<string> => {
-    if (!currentUser) {
+    if (!authUser) {
       console.error('No current user');
       toast({
         title: "Error",
@@ -311,7 +319,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('Adding task to database with user:', currentUser.id);
+      console.log('Adding task to database with user:', authUser.id);
       console.log('Assignee IDs:', assigneeIds);
       
       const taskData = {
@@ -322,7 +330,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         status: task.status,
         due_date: task.due_date,
         project_id: task.project_id || null,
-        created_by: currentUser.id
+        created_by: authUser.id
       };
 
       console.log('Inserting task data:', taskData);
@@ -345,7 +353,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('Task created successfully:', createdTask);
 
-      // Create task assignments if assignees were selected
       if (assigneeIds.length > 0) {
         const assignments = assigneeIds.map(userId => ({
           task_id: createdTask.id,
@@ -365,13 +372,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Send comprehensive notifications using the improved service
       console.log('Sending task assignment notifications...');
       await notificationService.sendTaskAssignmentNotifications(
         assigneeIds,
         task.title,
         createdTask.id,
-        currentUser.id
+        authUser.id
       );
       
       toast({
@@ -420,7 +426,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             'Task Status Updated',
             `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
             task.id,
-            currentUser?.id
+            authUser?.id
           );
         }
         
@@ -428,7 +434,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           'Task Status Updated',
           `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
           task.id,
-          currentUser?.id
+          authUser?.id
         );
       }
       
@@ -465,7 +471,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             'Task Deleted',
             `Task "${task.title}" has been deleted`,
             id,
-            currentUser?.id
+            authUser?.id
           );
         }
 
@@ -473,7 +479,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           'Task Deleted',
           `Task "${task.title}" has been deleted`,
           id,
-          currentUser?.id
+          authUser?.id
         );
       }
       
@@ -518,7 +524,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           'Task Assignment',
           `${user.username} has been assigned to task "${task.title}"`,
           taskId,
-          currentUser?.id
+          authUser?.id
         );
       }
       
@@ -567,7 +573,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         id: Math.random().toString(36).substr(2, 9),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        created_by: currentUser?.id || ''
+        created_by: authUser?.id || ''
       };
       
       setProjects(prev => [newProject, ...prev]);
@@ -782,6 +788,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     notifications,
     markNotificationRead,
     users,
+    currentUser,
     loading,
   };
 
