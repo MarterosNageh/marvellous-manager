@@ -3,7 +3,6 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
 
 interface PrintHistoryProps {
   id: string;
@@ -17,6 +16,18 @@ interface PrintHistoryTableProps {
 }
 
 export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history }) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} ${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -33,7 +44,7 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ history })
           <TableBody>
             {history.map((item) => (
               <TableRow key={item.id}>
-                <TableCell className="font-medium">{format(new Date(item.printed_at), "MMM d, yyyy h:mm a")}</TableCell>
+                <TableCell className="font-medium">{formatDate(item.printed_at)}</TableCell>
                 <TableCell>{item.printed_by}</TableCell>
               </TableRow>
             ))}

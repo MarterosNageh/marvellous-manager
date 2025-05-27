@@ -72,8 +72,86 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser) {
       fetchData();
       initializeNotifications();
+      setupRealtimeSubscriptions();
     }
   }, [currentUser]);
+
+  const setupRealtimeSubscriptions = () => {
+    // Listen for task insertions
+    const taskInsertChannel = supabase
+      .channel('task-inserts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('New task inserted:', payload.new);
+          fetchTasks(); // Refetch tasks to get complete data with relations
+        }
+      )
+      .subscribe();
+
+    // Listen for task updates
+    const taskUpdateChannel = supabase
+      .channel('task-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('Task updated:', payload.new);
+          fetchTasks(); // Refetch tasks to get complete data with relations
+        }
+      )
+      .subscribe();
+
+    // Listen for task deletions
+    const taskDeleteChannel = supabase
+      .channel('task-deletes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('Task deleted:', payload.old);
+          setTasks(prev => prev.filter(task => task.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    // Listen for task assignment changes
+    const assignmentChannel = supabase
+      .channel('task-assignments')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_assignments'
+        },
+        (payload) => {
+          console.log('Task assignment changed:', payload);
+          fetchTasks(); // Refetch tasks to get updated assignments
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(taskInsertChannel);
+      supabase.removeChannel(taskUpdateChannel);
+      supabase.removeChannel(taskDeleteChannel);
+      supabase.removeChannel(assignmentChannel);
+    };
+  };
 
   const initializeNotifications = async () => {
     const hasPermission = await notificationService.requestPermission();
@@ -128,65 +206,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         setUsers(formattedUsers);
       }
 
-      // Fetch tasks from database
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          task_assignments!inner(
-            user_id,
-            assigned_at,
-            auth_users!inner(id, username, is_admin)
-          ),
-          subtasks(*),
-          projects(id, name, description)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (tasksError) {
-        console.log('Tasks fetch error:', tasksError);
-        // Create sample tasks as fallback
-        await createSampleTasks(formattedProjects, formattedUsers);
-      } else {
-        const formattedTasks = tasksData?.map(task => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          supervisor_comments: task.supervisor_comments,
-          priority: task.priority as TaskPriority,
-          status: task.status as TaskStatus,
-          due_date: task.due_date,
-          project_id: task.project_id,
-          created_by: task.created_by,
-          created_at: task.created_at,
-          updated_at: task.updated_at,
-          assignees: task.task_assignments?.map((assignment: any) => ({
-            id: assignment.auth_users.id,
-            username: assignment.auth_users.username,
-            role: assignment.auth_users.is_admin ? 'admin' as const : 'member' as const,
-            assigned_at: assignment.assigned_at
-          })) || [],
-          tags: [],
-          subtasks: task.subtasks?.map((subtask: any) => ({
-            id: subtask.id,
-            parent_task_id: subtask.parent_task_id,
-            title: subtask.title,
-            completed: subtask.completed,
-            created_at: subtask.created_at,
-            order_index: subtask.order_index
-          })) || [],
-          project: task.projects ? {
-            id: task.projects.id,
-            name: task.projects.name,
-            description: task.projects.description,
-            color: '#3b82f6',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            created_by: 'system'
-          } : undefined
-        })) || [];
-        setTasks(formattedTasks);
-      }
+      // Fetch tasks
+      await fetchTasks();
       
       setTags([
         { id: '1', name: 'Frontend', color: '#3b82f6', created_at: new Date().toISOString() },
@@ -205,31 +226,68 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const createSampleTasks = async (projectsData: TaskProject[], usersData: TaskUser[]) => {
-    if (!currentUser || projectsData.length === 0) return;
+  const fetchTasks = async () => {
+    try {
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          task_assignments(
+            user_id,
+            assigned_at,
+            auth_users(id, username, is_admin)
+          ),
+          subtasks(*),
+          projects(id, name, description)
+        `)
+        .order('created_at', { ascending: false });
 
-    const sampleTasks = [
-      {
-        title: 'Review project requirements',
-        description: 'Go through all project requirements and create initial assessment.',
-        priority: 'high' as TaskPriority,
-        status: 'pending' as TaskStatus,
-        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        project_id: projectsData[0]?.id,
-        created_by: currentUser.id
-      },
-      {
-        title: 'Implement user authentication',
-        description: 'Set up secure user authentication system.',
-        priority: 'urgent' as TaskPriority,
-        status: 'in_progress' as TaskStatus,
-        project_id: projectsData[0]?.id,
-        created_by: currentUser.id
+      if (tasksError) {
+        console.log('Tasks fetch error:', tasksError);
+        return;
       }
-    ];
 
-    for (const task of sampleTasks) {
-      await addTask(task);
+      const formattedTasks = tasksData?.map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        supervisor_comments: task.supervisor_comments,
+        priority: task.priority as TaskPriority,
+        status: task.status as TaskStatus,
+        due_date: task.due_date,
+        project_id: task.project_id,
+        created_by: task.created_by,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+        assignees: task.task_assignments?.map((assignment: any) => ({
+          id: assignment.auth_users.id,
+          username: assignment.auth_users.username,
+          role: assignment.auth_users.is_admin ? 'admin' as const : 'member' as const,
+          assigned_at: assignment.assigned_at
+        })) || [],
+        tags: [],
+        subtasks: task.subtasks?.map((subtask: any) => ({
+          id: subtask.id,
+          parent_task_id: subtask.parent_task_id,
+          title: subtask.title,
+          completed: subtask.completed,
+          created_at: subtask.created_at,
+          order_index: subtask.order_index
+        })) || [],
+        project: task.projects ? {
+          id: task.projects.id,
+          name: task.projects.name,
+          description: task.projects.description,
+          color: '#3b82f6',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          created_by: 'system'
+        } : undefined
+      })) || [];
+      
+      setTasks(formattedTasks);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
     }
   };
 

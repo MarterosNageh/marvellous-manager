@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle, Save, X } from "lucide-react";
-import { format } from "date-fns";
 import { Task, TaskStatus } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 
@@ -61,7 +60,8 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
 
   const formatDueDate = (dateString: string) => {
     const date = new Date(dateString);
-    return format(date, 'MMMM d, yyyy');
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   const getStatusLabel = (status: string) => {
@@ -72,6 +72,12 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
       case 'completed': return 'Completed';
       default: return status;
     }
+  };
+
+  const formatCreatedDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   const currentStatusConfig = statusIcons[task.status];
@@ -281,7 +287,7 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
 
           {/* Created Info */}
           <div className="pt-4 border-t text-xs text-gray-500">
-            Created on {format(new Date(task.created_at), 'MMMM d, yyyy')}
+            Created on {formatCreatedDate(task.created_at)}
           </div>
         </div>
       </DialogContent>

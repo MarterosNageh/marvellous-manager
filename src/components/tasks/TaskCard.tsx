@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
 import { Task } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 import { TaskDetailDialog } from "./TaskDetailDialog";
@@ -51,7 +50,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
   const formatDueDate = (dateString: string) => {
     const date = new Date(dateString);
-    return format(date, 'MMM d');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}`;
   };
 
   const getStatusLabel = (status: string) => {
