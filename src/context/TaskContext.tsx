@@ -234,7 +234,23 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
+    if (!currentUser) {
+      toast.error('You must be logged in to create tasks');
+      return;
+    }
+
     try {
+      console.log('Creating task with data:', {
+        title: task.title,
+        description: task.description,
+        supervisor_comments: task.supervisor_comments,
+        priority: task.priority,
+        status: task.status,
+        due_date: task.due_date,
+        project_id: task.project_id,
+        created_by: currentUser.id
+      });
+
       const { data, error } = await supabase
         .from('tasks')
         .insert({
@@ -245,12 +261,15 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           status: task.status,
           due_date: task.due_date,
           project_id: task.project_id,
-          created_by: currentUser?.id || ''
+          created_by: currentUser.id
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       const newTask: Task = {
         ...task,
