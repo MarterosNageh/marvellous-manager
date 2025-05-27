@@ -1,269 +1,304 @@
-
-import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useData } from "@/context/DataContext";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Trash, Printer, Clipboard, History } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
+import { ArrowLeft, Edit, Trash2, Printer, Archive } from "lucide-react";
+import { useData } from "@/context/DataContext";
+import type { HardDrive, PrintHistory } from "@/types";
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 const HardDriveDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getHardDrive, getProject, deleteHardDrive, printHistory: allPrintHistory } = useData();
-  const isMobile = useIsMobile();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("details");
+  const { hardDrives, projects, deleteHardDrive, printHistory } = useData();
   
-  const hardDrive = getHardDrive(id || "");
-  const project = hardDrive ? getProject(hardDrive.projectId) : null;
-  
-  // Filter print history for this hard drive
-  const hardDriveHistory = allPrintHistory
-    .filter(item => item.hardDriveId === hardDrive?.id)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  
+  const [hardDrive, setHardDrive] = useState<HardDrive | null>(null);
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    if (id && !hardDrive) {
-      navigate("/hard-drives", { replace: true });
+    if (!id) {
+      navigate('/hard-drives');
+      return;
     }
-  }, [id, hardDrive, navigate]);
-  
-  if (!hardDrive) {
+
+    const foundHardDrive = hardDrives.find(hd => hd.id === id);
+    if (!foundHardDrive) {
+      toast({
+        title: "Hard Drive Not Found",
+        description: "The requested hard drive could not be found.",
+        variant: "destructive"
+      });
+      navigate('/hard-drives');
+      return;
+    }
+
+    setHardDrive(foundHardDrive);
+    
+    if (foundHardDrive.projectId) {
+      const foundProject = projects.find(p => p.id === foundHardDrive.projectId);
+      setProject(foundProject);
+    }
+    
+    setLoading(false);
+  }, [id, hardDrives, projects, navigate, toast]);
+
+  const handleDelete = async () => {
+    if (!hardDrive) return;
+    
+    if (window.confirm('Are you sure you want to delete this hard drive?')) {
+      try {
+        await deleteHardDrive(hardDrive.id);
+        toast({
+          title: "Hard Drive Deleted",
+          description: "The hard drive has been successfully deleted."
+        });
+        navigate('/hard-drives');
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete the hard drive.",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handlePrint = () => {
+    if (!hardDrive) return;
+    
+    // Navigate to print page with hard drive data
+    navigate('/print', { 
+      state: { 
+        type: 'hardDriveDetail',
+        hardDrive,
+        project 
+      } 
+    });
+  };
+
+  if (loading) {
     return (
       <MainLayout>
-        <div className="text-center p-12">
-          <h2 className="text-2xl font-bold mb-4">Hard Drive Not Found</h2>
-          <p className="mb-6">The hard drive you're looking for doesn't exist or has been removed.</p>
-          <Button onClick={() => navigate("/hard-drives")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Hard Drives
-          </Button>
+        <div className="p-6">
+          <div className="text-center">Loading...</div>
         </div>
       </MainLayout>
     );
   }
-  
-  const generateLabelToPrint = () => {
-    navigate(`/hard-drives/${hardDrive.id}/print?type=hard-label`);
-  };
-  
-  const handleDeleteHardDrive = async () => {
-    try {
-      await deleteHardDrive(hardDrive.id);
-      navigate("/hard-drives");
-      toast({
-        title: "Success",
-        description: "Hard drive deleted successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete hard drive",
-        variant: "destructive",
-      });
-    }
-  };
-  
-  const getCableList = () => {
-    const cableItems = [];
-    
-    if (hardDrive.cables.thunderbolt3) cableItems.push("Thunderbolt 3");
-    if (hardDrive.cables.typeC) cableItems.push("USB-C");
-    if (hardDrive.cables.power) cableItems.push("Power");
-    if (hardDrive.cables.usb3) cableItems.push("USB 3.0");
-    if (hardDrive.cables.passport) cableItems.push("Passport Cable");
-    if (hardDrive.cables.other) cableItems.push(hardDrive.cables.other);
-    
-    return cableItems.length > 0 ? cableItems.join(", ") : "None";
-  };
-  
-  const copyQRUrl = () => {
-    const url = `${window.location.origin}/hard-drives/${hardDrive.id}/view`;
-    navigator.clipboard.writeText(url);
-    toast({
-      description: "QR code URL copied to clipboard",
-    });
-  };
-  
+
+  if (!hardDrive) {
+    return (
+      <MainLayout>
+        <div className="p-6">
+          <div className="text-center">Hard drive not found</div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Filter print history for this hard drive and transform to match PrintHistoryProps
+  const hardDrivePrintHistory = printHistory
+    .filter(history => history.hardDriveId === hardDrive.id)
+    .map(history => ({
+      id: history.id,
+      type: history.type,
+      hard_drive_id: history.hardDriveId,
+      printed_at: history.timestamp,
+      printed_by: history.operatorName,
+      // Add other required properties if needed
+    }));
+
   return (
     <MainLayout>
-      <div className="space-y-6 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4" />
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate('/hard-drives')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Hard Drives
             </Button>
-            <h1 className="text-xl sm:text-3xl font-bold truncate">{hardDrive.name}</h1>
+            <h1 className="text-3xl font-bold">{hardDrive.name}</h1>
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            <Link to={`/hard-drives/${hardDrive.id}/print`}>
-              <Button variant="outline" size={isMobile ? "sm" : "default"}>
-                <Printer className="mr-2 h-4 w-4" />
-                Print Forms
-              </Button>
-            </Link>
+          <div className="flex gap-2">
             <Button 
               variant="outline" 
-              size={isMobile ? "sm" : "default"}
-              onClick={generateLabelToPrint}
+              size="sm"
+              onClick={handlePrint}
             >
-              <Printer className="mr-2 h-4 w-4" />
+              <Printer className="h-4 w-4 mr-2" />
               Print Label
             </Button>
-            <Link to={`/hard-drives/${hardDrive.id}/edit`}>
-              <Button variant="outline" size={isMobile ? "sm" : "default"}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            </Link>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size={isMobile ? "sm" : "default"}>
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the
-                    hard drive.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteHardDrive}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate(`/hard-drives/${hardDrive.id}/edit`)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={handleDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
           </div>
         </div>
-        
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="qrcode">QR Code</TabsTrigger>
-            <TabsTrigger value="history">Print History</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="details" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Hard Drive Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Name</label>
+                <p className="text-lg">{hardDrive.name}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-500">Serial Number</label>
+                <p className="text-lg font-mono">{hardDrive.serialNumber}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-500">Capacity</label>
+                <p className="text-lg">{hardDrive.capacity || 'Not specified'}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-500">Free Space</label>
+                <p className="text-lg">{hardDrive.freeSpace || 'Not specified'}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-500">Data</label>
+                <p className="text-lg">{hardDrive.data || 'No data specified'}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Project Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Project Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {project ? (
+                <>
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Name</h3>
-                    <p className="text-lg">{hardDrive.name}</p>
+                    <label className="text-sm font-medium text-gray-500">Project Name</label>
+                    <p className="text-lg">{project.name}</p>
                   </div>
+                  
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Serial Number</h3>
-                    <p className="text-lg">{hardDrive.serialNumber}</p>
+                    <label className="text-sm font-medium text-gray-500">Project Type</label>
+                    <Badge variant="secondary">{project.type || 'Not specified'}</Badge>
                   </div>
+                  
+                  {project.description && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Description</label>
+                      <p className="text-sm text-gray-700">{project.description}</p>
+                    </div>
+                  )}
+                  
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Capacity</h3>
-                    <p className="text-lg">{hardDrive.capacity || "N/A"}</p>
+                    <label className="text-sm font-medium text-gray-500">Created</label>
+                    <p className="text-sm">{formatDate(project.createdAt)}</p>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Free Space</h3>
-                    <p className="text-lg">{hardDrive.freeSpace || "N/A"}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Project</h3>
-                    <p className="text-lg">
-                      {project ? (
-                        <Link to={`/projects/${project.id}`} className="hover:underline text-primary">
-                          {project.name}
-                        </Link>
-                      ) : (
-                        "None"
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Created On</h3>
-                    <p className="text-lg">{new Date(hardDrive.createdAt).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Cables</h3>
-                    <p className="text-lg">{getCableList()}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
-                    <p className="text-lg">{new Date(hardDrive.updatedAt).toLocaleDateString()}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <h3 className="text-sm font-medium text-muted-foreground">Data</h3>
-                    <p className="text-lg whitespace-pre-wrap">{hardDrive.data || "No data"}</p>
-                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Archive className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500">No project assigned</p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="qrcode">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>QR Code</CardTitle>
-                  <Button size="sm" variant="outline" onClick={copyQRUrl}>
-                    <Clipboard className="h-4 w-4 mr-2" />
-                    Copy URL
-                  </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cable Information */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Cable Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium">Power</span>
+                  <Badge variant={hardDrive.cables.power ? "default" : "secondary"}>
+                    {hardDrive.cables.power ? "Yes" : "No"}
+                  </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                <div className="bg-white p-4 rounded-lg">
-                  <QRCodeSVG
-                    value={`${window.location.origin}/hard-drives/${hardDrive.id}/view`}
-                    size={200}
-                    level="H"
-                    includeMargin
-                  />
+                
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium">USB 3.0</span>
+                  <Badge variant={hardDrive.cables.usb3 ? "default" : "secondary"}>
+                    {hardDrive.cables.usb3 ? "Yes" : "No"}
+                  </Badge>
                 </div>
-                <p className="mt-4 text-center text-sm text-muted-foreground max-w-md">
-                  This QR code links to a public page showing basic information about this hard drive.
-                  Scan it to quickly access hard drive details without logging in.
-                </p>
-                <div className="mt-4">
-                  <Link to={`/hard-drives/${hardDrive.id}/qrcode`}>
-                    <Button variant="outline">
-                      Generate Printable QR Code
-                    </Button>
-                  </Link>
+                
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium">Type-C</span>
+                  <Badge variant={hardDrive.cables.typeC ? "default" : "secondary"}>
+                    {hardDrive.cables.typeC ? "Yes" : "No"}
+                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center">
-                    <History className="h-5 w-5 mr-2" />
-                    Print History
-                  </CardTitle>
+                
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium">Thunderbolt 3</span>
+                  <Badge variant={hardDrive.cables.thunderbolt3 ? "default" : "secondary"}>
+                    {hardDrive.cables.thunderbolt3 ? "Yes" : "No"}
+                  </Badge>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <PrintHistoryTable history={hardDriveHistory} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                
+                <div className="flex flex-col p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium mb-1">Other</span>
+                  <span className="text-xs text-gray-600">
+                    {hardDrive.cables.other || "None"}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
+
+        {/* Print History */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Print History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PrintHistoryTable data={hardDrivePrintHistory} />
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );

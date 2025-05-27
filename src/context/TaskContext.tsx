@@ -241,29 +241,35 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('Adding task to database:', {
+      console.log('Adding task to database with user:', currentUser.id);
+      
+      // Ensure we have a valid due_date format
+      let formattedDueDate = null;
+      if (task.due_date) {
+        // If it's already an ISO string, use it; otherwise convert to ISO
+        if (typeof task.due_date === 'string') {
+          formattedDueDate = task.due_date;
+        } else {
+          formattedDueDate = new Date(task.due_date).toISOString();
+        }
+      }
+
+      const taskData = {
         title: task.title,
         description: task.description,
         supervisor_comments: task.supervisor_comments,
         priority: task.priority,
         status: task.status,
-        due_date: task.due_date,
+        due_date: formattedDueDate,
         project_id: task.project_id,
         created_by: currentUser.id
-      });
+      };
+
+      console.log('Inserting task data:', taskData);
 
       const { data, error } = await supabase
         .from('tasks')
-        .insert({
-          title: task.title,
-          description: task.description,
-          supervisor_comments: task.supervisor_comments,
-          priority: task.priority,
-          status: task.status,
-          due_date: task.due_date,
-          project_id: task.project_id,
-          created_by: currentUser.id
-        })
+        .insert(taskData)
         .select()
         .single();
 
@@ -275,8 +281,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('Task created successfully:', data);
       toast.success('Task created successfully');
-      
-      // No need to manually update state as realtime will handle it
       
     } catch (error) {
       console.error('Error adding task:', error);
@@ -305,11 +309,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       const previousTask = tasks.find(t => t.id === task.id);
       setTasks(prev => prev.map(t => t.id === task.id ? task : t));
       
-      // Send notification for status change to assignees and admins
       if (previousTask && previousTask.status !== task.status) {
         const assigneeIds = task.assignees?.map(a => a.id) || [];
         
-        // Notify assignees
         if (assigneeIds.length > 0) {
           await notificationService.sendNotificationToAssignees(
             assigneeIds,
@@ -320,7 +322,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           );
         }
         
-        // Notify admins
         await notificationService.sendNotificationToAdmins(
           'Task Status Updated',
           `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
@@ -349,7 +350,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       setTasks(prev => prev.filter(t => t.id !== id));
       
       if (task) {
-        // Notify assignees about deletion
         const assigneeIds = task.assignees?.map(a => a.id) || [];
         if (assigneeIds.length > 0) {
           await notificationService.sendNotificationToAssignees(
@@ -361,7 +361,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           );
         }
 
-        // Notify admins
         await notificationService.sendNotificationToAdmins(
           'Task Deleted',
           `Task "${task.title}" has been deleted`,
@@ -399,7 +398,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         
         setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
         
-        // Send notification to assigned user
         await notificationService.sendNotificationToUser(
           userId,
           'Task Assigned',
@@ -408,7 +406,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           'assignment'
         );
 
-        // Notify admins about assignment
         await notificationService.sendNotificationToAdmins(
           'Task Assignment',
           `${user.username} has been assigned to task "${task.title}"`,
