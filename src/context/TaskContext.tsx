@@ -312,6 +312,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       console.log('Adding task to database with user:', currentUser.id);
+      console.log('Assignee IDs:', assigneeIds);
       
       const taskData = {
         title: task.title,
@@ -351,6 +352,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           user_id: userId
         }));
 
+        console.log('Creating task assignments:', assignments);
+
         const { error: assignmentError } = await supabase
           .from('task_assignments')
           .insert(assignments);
@@ -359,24 +362,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           console.error('Error creating assignments:', assignmentError);
         } else {
           console.log('Task assignments created successfully');
-          
-          // Send notifications to assigned users
-          for (const userId of assigneeIds) {
-            await notificationService.sendNotificationToUser(
-              userId,
-              'Task Assigned',
-              `You have been assigned to task "${task.title}"`,
-              createdTask.id,
-              'assignment'
-            );
-          }
         }
       }
 
-      // Send mobile notification for task creation
-      await notificationService.sendMobileNotification(
-        'Task Created',
-        `Task "${task.title}" has been created successfully`
+      // Send comprehensive notifications using the improved service
+      console.log('Sending task assignment notifications...');
+      await notificationService.sendTaskAssignmentNotifications(
+        assigneeIds,
+        task.title,
+        createdTask.id,
+        currentUser.id
       );
       
       toast({

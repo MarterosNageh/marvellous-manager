@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useTask } from "@/context/TaskContext";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -76,6 +76,15 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const getSelectedUsernames = () => {
+    if (selectedAssignees.length === 0) return "Select assignees";
+    if (selectedAssignees.length === 1) {
+      const user = users.find(u => u.id === selectedAssignees[0]);
+      return user?.username || "Unknown user";
+    }
+    return `${selectedAssignees.length} users selected`;
   };
 
   return (
@@ -181,20 +190,29 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
 
           <div>
             <Label>Assign to Users</Label>
-            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
-              {users.map((user) => (
-                <div key={user.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={user.id}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between"
+                  type="button"
+                >
+                  {getSelectedUsernames()}
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full bg-white border shadow-lg">
+                {users.map((user) => (
+                  <DropdownMenuCheckboxItem
+                    key={user.id}
                     checked={selectedAssignees.includes(user.id)}
                     onCheckedChange={() => handleAssigneeToggle(user.id)}
-                  />
-                  <Label htmlFor={user.id} className="text-sm font-normal">
+                  >
                     {user.username} {user.role === 'admin' && '(Admin)'}
-                  </Label>
-                </div>
-              ))}
-            </div>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             {selectedAssignees.length > 0 && (
               <p className="text-sm text-muted-foreground mt-1">
                 {selectedAssignees.length} user(s) selected

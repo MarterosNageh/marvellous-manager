@@ -92,20 +92,15 @@ class NotificationService {
     }
   }
 
-  async sendMobileNotification(title: string, message: string, taskId?: string): Promise<void> {
-    try {
-      // For mobile notifications, we would typically send to a server endpoint
-      // that handles push notifications to mobile devices
-      
-      // For now, show browser notification if permission granted
-      if (Notification.permission === 'granted') {
+  async sendBrowserNotification(title: string, message: string, taskId?: string): Promise<void> {
+    if (Notification.permission === 'granted') {
+      try {
         const notification = new Notification(title, {
           body: message,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
           tag: taskId || 'general',
           requireInteraction: true,
-          vibrate: [200, 100, 200],
           actions: [
             {
               action: 'view',
@@ -118,6 +113,11 @@ class NotificationService {
           ]
         });
 
+        // Add vibration for mobile devices
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
+
         notification.onclick = () => {
           window.focus();
           if (taskId) {
@@ -126,14 +126,40 @@ class NotificationService {
           }
           notification.close();
         };
-      }
 
-      // If we have a service worker and subscription, send push notification
-      if (this.subscription && this.registration) {
-        // This would typically send to your backend server
-        // which would then send the push notification to the mobile device
-        console.log('Would send mobile push notification:', { title, message, taskId });
+        console.log('Browser notification sent:', title);
+      } catch (error) {
+        console.error('Error sending browser notification:', error);
       }
+    }
+  }
+
+  async sendServiceWorkerNotification(title: string, message: string, taskId?: string): Promise<void> {
+    if (this.registration && this.subscription) {
+      try {
+        // Send through service worker for better mobile support
+        if (this.registration.active) {
+          this.registration.active.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title,
+            message,
+            taskId
+          });
+        }
+        console.log('Service worker notification sent:', title);
+      } catch (error) {
+        console.error('Error sending service worker notification:', error);
+      }
+    }
+  }
+
+  async sendMobileNotification(title: string, message: string, taskId?: string): Promise<void> {
+    try {
+      // Send both browser and service worker notifications for maximum compatibility
+      await Promise.all([
+        this.sendBrowserNotification(title, message, taskId),
+        this.sendServiceWorkerNotification(title, message, taskId)
+      ]);
 
       console.log(`Mobile notification sent: ${title}`);
     } catch (error) {
@@ -180,13 +206,22 @@ class NotificationService {
     taskId?: string,
     excludeUserId?: string
   ): Promise<void> {
-    const promises = assigneeIds
-      .filter(id => id !== excludeUserId)
-      .map(userId => 
-        this.sendNotificationToUser(userId, title, message, taskId, 'assignment')
-      );
+    console.log('Sending notifications to assignees:', { assigneeIds, title, excludeUserId });
+    
+    const filteredAssigneeIds = assigneeIds.filter(id => id !== excludeUserId);
+    
+    if (filteredAssigneeIds.length === 0) {
+      console.log('No assignees to notify after filtering');
+      return;
+    }
+
+    const promises = filteredAssigneeIds.map(userId => {
+      console.log(`Sending notification to assignee: ${userId}`);
+      return this.sendNotificationToUser(userId, title, message, taskId, 'assignment');
+    });
 
     await Promise.all(promises);
+    console.log('All assignee notifications sent');
   }
 
   async sendNotificationToAdmins(
@@ -212,14 +247,56 @@ class NotificationService {
           .map(user => user.id)
           .filter(id => id !== excludeUserId);
 
+        console.log('Sending notifications to admins:', { adminIds, title });
+
         const promises = adminIds.map(userId => 
           this.sendNotificationToUser(userId, title, message, taskId, 'assignment')
         );
 
         await Promise.all(promises);
+        console.log('All admin notifications sent');
       }
     } catch (error) {
       console.error('Error sending admin notifications:', error);
+    }
+  }
+
+  async sendTaskAssignmentNotifications(
+    assigneeIds: string[],
+    taskTitle: string,
+    taskId: string,
+    createdById?: string
+  ): Promise<void> {
+    console.log('sendTaskAssignmentNotifications called with:', {
+      assigneeIds,
+      taskTitle,
+      taskId,
+      createdById
+    });
+
+    try {
+      // Send notifications to all assigned users (excluding the creator)
+      if (assigneeIds.length > 0) {
+        await this.sendNotificationToAssignees(
+          assigneeIds,
+          'New Task Assignment',
+          `You have been assigned to task: "${taskTitle}"`,
+          taskId,
+          createdById
+        );
+      }
+
+      // Send notifications to all admins (excluding the creator if they're admin)
+      await this.sendNotificationToAdmins(
+        'New Task Created',
+        `A new task "${taskTitle}" has been created`,
+        taskId,
+        createdById
+      );
+
+      console.log('Task assignment notifications completed');
+    } catch (error) {
+      console.error('Error in sendTaskAssignmentNotifications:', error);
     }
   }
 }
