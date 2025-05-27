@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useTask } from "@/context/TaskContext";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
-import { CalendarIcon, ChevronDown } from "lucide-react";
+import { CalendarIcon, ChevronDown, Plus, X } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,6 +28,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
   const [projectId, setProjectId] = useState("");
   const [dueDate, setDueDate] = useState<Date>();
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<string[]>([""]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +38,6 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
     try {
       setLoading(true);
       
-      // Create the task with assignees
       const taskData = {
         title: title.trim(),
         description: description.trim() || undefined,
@@ -47,8 +47,15 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
         due_date: dueDate?.toISOString(),
         assignees: [],
         tags: [],
-        subtasks: [],
-        created_by: '', // This will be set in the context
+        subtasks: subtasks.filter(s => s.trim()).map((subtaskTitle, index) => ({
+          id: '',
+          parent_task_id: '',
+          title: subtaskTitle.trim(),
+          completed: false,
+          created_at: '',
+          order_index: index
+        })),
+        created_by: '',
       };
 
       await addTask(taskData, selectedAssignees);
@@ -61,6 +68,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
       setProjectId("");
       setDueDate(undefined);
       setSelectedAssignees([]);
+      setSubtasks([""]);
       
       onOpenChange(false);
     } catch (error) {
@@ -87,9 +95,21 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
     return `${selectedAssignees.length} users selected`;
   };
 
+  const addSubtask = () => {
+    setSubtasks(prev => [...prev, ""]);
+  };
+
+  const removeSubtask = (index: number) => {
+    setSubtasks(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateSubtask = (index: number, value: string) => {
+    setSubtasks(prev => prev.map((subtask, i) => i === index ? value : subtask));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
         </DialogHeader>
@@ -201,7 +221,7 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
                   <ChevronDown className="h-4 w-4 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full bg-white border shadow-lg">
+              <DropdownMenuContent className="w-full bg-white border shadow-lg z-50">
                 {users.map((user) => (
                   <DropdownMenuCheckboxItem
                     key={user.id}
@@ -218,6 +238,38 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
                 {selectedAssignees.length} user(s) selected
               </p>
             )}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Subtasks</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addSubtask}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add Subtask
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {subtasks.map((subtask, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={subtask}
+                    onChange={(e) => updateSubtask(index, e.target.value)}
+                    placeholder={`Subtask ${index + 1}`}
+                    className="flex-1"
+                  />
+                  {subtasks.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeSubtask(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
