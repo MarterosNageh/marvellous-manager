@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
+import { TaskProvider } from "@/context/TaskContext";
 
 // Page imports
 import Login from "./pages/Login";
@@ -41,7 +42,11 @@ const App = () => (
 
               {/* Protected routes */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={
+                <TaskProvider>
+                  <Dashboard />
+                </TaskProvider>
+              } />
 
               {/* Project routes */}
               <Route path="/projects" element={<Projects />} />

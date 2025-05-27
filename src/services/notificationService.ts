@@ -1,4 +1,15 @@
 
+import { supabase } from "@/integrations/supabase/client";
+
+interface NotificationPayload {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  data?: any;
+}
+
 class NotificationService {
   private registration: ServiceWorkerRegistration | null = null;
 
@@ -6,7 +17,7 @@ class NotificationService {
     if ('serviceWorker' in navigator) {
       try {
         this.registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registered successfully');
+        console.log('Service Worker registered:', this.registration);
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -23,33 +34,206 @@ class NotificationService {
       return true;
     }
 
-    if (Notification.permission !== 'denied') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
+    if (Notification.permission === 'denied') {
+      return false;
     }
 
-    return false;
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
   }
 
-  async subscribeToPushNotifications(userId: string): Promise<void> {
+  async subscribeToPushNotifications(userId: string): Promise<PushSubscription | null> {
     if (!this.registration) {
       await this.init();
     }
 
     if (!this.registration) {
-      console.error('Service Worker not registered');
-      return;
+      console.error('Service Worker not available');
+      return null;
     }
 
     try {
       const subscription = await this.registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array('YOUR_VAPID_PUBLIC_KEY')
+        applicationServerKey: this.urlBase64ToUint8Array(process.env.VAPID_PUBLIC_KEY || '')
       });
 
-      console.log('Push subscription created:', subscription);
+      // Store subscription in database
+      await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: userId,
+          subscription: JSON.stringify(subscription),
+          endpoint: subscription.endpoint
+        });
+
+      return subscription;
     } catch (error) {
       console.error('Failed to subscribe to push notifications:', error);
+      return null;
+    }
+  }
+
+  async sendLocalNotification(payload: NotificationPayload) {
+    const hasPermission = await this.requestPermission();
+    if (!hasPermission) return;
+
+    try {
+      const notification = new Notification(payload.title, {
+        body: payload.body,
+        icon: payload.icon || '/favicon.ico',
+        badge: payload.badge || '/favicon.ico',
+        tag: payload.tag,
+        data: payload.data,
+        requireInteraction: true
+      });
+
+      // Add vibration for mobile devices
+      if ('vibrate' in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+        if (payload.data?.url) {
+          window.location.href = payload.data.url;
+        }
+      };
+
+      return notification;
+    } catch (error) {
+      console.error('Failed to show notification:', error);
+    }
+  }
+
+  async sendMobileNotification(title: string, body: string, data?: any) {
+    // For PWA mobile notifications
+    if (this.registration && 'showNotification' in this.registration) {
+      try {
+        await this.registration.showNotification(title, {
+          body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          data,
+          requireInteraction: true,
+          actions: [
+            {
+              action: 'view',
+              title: 'View',
+              icon: '/favicon.ico'
+            },
+            {
+              action: 'dismiss',
+              title: 'Dismiss'
+            }
+          ]
+        });
+      } catch (error) {
+        console.error('Failed to show mobile notification:', error);
+      }
+    }
+  }
+
+  async sendTaskAssignmentNotifications(
+    assigneeIds: string[],
+    taskTitle: string,
+    taskId: string,
+    createdBy?: string
+  ) {
+    console.log('Sending task assignment notifications to:', assigneeIds);
+    
+    for (const userId of assigneeIds) {
+      if (userId !== createdBy) {
+        await this.sendNotificationToUser(
+          userId,
+          'New Task Assigned',
+          `You have been assigned to task: "${taskTitle}"`,
+          taskId,
+          'assignment'
+        );
+      }
+    }
+
+    // Send to all admins
+    await this.sendNotificationToAdmins(
+      'New Task Created',
+      `Task "${taskTitle}" has been created and assigned`,
+      taskId,
+      createdBy
+    );
+  }
+
+  async sendNotificationToUser(
+    userId: string,
+    title: string,
+    body: string,
+    taskId?: string,
+    type: string = 'general'
+  ) {
+    try {
+      // Store in database
+      await supabase.from('task_notifications').insert({
+        user_id: userId,
+        title,
+        message: body,
+        task_id: taskId,
+        type,
+        read: false
+      });
+
+      // Send local notification
+      await this.sendLocalNotification({
+        title,
+        body,
+        tag: `task-${taskId}`,
+        data: { taskId, url: `/task-manager` }
+      });
+
+      // Send mobile notification
+      await this.sendMobileNotification(title, body, { taskId });
+
+      console.log(`Notification sent to user ${userId}:`, title);
+    } catch (error) {
+      console.error('Error sending notification to user:', error);
+    }
+  }
+
+  async sendNotificationToAssignees(
+    assigneeIds: string[],
+    title: string,
+    body: string,
+    taskId?: string,
+    excludeUserId?: string
+  ) {
+    for (const userId of assigneeIds) {
+      if (userId !== excludeUserId) {
+        await this.sendNotificationToUser(userId, title, body, taskId);
+      }
+    }
+  }
+
+  async sendNotificationToAdmins(
+    title: string,
+    body: string,
+    taskId?: string,
+    excludeUserId?: string
+  ) {
+    try {
+      const { data: admins } = await supabase
+        .from('auth_users')
+        .select('id')
+        .eq('is_admin', true);
+
+      if (admins) {
+        for (const admin of admins) {
+          if (admin.id !== excludeUserId) {
+            await this.sendNotificationToUser(admin.id, title, body, taskId, 'admin');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sending notifications to admins:', error);
     }
   }
 
@@ -66,89 +250,6 @@ class NotificationService {
       outputArray[i] = rawData.charCodeAt(i);
     }
     return outputArray;
-  }
-
-  async sendNotification(title: string, message: string, taskId?: string): Promise<void> {
-    const hasPermission = await this.requestPermission();
-    
-    if (!hasPermission) {
-      console.log('Notification permission not granted');
-      return;
-    }
-
-    // Web notification
-    const notification = new Notification(title, {
-      body: message,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      tag: `task-${taskId}`,
-      requireInteraction: true,
-      vibrate: [200, 100, 200]
-    });
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-      if (taskId) {
-        window.location.href = '/task-manager';
-      }
-    };
-
-    // Mobile notification via service worker
-    if (this.registration && this.registration.active) {
-      this.registration.active.postMessage({
-        type: 'SHOW_NOTIFICATION',
-        title,
-        message,
-        taskId
-      });
-    }
-  }
-
-  async sendMobileNotification(title: string, message: string, taskId?: string): Promise<void> {
-    if (this.registration && this.registration.active) {
-      this.registration.active.postMessage({
-        type: 'SHOW_NOTIFICATION',
-        title,
-        message,
-        taskId
-      });
-    }
-  }
-
-  async sendTaskAssignmentNotifications(assigneeIds: string[], taskTitle: string, taskId: string, createdBy: string): Promise<void> {
-    const title = 'New Task Assignment';
-    const message = `You have been assigned to task: "${taskTitle}"`;
-    
-    console.log(`Sending assignment notifications to ${assigneeIds.length} users`);
-    
-    // Send notification for each assignee
-    for (const assigneeId of assigneeIds) {
-      if (assigneeId !== createdBy) {
-        await this.sendNotification(title, message, taskId);
-        await this.sendMobileNotification(title, message, taskId);
-      }
-    }
-  }
-
-  async sendNotificationToUser(userId: string, title: string, message: string, taskId: string, type: string = 'info'): Promise<void> {
-    console.log(`Sending notification to user ${userId}: ${title}`);
-    await this.sendNotification(title, message, taskId);
-    await this.sendMobileNotification(title, message, taskId);
-  }
-
-  async sendNotificationToAssignees(assigneeIds: string[], title: string, message: string, taskId: string, excludeUserId?: string): Promise<void> {
-    for (const assigneeId of assigneeIds) {
-      if (assigneeId !== excludeUserId) {
-        await this.sendNotificationToUser(assigneeId, title, message, taskId);
-      }
-    }
-  }
-
-  async sendNotificationToAdmins(title: string, message: string, taskId: string, excludeUserId?: string): Promise<void> {
-    console.log('Sending notification to all admins:', title);
-    await this.sendNotification(title, message, taskId);
-    await this.sendMobileNotification(title, message, taskId);
   }
 }
 

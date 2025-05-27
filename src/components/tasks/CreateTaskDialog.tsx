@@ -1,18 +1,18 @@
 
 import { useState } from "react";
+import { useTask } from "@/context/TaskContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useTask } from "@/context/TaskContext";
-import { TaskPriority, TaskStatus } from "@/types/taskTypes";
-import { CalendarIcon, ChevronDown, Plus, X } from "lucide-react";
-import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon, Plus, X } from "lucide-react";
+import { formatDate } from "date-fns";
+import { TaskPriority, TaskStatus } from "@/types/taskTypes";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -25,51 +25,41 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [status, setStatus] = useState<TaskStatus>("pending");
-  const [projectId, setProjectId] = useState("");
-  const [dueDate, setDueDate] = useState<Date>();
-  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
-  const [subtasks, setSubtasks] = useState<string[]>([""]);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<{ title: string; completed: boolean }[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      const taskData = {
+      await addTask({
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
         status,
-        project_id: projectId || undefined,
         due_date: dueDate?.toISOString(),
+        project_id: projectId || null,
+        supervisor_comments: null,
         assignees: [],
         tags: [],
-        subtasks: subtasks.filter(s => s.trim()).map((subtaskTitle, index) => ({
-          id: '',
-          parent_task_id: '',
-          title: subtaskTitle.trim(),
-          completed: false,
-          created_at: '',
-          order_index: index
-        })),
-        created_by: '',
-      };
+        subtasks: [],
+        project: undefined
+      }, assigneeIds);
 
-      await addTask(taskData, selectedAssignees);
-      
       // Reset form
       setTitle("");
       setDescription("");
       setPriority("medium");
       setStatus("pending");
-      setProjectId("");
       setDueDate(undefined);
-      setSelectedAssignees([]);
-      setSubtasks([""]);
-      
+      setProjectId(undefined);
+      setAssigneeIds([]);
+      setSubtasks([]);
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating task:', error);
@@ -78,38 +68,31 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
     }
   };
 
-  const handleAssigneeToggle = (userId: string) => {
-    setSelectedAssignees(prev => 
+  const addSubtask = () => {
+    setSubtasks([...subtasks, { title: "", completed: false }]);
+  };
+
+  const updateSubtask = (index: number, title: string) => {
+    const updated = [...subtasks];
+    updated[index].title = title;
+    setSubtasks(updated);
+  };
+
+  const removeSubtask = (index: number) => {
+    setSubtasks(subtasks.filter((_, i) => i !== index));
+  };
+
+  const toggleAssignee = (userId: string) => {
+    setAssigneeIds(prev => 
       prev.includes(userId) 
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
   };
 
-  const getSelectedUsernames = () => {
-    if (selectedAssignees.length === 0) return "Select assignees";
-    if (selectedAssignees.length === 1) {
-      const user = users.find(u => u.id === selectedAssignees[0]);
-      return user?.username || "Unknown user";
-    }
-    return `${selectedAssignees.length} users selected`;
-  };
-
-  const addSubtask = () => {
-    setSubtasks(prev => [...prev, ""]);
-  };
-
-  const removeSubtask = (index: number) => {
-    setSubtasks(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateSubtask = (index: number, value: string) => {
-    setSubtasks(prev => prev.map((subtask, i) => i === index ? value : subtask));
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
         </DialogHeader>
@@ -139,10 +122,10 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Priority</Label>
+              <Label htmlFor="priority">Priority</Label>
               <Select value={priority} onValueChange={(value: TaskPriority) => setPriority(value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
@@ -154,10 +137,10 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
             </div>
 
             <div>
-              <Label>Status</Label>
+              <Label htmlFor="status">Status</Label>
               <Select value={status} onValueChange={(value: TaskStatus) => setStatus(value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pending</SelectItem>
@@ -169,114 +152,104 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
             </div>
           </div>
 
-          <div>
-            <Label>Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a project (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="project">Project</Label>
+              <Select value={projectId || ""} onValueChange={(value) => setProjectId(value || undefined)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No project</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="dueDate">Due Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dueDate ? formatDate(dueDate, 'PPP') : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={setDueDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <div>
-            <Label>Due Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={setDueDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div>
-            <Label>Assign to Users</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-between"
-                  type="button"
-                >
-                  {getSelectedUsernames()}
-                  <ChevronDown className="h-4 w-4 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full bg-white border shadow-lg z-50">
-                {users.map((user) => (
-                  <DropdownMenuCheckboxItem
-                    key={user.id}
-                    checked={selectedAssignees.includes(user.id)}
-                    onCheckedChange={() => handleAssigneeToggle(user.id)}
+            <Label>Assignees</Label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
+              {users.map((user) => (
+                <div key={user.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`assignee-${user.id}`}
+                    checked={assigneeIds.includes(user.id)}
+                    onCheckedChange={() => toggleAssignee(user.id)}
+                  />
+                  <Label 
+                    htmlFor={`assignee-${user.id}`}
+                    className="text-sm font-normal cursor-pointer"
                   >
                     {user.username} {user.role === 'admin' && '(Admin)'}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {selectedAssignees.length > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedAssignees.length} user(s) selected
-              </p>
-            )}
+                  </Label>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <Label>Subtasks</Label>
               <Button type="button" variant="outline" size="sm" onClick={addSubtask}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Subtask
               </Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 mt-2">
               {subtasks.map((subtask, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={index} className="flex items-center space-x-2">
                   <Input
-                    value={subtask}
+                    value={subtask.title}
                     onChange={(e) => updateSubtask(index, e.target.value)}
-                    placeholder={`Subtask ${index + 1}`}
+                    placeholder="Enter subtask title"
                     className="flex-1"
                   />
-                  {subtasks.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeSubtask(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeSubtask(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !title.trim()}>
               {loading ? "Creating..." : "Create Task"}
             </Button>
           </div>
