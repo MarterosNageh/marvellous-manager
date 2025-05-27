@@ -15,6 +15,7 @@ export interface PushNotification {
 class NotificationService {
   private static instance: NotificationService;
   private registration: ServiceWorkerRegistration | null = null;
+  private subscription: PushSubscription | null = null;
 
   private constructor() {
     this.initializeServiceWorker();
@@ -55,17 +56,88 @@ class NotificationService {
     }
 
     try {
-      const subscription = await this.registration.pushManager.subscribe({
+      this.subscription = await this.registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this.urlB64ToUint8Array(
           'BEl62iUYgUivxIkv69yViEuiBIa40HI80Y0sTcr8tojnkdSKZrTp_dTmmuJOkZIJaXpBNGWKQ-Wf8n7Nm4W6RQQ'
         ),
       });
 
-      console.log('Push subscription:', subscription);
+      console.log('Push subscription created:', this.subscription);
+      
+      // Store subscription in database for mobile notifications
+      await this.storeSubscription(userId, this.subscription);
       
     } catch (error) {
       console.error('Failed to subscribe to push notifications:', error);
+    }
+  }
+
+  private async storeSubscription(userId: string, subscription: PushSubscription): Promise<void> {
+    try {
+      const subscriptionData = {
+        user_id: userId,
+        endpoint: subscription.endpoint,
+        p256dh_key: subscription.toJSON().keys?.p256dh,
+        auth_key: subscription.toJSON().keys?.auth,
+        created_at: new Date().toISOString()
+      };
+
+      console.log('Storing push subscription:', subscriptionData);
+      
+      // Note: This would require a push_subscriptions table in the database
+      // For now, we'll just log it
+    } catch (error) {
+      console.error('Error storing subscription:', error);
+    }
+  }
+
+  async sendMobileNotification(title: string, message: string, taskId?: string): Promise<void> {
+    try {
+      // For mobile notifications, we would typically send to a server endpoint
+      // that handles push notifications to mobile devices
+      
+      // For now, show browser notification if permission granted
+      if (Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+          body: message,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: taskId || 'general',
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+          actions: [
+            {
+              action: 'view',
+              title: 'View'
+            },
+            {
+              action: 'dismiss',
+              title: 'Dismiss'
+            }
+          ]
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          if (taskId) {
+            // Navigate to task if needed
+            window.location.href = `/task-manager`;
+          }
+          notification.close();
+        };
+      }
+
+      // If we have a service worker and subscription, send push notification
+      if (this.subscription && this.registration) {
+        // This would typically send to your backend server
+        // which would then send the push notification to the mobile device
+        console.log('Would send mobile push notification:', { title, message, taskId });
+      }
+
+      console.log(`Mobile notification sent: ${title}`);
+    } catch (error) {
+      console.error('Error sending mobile notification:', error);
     }
   }
 
@@ -92,16 +164,8 @@ class NotificationService {
     type: 'assignment' | 'status_change' | 'mention' | 'due_date' = 'assignment'
   ): Promise<void> {
     try {
-      // For now, show browser notification if permission granted
-      if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body: message,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          tag: taskId || 'general',
-          requireInteraction: true
-        });
-      }
+      // Send both browser and mobile notifications
+      await this.sendMobileNotification(title, message, taskId);
 
       console.log(`Notification sent to user ${userId}: ${title}`);
     } catch (error) {

@@ -22,7 +22,7 @@ interface TaskContextType {
   updateProject: (project: TaskProject) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   tasks: Task[];
-  addTask: (task: Omit<Task, "id" | "created_at" | "updated_at">) => Promise<void>;
+  addTask: (task: Omit<Task, "id" | "created_at" | "updated_at">, assigneeIds?: string[]) => Promise<string>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   assignUser: (taskId: string, userId: string) => Promise<void>;
@@ -134,6 +134,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             title: "New Task Created",
             description: `"${payload.new.title}" has been created`,
           });
+          
+          // Send mobile notification
+          await notificationService.sendMobileNotification(
+            'New Task Created',
+            `"${payload.new.title}" has been created`
+          );
         }
       }
     } else if (payload.eventType === 'UPDATE') {
@@ -293,7 +299,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
+  const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">, assigneeIds: string[] = []): Promise<string> => {
     if (!currentUser) {
       console.error('No current user');
       toast({
@@ -301,7 +307,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         description: "You must be logged in to create tasks",
         variant: "destructive"
       });
-      return;
+      throw new Error('No current user');
     }
 
     try {
@@ -320,7 +326,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('Inserting task data:', taskData);
 
-      const { data, error } = await supabase
+      const { data: createdTask, error } = await supabase
         .from('tasks')
         .insert(taskData)
         .select()
@@ -336,11 +342,49 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
 
-      console.log('Task created successfully:', data);
+      console.log('Task created successfully:', createdTask);
+
+      // Create task assignments if assignees were selected
+      if (assigneeIds.length > 0) {
+        const assignments = assigneeIds.map(userId => ({
+          task_id: createdTask.id,
+          user_id: userId
+        }));
+
+        const { error: assignmentError } = await supabase
+          .from('task_assignments')
+          .insert(assignments);
+
+        if (assignmentError) {
+          console.error('Error creating assignments:', assignmentError);
+        } else {
+          console.log('Task assignments created successfully');
+          
+          // Send notifications to assigned users
+          for (const userId of assigneeIds) {
+            await notificationService.sendNotificationToUser(
+              userId,
+              'Task Assigned',
+              `You have been assigned to task "${task.title}"`,
+              createdTask.id,
+              'assignment'
+            );
+          }
+        }
+      }
+
+      // Send mobile notification for task creation
+      await notificationService.sendMobileNotification(
+        'Task Created',
+        `Task "${task.title}" has been created successfully`
+      );
+      
       toast({
         title: "Success",
         description: "Task created successfully",
       });
+
+      return createdTask.id;
       
     } catch (error) {
       console.error('Error adding task:', error);
