@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Flag } from "lucide-react";
+import { CalendarIcon, Flag, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTask } from "@/context/TaskContext";
 import { TaskPriority } from "@/types/taskTypes";
@@ -16,6 +16,11 @@ import { TaskPriority } from "@/types/taskTypes";
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface SubtaskInput {
+  id: string;
+  title: string;
 }
 
 const priorityOptions = [
@@ -32,10 +37,12 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const { addTask, projects, users, loading } = useTask();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [supervisorComments, setSupervisorComments] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [projectId, setProjectId] = useState<string>('none');
   const [assigneeId, setAssigneeId] = useState<string>('none');
+  const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -46,34 +53,53 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     });
   };
 
+  const addSubtask = () => {
+    setSubtasks([...subtasks, { id: Math.random().toString(), title: '' }]);
+  };
+
+  const removeSubtask = (id: string) => {
+    setSubtasks(subtasks.filter(subtask => subtask.id !== id));
+  };
+
+  const updateSubtask = (id: string, title: string) => {
+    setSubtasks(subtasks.map(subtask => 
+      subtask.id === id ? { ...subtask, title } : subtask
+    ));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title.trim()) return;
 
-    await addTask({
+    const taskData = {
       title: title.trim(),
       description: description.trim() || undefined,
+      supervisor_comments: supervisorComments.trim() || undefined,
       priority,
-      status: 'pending',
+      status: 'pending' as const,
       due_date: dueDate ? dueDate.toISOString() : undefined,
       project_id: projectId === 'none' ? undefined : projectId,
       created_by: '',
-    });
+    };
+
+    await addTask(taskData);
 
     // Reset form
     setTitle('');
     setDescription('');
+    setSupervisorComments('');
     setPriority('medium');
     setDueDate(undefined);
     setProjectId('none');
     setAssigneeId('none');
+    setSubtasks([]);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-white">
+      <DialogContent className="sm:max-w-[600px] bg-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-gray-900">Create New Task</DialogTitle>
         </DialogHeader>
@@ -98,6 +124,18 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add more details about this task..."
               rows={3}
+              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="supervisorComments" className="text-sm font-medium text-gray-700">Supervisor Comments</Label>
+            <Textarea
+              id="supervisorComments"
+              value={supervisorComments}
+              onChange={(e) => setSupervisorComments(e.target.value)}
+              placeholder="Add supervisor comments or instructions..."
+              rows={2}
               className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
             />
           </div>
@@ -194,6 +232,40 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Subtasks Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-gray-700">Subtasks</Label>
+              <Button type="button" onClick={addSubtask} size="sm" variant="outline">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Subtask
+              </Button>
+            </div>
+            {subtasks.length > 0 && (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {subtasks.map((subtask) => (
+                  <div key={subtask.id} className="flex items-center gap-2">
+                    <Input
+                      value={subtask.title}
+                      onChange={(e) => updateSubtask(subtask.id, e.target.value)}
+                      placeholder="Subtask title..."
+                      className="flex-1 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => removeSubtask(subtask.id)}
+                      size="sm"
+                      variant="ghost"
+                      className="p-1 h-8 w-8"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

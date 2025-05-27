@@ -1,10 +1,13 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import { Task, TaskStatus } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
@@ -16,17 +19,17 @@ interface TaskDetailDialogProps {
 }
 
 const priorityColors = {
-  low: 'bg-green-200 text-green-900 border-green-300',
-  medium: 'bg-yellow-200 text-yellow-900 border-yellow-300',
-  high: 'bg-orange-200 text-orange-900 border-orange-300',
-  urgent: 'bg-red-200 text-red-900 border-red-300',
+  low: 'bg-green-100 text-green-800 border-green-200',
+  medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  high: 'bg-orange-100 text-orange-800 border-orange-200',
+  urgent: 'bg-red-100 text-red-800 border-red-200',
 };
 
 const statusColors = {
-  pending: 'bg-gray-200 text-gray-900 border-gray-300',
-  in_progress: 'bg-red-200 text-red-900 border-red-300',
-  under_review: 'bg-blue-200 text-blue-900 border-blue-300',
-  completed: 'bg-green-200 text-green-900 border-green-300',
+  pending: 'bg-gray-100 text-gray-800 border-gray-200',
+  in_progress: 'bg-red-100 text-red-800 border-red-200',
+  under_review: 'bg-blue-100 text-blue-800 border-blue-200',
+  completed: 'bg-green-100 text-green-800 border-green-200',
 };
 
 const statusIcons = {
@@ -38,9 +41,22 @@ const statusIcons = {
 
 export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, onOpenChange }) => {
   const { updateTask } = useTask();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTask, setEditedTask] = useState(task);
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
-    await updateTask({ ...task, status: newStatus });
+    const updatedTask = { ...task, status: newStatus };
+    await updateTask(updatedTask);
+  };
+
+  const handleSave = async () => {
+    await updateTask(editedTask);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditedTask(task);
+    setIsEditing(false);
   };
 
   const formatDueDate = (dateString: string) => {
@@ -63,9 +79,35 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-800">{task.title}</DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="flex flex-row items-center justify-between">
+          {isEditing ? (
+            <Input
+              value={editedTask.title}
+              onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+              className="text-xl font-bold border-none p-0 focus:ring-0 focus:border-0"
+            />
+          ) : (
+            <DialogTitle className="text-xl font-bold text-gray-900">{task.title}</DialogTitle>
+          )}
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button onClick={handleSave} size="sm" className="bg-green-600 hover:bg-green-700">
+                  <Save className="w-4 h-4 mr-1" />
+                  Save
+                </Button>
+                <Button onClick={handleCancel} size="sm" variant="outline">
+                  <X className="w-4 h-4 mr-1" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)} size="sm" variant="outline">
+                Edit Task
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         
         <div className="space-y-6">
@@ -76,7 +118,7 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
               <span className="font-semibold text-gray-700">Status:</span>
             </div>
             <Select value={task.status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-48 border-2">
+              <SelectTrigger className="w-48 border">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -109,14 +151,40 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
           </div>
 
           {/* Description */}
-          {task.description && (
-            <div>
-              <h3 className="font-semibold mb-2 text-gray-700">Description</h3>
-              <p className="text-sm text-gray-600 bg-gray-100 p-3 rounded-lg border">
-                {task.description}
-              </p>
-            </div>
-          )}
+          <div>
+            <Label className="font-semibold mb-2 text-gray-700">Description</Label>
+            {isEditing ? (
+              <Textarea
+                value={editedTask.description || ''}
+                onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                className="mt-2"
+                rows={4}
+                placeholder="Add task description..."
+              />
+            ) : (
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border mt-2">
+                {task.description || 'No description provided'}
+              </div>
+            )}
+          </div>
+
+          {/* Supervisor Comments */}
+          <div>
+            <Label className="font-semibold mb-2 text-gray-700">Supervisor Comments</Label>
+            {isEditing ? (
+              <Textarea
+                value={editedTask.supervisor_comments || ''}
+                onChange={(e) => setEditedTask({ ...editedTask, supervisor_comments: e.target.value })}
+                className="mt-2"
+                rows={3}
+                placeholder="Add supervisor comments..."
+              />
+            ) : (
+              <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border mt-2">
+                {task.supervisor_comments || 'No supervisor comments'}
+              </div>
+            )}
+          </div>
 
           {/* Task Details */}
           <div className="grid grid-cols-2 gap-6">

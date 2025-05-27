@@ -62,7 +62,6 @@ class NotificationService {
         ),
       });
 
-      // Store subscription in Supabase (you would need to create a table for this)
       console.log('Push subscription:', subscription);
       
     } catch (error) {
@@ -93,23 +92,6 @@ class NotificationService {
     type: 'assignment' | 'status_change' | 'mention' | 'due_date' = 'assignment'
   ): Promise<void> {
     try {
-      // Create notification record in database
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: userId,
-          title,
-          message,
-          task_id: taskId,
-          type,
-          read: false
-        });
-
-      if (error) {
-        console.error('Error creating notification:', error);
-        return;
-      }
-
       // For now, show browser notification if permission granted
       if (Notification.permission === 'granted') {
         new Notification(title, {

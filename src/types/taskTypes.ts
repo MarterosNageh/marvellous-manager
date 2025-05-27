@@ -18,6 +18,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
+  supervisor_comments?: string;
   priority: TaskPriority;
   status: TaskStatus;
   due_date?: string;
