@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { notificationService } from "@/services/notificationService";
 import { 
   Task, 
   TaskProject, 
@@ -70,21 +71,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (currentUser) {
       fetchData();
+      initializeNotifications();
     }
   }, [currentUser]);
 
-  const createNotification = async (notification: Omit<TaskNotification, "id" | "created_at">) => {
-    try {
-      // Create local notification since we don't have a notifications table
-      const newNotification: TaskNotification = {
-        ...notification,
-        id: Math.random().toString(36).substr(2, 9),
-        created_at: new Date().toISOString()
-      };
-      setNotifications(prev => [newNotification, ...prev]);
-      console.log('Notification created:', notification.title);
-    } catch (error) {
-      console.error('Error creating notification:', error);
+  const initializeNotifications = async () => {
+    const hasPermission = await notificationService.requestPermission();
+    if (hasPermission && currentUser) {
+      await notificationService.subscribeToPushNotifications(currentUser.id);
     }
   };
 
@@ -236,8 +230,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       ];
       
       setTasks(mockTasks);
-
-      // Set sample tags
       setTags([
         { id: '1', name: 'Frontend', color: '#3b82f6', created_at: new Date().toISOString() },
         { id: '2', name: 'Backend', color: '#10b981', created_at: new Date().toISOString() },
@@ -252,6 +244,145 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
+    try {
+      const newTask: Task = {
+        ...task,
+        id: Math.random().toString(36).substr(2, 9),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: currentUser?.id || '',
+        assignees: [],
+        tags: [],
+        subtasks: [],
+        project: task.project_id ? projects.find(p => p.id === task.project_id) : undefined
+      };
+      
+      setTasks(prev => [newTask, ...prev]);
+      
+      // Send notifications to admins about new task
+      await notificationService.sendNotificationToAdmins(
+        'New Task Created',
+        `Task "${task.title}" has been created`,
+        newTask.id,
+        currentUser?.id
+      );
+      
+      toast.success('Task created successfully');
+    } catch (error) {
+      console.error('Error adding task:', error);
+      toast.error('Failed to create task');
+    }
+  };
+
+  const updateTask = async (task: Task) => {
+    try {
+      const previousTask = tasks.find(t => t.id === task.id);
+      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+      
+      // Send notification for status change to assignees and admins
+      if (previousTask && previousTask.status !== task.status) {
+        const assigneeIds = task.assignees?.map(a => a.id) || [];
+        
+        // Notify assignees
+        if (assigneeIds.length > 0) {
+          await notificationService.sendNotificationToAssignees(
+            assigneeIds,
+            'Task Status Updated',
+            `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
+            task.id,
+            currentUser?.id
+          );
+        }
+        
+        // Notify admins
+        await notificationService.sendNotificationToAdmins(
+          'Task Status Updated',
+          `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
+          task.id,
+          currentUser?.id
+        );
+      }
+      
+      toast.success('Task updated successfully');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error('Failed to update task');
+    }
+  };
+
+  const assignUser = async (taskId: string, userId: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      const user = users.find(u => u.id === userId);
+      
+      if (task && user) {
+        const updatedTask = {
+          ...task,
+          assignees: [...(task.assignees || []), { ...user, assigned_at: new Date().toISOString() }]
+        };
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        
+        // Send notification to assigned user
+        await notificationService.sendNotificationToUser(
+          userId,
+          'Task Assigned',
+          `You have been assigned to task "${task.title}"`,
+          taskId,
+          'assignment'
+        );
+
+        // Notify admins about assignment
+        await notificationService.sendNotificationToAdmins(
+          'Task Assignment',
+          `${user.username} has been assigned to task "${task.title}"`,
+          taskId,
+          currentUser?.id
+        );
+      }
+      
+      toast.success('User assigned to task');
+    } catch (error) {
+      console.error('Error assigning user:', error);
+      toast.error('Failed to assign user');
+    }
+  };
+
+  const deleteTask = async (id: string) => {
+    try {
+      const task = tasks.find(t => t.id === id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+      
+      if (task) {
+        // Notify assignees about deletion
+        const assigneeIds = task.assignees?.map(a => a.id) || [];
+        if (assigneeIds.length > 0) {
+          await notificationService.sendNotificationToAssignees(
+            assigneeIds,
+            'Task Deleted',
+            `Task "${task.title}" has been deleted`,
+            id,
+            currentUser?.id
+          );
+        }
+
+        // Notify admins
+        await notificationService.sendNotificationToAdmins(
+          'Task Deleted',
+          `Task "${task.title}" has been deleted`,
+          id,
+          currentUser?.id
+        );
+      }
+      
+      toast.success('Task deleted successfully');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task');
     }
   };
 
@@ -290,117 +421,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error deleting project:', error);
       toast.error('Failed to delete project');
-    }
-  };
-
-  const addTask = async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
-    try {
-      const newTask: Task = {
-        ...task,
-        id: Math.random().toString(36).substr(2, 9),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: currentUser?.id || '',
-        assignees: [],
-        tags: [],
-        subtasks: [],
-        project: task.project_id ? projects.find(p => p.id === task.project_id) : undefined
-      };
-      
-      setTasks(prev => [newTask, ...prev]);
-      
-      // Create notification for task creation
-      await createNotification({
-        user_id: currentUser?.id || '',
-        type: 'assignment',
-        title: 'New Task Created',
-        message: `Task "${task.title}" has been created`,
-        task_id: newTask.id,
-        read: false
-      });
-      
-      toast.success('Task created successfully');
-    } catch (error) {
-      console.error('Error adding task:', error);
-      toast.error('Failed to create task');
-    }
-  };
-
-  const updateTask = async (task: Task) => {
-    try {
-      const previousTask = tasks.find(t => t.id === task.id);
-      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
-      
-      // Create notification for status change
-      if (previousTask && previousTask.status !== task.status) {
-        await createNotification({
-          user_id: currentUser?.id || '',
-          type: 'assignment',
-          title: 'Task Status Updated',
-          message: `Task "${task.title}" status changed to ${task.status.replace('_', ' ')}`,
-          task_id: task.id,
-          read: false
-        });
-      }
-      
-      toast.success('Task updated successfully');
-    } catch (error) {
-      console.error('Error updating task:', error);
-      toast.error('Failed to update task');
-    }
-  };
-
-  const deleteTask = async (id: string) => {
-    try {
-      const task = tasks.find(t => t.id === id);
-      setTasks(prev => prev.filter(t => t.id !== id));
-      
-      if (task) {
-        await createNotification({
-          user_id: currentUser?.id || '',
-          type: 'assignment',
-          title: 'Task Deleted',
-          message: `Task "${task.title}" has been deleted`,
-          task_id: id,
-          read: false
-        });
-      }
-      
-      toast.success('Task deleted successfully');
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      toast.error('Failed to delete task');
-    }
-  };
-
-  const assignUser = async (taskId: string, userId: string) => {
-    try {
-      const task = tasks.find(t => t.id === taskId);
-      const user = users.find(u => u.id === userId);
-      
-      if (task && user) {
-        const updatedTask = {
-          ...task,
-          assignees: [...(task.assignees || []), { ...user, assigned_at: new Date().toISOString() }]
-        };
-        
-        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-        
-        // Create notification for assignment
-        await createNotification({
-          user_id: userId,
-          type: 'assignment',
-          title: 'Task Assigned',
-          message: `You have been assigned to task "${task.title}"`,
-          task_id: taskId,
-          read: false
-        });
-      }
-      
-      toast.success('User assigned to task');
-    } catch (error) {
-      console.error('Error assigning user:', error);
-      toast.error('Failed to assign user');
     }
   };
 

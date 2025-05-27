@@ -15,17 +15,17 @@ interface TaskCardProps {
 }
 
 const priorityColors = {
-  low: 'bg-green-100 text-green-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  high: 'bg-orange-100 text-orange-800',
-  urgent: 'bg-red-100 text-red-800',
+  low: 'bg-green-200 text-green-900 border-green-300',
+  medium: 'bg-yellow-200 text-yellow-900 border-yellow-300',
+  high: 'bg-orange-200 text-orange-900 border-orange-300',
+  urgent: 'bg-red-200 text-red-900 border-red-300',
 };
 
 const statusColors = {
-  pending: 'bg-gray-100 text-gray-800',
-  in_progress: 'bg-red-100 text-red-800',
-  under_review: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
+  pending: 'bg-gray-200 text-gray-900 border-gray-300',
+  in_progress: 'bg-red-200 text-red-900 border-red-300',
+  under_review: 'bg-blue-200 text-blue-900 border-blue-300',
+  completed: 'bg-green-200 text-green-900 border-green-300',
 };
 
 const statusIcons = {
@@ -68,20 +68,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
   return (
     <>
-      <Card className="w-full hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailOpen(true)}>
+      <Card className="w-full hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-blue-300" onClick={() => setDetailOpen(true)}>
         <CardHeader className="pb-2 px-3 pt-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-sm line-clamp-1">{task.title}</h3>
+              <h3 className="font-semibold text-sm line-clamp-1 text-gray-800">{task.title}</h3>
               {task.description && (
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                <p className="text-xs text-gray-600 mt-1 line-clamp-1">
                   {task.description}
                 </p>
               )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-gray-200">
                   <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -98,7 +98,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                 <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
                   Move to Completed
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                <DropdownMenuItem onClick={handleDelete} className="text-red-700 hover:text-red-800">
                   Delete Task
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -110,12 +110,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <StatusIcon className="w-3 h-3" />
-              <Badge className={`text-xs px-2 py-0 ${statusColors[task.status]}`}>
+              <Badge className={`text-xs px-2 py-0 border ${statusColors[task.status]}`}>
                 {getStatusLabel(task.status)}
               </Badge>
             </div>
             
-            <Badge className={`text-xs px-2 py-0 ${priorityColors[task.priority]}`}>
+            <Badge className={`text-xs px-2 py-0 border ${priorityColors[task.priority]}`}>
               <Flag className="w-2 h-2 mr-1" />
               {task.priority}
             </Badge>
@@ -124,7 +124,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               {task.due_date && (
-                <div className="flex items-center gap-1 text-muted-foreground">
+                <div className="flex items-center gap-1 text-gray-600">
                   <Calendar className="w-3 h-3" />
                   <span>{formatDueDate(task.due_date)}</span>
                 </div>
@@ -136,7 +136,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                     className="w-2 h-2 rounded-full" 
                     style={{ backgroundColor: task.project.color }}
                   />
-                  <span className="text-muted-foreground truncate max-w-16">{task.project.name}</span>
+                  <span className="text-gray-600 truncate max-w-16">{task.project.name}</span>
                 </div>
               )}
             </div>
@@ -144,19 +144,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
             <div className="flex items-center gap-2">
               {task.assignees && task.assignees.length > 0 && (
                 <div className="flex items-center gap-1">
-                  <User className="w-3 h-3 text-muted-foreground" />
+                  <User className="w-3 h-3 text-gray-600" />
                   <div className="flex -space-x-1">
                     {task.assignees.slice(0, 2).map((assignee, index) => (
                       <div
                         key={assignee.id}
-                        className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium border border-white"
+                        className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium border-2 border-white"
                         title={assignee.username}
                       >
                         {assignee.username.charAt(0).toUpperCase()}
                       </div>
                     ))}
                     {task.assignees.length > 2 && (
-                      <div className="w-4 h-4 rounded-full bg-gray-400 flex items-center justify-center text-white text-xs font-medium border border-white">
+                      <div className="w-4 h-4 rounded-full bg-gray-500 flex items-center justify-center text-white text-xs font-medium border-2 border-white">
                         +{task.assignees.length - 2}
                       </div>
                     )}
@@ -165,8 +165,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
               )}
 
               <div className="flex items-center gap-1">
-                <MessageCircle className="w-3 h-3 text-muted-foreground" />
-                <span className="text-muted-foreground">0</span>
+                <MessageCircle className="w-3 h-3 text-gray-600" />
+                <span className="text-gray-600">0</span>
               </div>
             </div>
           </div>
