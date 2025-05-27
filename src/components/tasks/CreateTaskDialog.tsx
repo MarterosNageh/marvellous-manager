@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Flag, Plus, X } from "lucide-react";
+import { CalendarIcon, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTask } from "@/context/TaskContext";
 import { TaskPriority } from "@/types/taskTypes";
@@ -16,11 +16,6 @@ import { TaskPriority } from "@/types/taskTypes";
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-interface SubtaskInput {
-  id: string;
-  title: string;
 }
 
 const priorityOptions = [
@@ -42,7 +37,6 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [projectId, setProjectId] = useState<string>('none');
   const [assigneeId, setAssigneeId] = useState<string>('none');
-  const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -53,48 +47,50 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     });
   };
 
-  const addSubtask = () => {
-    setSubtasks([...subtasks, { id: Math.random().toString(), title: '' }]);
-  };
-
-  const removeSubtask = (id: string) => {
-    setSubtasks(subtasks.filter(subtask => subtask.id !== id));
-  };
-
-  const updateSubtask = (id: string, title: string) => {
-    setSubtasks(subtasks.map(subtask => 
-      subtask.id === id ? { ...subtask, title } : subtask
-    ));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      console.log('Title is required');
+      return;
+    }
+
+    console.log('Creating task with:', {
+      title: title.trim(),
+      description: description.trim() || null,
+      supervisor_comments: supervisorComments.trim() || null,
+      priority,
+      status: 'pending',
+      due_date: dueDate ? dueDate.toISOString() : null,
+      project_id: projectId === 'none' ? null : projectId,
+    });
 
     const taskData = {
       title: title.trim(),
-      description: description.trim() || undefined,
-      supervisor_comments: supervisorComments.trim() || undefined,
+      description: description.trim() || null,
+      supervisor_comments: supervisorComments.trim() || null,
       priority,
       status: 'pending' as const,
-      due_date: dueDate ? dueDate.toISOString() : undefined,
-      project_id: projectId === 'none' ? undefined : projectId,
+      due_date: dueDate ? dueDate.toISOString() : null,
+      project_id: projectId === 'none' ? null : projectId,
       created_by: '',
     };
 
-    await addTask(taskData);
+    try {
+      await addTask(taskData);
 
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setSupervisorComments('');
-    setPriority('medium');
-    setDueDate(undefined);
-    setProjectId('none');
-    setAssigneeId('none');
-    setSubtasks([]);
-    onOpenChange(false);
+      // Reset form only after successful creation
+      setTitle('');
+      setDescription('');
+      setSupervisorComments('');
+      setPriority('medium');
+      setDueDate(undefined);
+      setProjectId('none');
+      setAssigneeId('none');
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
   };
 
   return (
@@ -232,40 +228,6 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {/* Subtasks Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-gray-700">Subtasks</Label>
-              <Button type="button" onClick={addSubtask} size="sm" variant="outline">
-                <Plus className="w-4 h-4 mr-1" />
-                Add Subtask
-              </Button>
-            </div>
-            {subtasks.length > 0 && (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {subtasks.map((subtask) => (
-                  <div key={subtask.id} className="flex items-center gap-2">
-                    <Input
-                      value={subtask.title}
-                      onChange={(e) => updateSubtask(subtask.id, e.target.value)}
-                      placeholder="Subtask title..."
-                      className="flex-1 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => removeSubtask(subtask.id)}
-                      size="sm"
-                      variant="ghost"
-                      className="p-1 h-8 w-8"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
