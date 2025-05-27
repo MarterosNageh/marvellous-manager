@@ -10,36 +10,31 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTask } from "@/context/TaskContext";
+import { TaskPriority } from "@/types/taskTypes";
 
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (taskData: {
-    name: string;
-    description?: string;
-    priority?: number;
-    due_date?: number;
-  }) => void;
-  loading?: boolean;
 }
 
 const priorityOptions = [
-  { value: 1, label: 'Urgent', color: 'text-red-600' },
-  { value: 2, label: 'High', color: 'text-orange-600' },
-  { value: 3, label: 'Normal', color: 'text-yellow-600' },
-  { value: 4, label: 'Low', color: 'text-green-600' },
+  { value: 'low', label: 'Low', color: 'text-green-600' },
+  { value: 'medium', label: 'Medium', color: 'text-yellow-600' },
+  { value: 'high', label: 'High', color: 'text-orange-600' },
+  { value: 'urgent', label: 'Urgent', color: 'text-red-600' },
 ];
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
   onOpenChange,
-  onSubmit,
-  loading = false,
 }) => {
-  const [name, setName] = useState('');
+  const { addTask, projects, loading } = useTask();
+  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<number | undefined>();
+  const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [projectId, setProjectId] = useState<string>('');
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -50,23 +45,28 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim()) return;
+    if (!title.trim()) return;
 
-    onSubmit({
-      name: name.trim(),
+    await addTask({
+      title: title.trim(),
       description: description.trim() || undefined,
       priority,
-      due_date: dueDate ? dueDate.getTime() : undefined,
+      status: 'todo',
+      due_date: dueDate ? dueDate.toISOString() : undefined,
+      project_id: projectId || undefined,
+      created_by: '', // Will be set in context
     });
 
     // Reset form
-    setName('');
+    setTitle('');
     setDescription('');
-    setPriority(undefined);
+    setPriority('medium');
     setDueDate(undefined);
+    setProjectId('');
+    onOpenChange(false);
   };
 
   return (
@@ -77,11 +77,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-medium text-gray-700">Task Name *</Label>
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700">Task Title *</Label>
             <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
               required
               className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
@@ -103,13 +103,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Priority</Label>
-              <Select value={priority?.toString()} onValueChange={(value) => setPriority(parseInt(value))}>
+              <Select value={priority} onValueChange={(value) => setPriority(value as TaskPriority)}>
                 <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                   <SelectValue placeholder="Set priority" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   {priorityOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value.toString()}>
+                    <SelectItem key={option.value} value={option.value}>
                       <div className="flex items-center gap-2">
                         <Flag className={`h-3 w-3 ${option.color}`} />
                         <span className={option.color}>{option.label}</span>
@@ -147,6 +147,29 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">Project</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select a project (optional)" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="">No Project</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: project.color }}
+                      />
+                      {project.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button
               type="button"
@@ -158,7 +181,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !name.trim()}
+              disabled={loading || !title.trim()}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {loading ? 'Creating...' : 'Create Task'}
