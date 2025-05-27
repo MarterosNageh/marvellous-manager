@@ -75,11 +75,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createNotification = async (notification: Omit<TaskNotification, "id" | "created_at">) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .insert([notification]);
-      
-      if (error) throw error;
+      // Create local notification since we don't have a notifications table
+      const newNotification: TaskNotification = {
+        ...notification,
+        id: Math.random().toString(36).substr(2, 9),
+        created_at: new Date().toISOString()
+      };
+      setNotifications(prev => [newNotification, ...prev]);
+      console.log('Notification created:', notification.title);
     } catch (error) {
       console.error('Error creating notification:', error);
     }
@@ -103,9 +106,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           id: project.id,
           name: project.name,
           description: project.description || undefined,
-          color: '#3b82f6', // Default color since it's not in the original table
+          color: '#3b82f6',
           created_at: project.created_at,
-          updated_at: project.created_at, // Using created_at as fallback
+          updated_at: project.created_at,
           created_by: 'system'
         })) || [];
         setProjects(formattedProjects);
@@ -129,12 +132,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         setUsers(formattedUsers);
       }
 
-      // Create sample tasks with new statuses
+      // Create sample tasks with users assigned
       const mockTasks: Task[] = [
         {
           id: '1',
           title: 'Review project requirements',
-          description: 'Go through all project requirements and create initial assessment',
+          description: 'Go through all project requirements and create initial assessment. This includes analyzing technical specifications, resource requirements, and timeline constraints.',
           priority: 'high',
           status: 'pending',
           due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -148,7 +151,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             role: user.is_admin ? 'admin' as const : 'member' as const
           })) || [],
           tags: [],
-          subtasks: [],
+          subtasks: [
+            { id: '1a', parent_task_id: '1', title: 'Gather requirements', completed: false, created_at: new Date().toISOString(), order_index: 1 },
+            { id: '1b', parent_task_id: '1', title: 'Create timeline', completed: false, created_at: new Date().toISOString(), order_index: 2 }
+          ],
           project: projectsData?.[0] ? {
             id: projectsData[0].id,
             name: projectsData[0].name,
@@ -162,7 +168,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         {
           id: '2',
           title: 'Implement user authentication',
-          description: 'Set up secure user authentication system',
+          description: 'Set up secure user authentication system with proper validation and security measures.',
           priority: 'urgent',
           status: 'in_progress',
           project_id: projectsData?.[0]?.id,
@@ -180,10 +186,28 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         {
           id: '3',
           title: 'Write API documentation',
-          description: 'Create comprehensive API documentation',
+          description: 'Create comprehensive API documentation for all endpoints.',
           priority: 'medium',
           status: 'under_review',
           project_id: projectsData?.[1]?.id,
+          created_by: currentUser?.id || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          assignees: usersData?.slice(1, 2).map(user => ({
+            id: user.id,
+            username: user.username,
+            role: user.is_admin ? 'admin' as const : 'member' as const
+          })) || [],
+          tags: [],
+          subtasks: []
+        },
+        {
+          id: '4',
+          title: 'Setup CI/CD pipeline',
+          description: 'Configure automated deployment pipeline with proper testing and validation.',
+          priority: 'low',
+          status: 'completed',
+          project_id: projectsData?.[0]?.id,
           created_by: currentUser?.id || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -192,16 +216,20 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           subtasks: []
         },
         {
-          id: '4',
-          title: 'Setup CI/CD pipeline',
-          description: 'Configure automated deployment pipeline',
-          priority: 'low',
-          status: 'completed',
+          id: '5',
+          title: 'Database optimization',
+          description: 'Optimize database queries and improve performance.',
+          priority: 'medium',
+          status: 'pending',
           project_id: projectsData?.[0]?.id,
           created_by: currentUser?.id || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          assignees: [],
+          assignees: usersData?.slice(0, 1).map(user => ({
+            id: user.id,
+            username: user.username,
+            role: user.is_admin ? 'admin' as const : 'member' as const
+          })) || [],
           tags: [],
           subtasks: []
         }
