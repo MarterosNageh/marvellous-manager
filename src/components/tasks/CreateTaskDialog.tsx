@@ -34,7 +34,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState<Date | undefined>();
-  const [projectId, setProjectId] = useState<string>('');
+  const [projectId, setProjectId] = useState<string>('none');
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -56,7 +56,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       priority,
       status: 'todo',
       due_date: dueDate ? dueDate.toISOString() : undefined,
-      project_id: projectId || undefined,
+      project_id: projectId === 'none' ? undefined : projectId,
       created_by: '', // Will be set in context
     });
 
@@ -65,7 +65,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     setDescription('');
     setPriority('medium');
     setDueDate(undefined);
-    setProjectId('');
+    setProjectId('none');
     onOpenChange(false);
   };
 
@@ -154,7 +154,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 <SelectValue placeholder="Select a project (optional)" />
               </SelectTrigger>
               <SelectContent className="bg-white">
-                <SelectItem value="">No Project</SelectItem>
+                <SelectItem value="none">No Project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     <div className="flex items-center gap-2">
