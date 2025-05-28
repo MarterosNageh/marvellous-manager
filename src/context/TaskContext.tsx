@@ -62,7 +62,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       const taskUser: TaskUser = {
         id: authUser.id,
         username: authUser.username,
-        role: authUser.is_admin ? 'admin' : 'member'
+        role: authUser.isAdmin ? 'admin' : 'member'
       };
       setCurrentUser(taskUser);
       

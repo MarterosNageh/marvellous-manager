@@ -163,12 +163,12 @@ export const CreateTaskDialog = ({ open, onOpenChange }: CreateTaskDialogProps) 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="project">Project</Label>
-              <Select value={projectId || "none"} onValueChange={(value) => setProjectId(value === "none" ? undefined : value)}>
+              <Select value={projectId || "no-project"} onValueChange={(value) => setProjectId(value === "no-project" ? undefined : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No project</SelectItem>
+                  <SelectItem value="no-project">No project</SelectItem>
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
