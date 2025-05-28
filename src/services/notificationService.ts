@@ -229,9 +229,9 @@ class NotificationService {
         console.log('👤 Current user ID:', user.id, 'Target user ID:', userId);
         
         if (user.id === userId) {
-          console.log('✅ User is currently logged in, sending local notification');
-          // User is currently logged in, send local notification
-          await this.sendLocalNotification({
+          console.log('✅ User is currently logged in, sending local push notification');
+          // User is currently logged in, send local notification with same config as test
+          await this.sendPushNotification({
             title,
             body,
             tag: `task-${taskId}`,
@@ -239,7 +239,8 @@ class NotificationService {
             requireInteraction: true
           });
 
-          // Also send mobile notification for PWA
+          console.log('📱 Also sending mobile push notification...');
+          // Also send mobile notification for PWA using the same method as test
           await this.sendMobileNotification(title, body, { taskId });
         } else {
           console.log('ℹ️ User is not currently logged in, will send external push only');
@@ -260,11 +261,20 @@ class NotificationService {
         
         if (subscriptions && subscriptions.length > 0) {
           console.log('✅ User has push subscription, sending external push notification...');
+          
+          // Send external push with same configuration as working test notification
           await pushNotificationService.sendPushNotification(
             [userId],
             title,
             body,
-            { taskId, type, requireInteraction: true }
+            { 
+              taskId, 
+              type, 
+              requireInteraction: true,
+              tag: `task-${taskId}`,
+              icon: '/favicon.ico',
+              badge: '/favicon.ico'
+            }
           );
         } else {
           console.log('⚠️ User has no push subscription registered, skipping external push');
