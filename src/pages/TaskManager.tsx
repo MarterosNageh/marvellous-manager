@@ -7,13 +7,14 @@ import { TaskList } from "@/components/tasks/TaskList";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, Bell, BellRing, AlertCircle } from "lucide-react";
+import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle } from "lucide-react";
 import { notificationService } from "@/services/notificationService";
 import { useToast } from "@/hooks/use-toast";
 
 const TaskManager = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [pushSetupComplete, setPushSetupComplete] = useState(false);
+  const [isSettingUpPush, setIsSettingUpPush] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,36 +58,58 @@ const TaskManager = () => {
   };
 
   const handleRequestPermission = async () => {
-    console.log('Requesting notification permission...');
-    const granted = await notificationService.requestPermission();
-    setNotificationPermission(Notification.permission);
+    setIsSettingUpPush(true);
+    console.log('=== SETTING UP PUSH NOTIFICATIONS ===');
     
-    if (granted) {
-      // Setup push notifications
-      const pushSetup = await notificationService.setupPushNotifications();
-      setPushSetupComplete(pushSetup);
+    try {
+      console.log('Step 1: Requesting notification permission...');
+      const granted = await notificationService.requestPermission();
+      setNotificationPermission(Notification.permission);
       
-      toast({
-        title: "✅ Success",
-        description: pushSetup 
-          ? "Push notifications enabled! Try the test button now." 
-          : "Notification permission granted, but push setup failed. Local notifications will work.",
-      });
-      
-      // Send an immediate test notification
-      setTimeout(async () => {
-        await notificationService.sendPushNotification({
-          title: '🎉 Push Notifications Enabled!',
-          body: 'You will now receive push notifications for tasks!',
-          tag: 'permission-granted'
+      if (granted) {
+        console.log('Step 2: Setting up push notifications...');
+        // Setup push notifications
+        const pushSetup = await notificationService.setupPushNotifications();
+        setPushSetupComplete(pushSetup);
+        
+        if (pushSetup) {
+          toast({
+            title: "✅ Push Notifications Enabled!",
+            description: "You will now receive push notifications for tasks. Try the test button to verify!",
+          });
+          
+          // Send an immediate test notification
+          setTimeout(async () => {
+            console.log('Sending welcome notification...');
+            await notificationService.sendPushNotification({
+              title: '🎉 Push Notifications Enabled!',
+              body: 'You will now receive push notifications for tasks!',
+              tag: 'permission-granted'
+            });
+          }, 1000);
+        } else {
+          toast({
+            title: "⚠️ Partial Setup",
+            description: "Notification permission granted, but push setup failed. Local notifications will work.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "❌ Permission Denied",
+          description: "Please enable notifications in your browser settings manually and refresh the page.",
+          variant: "destructive",
         });
-      }, 500);
-    } else {
+      }
+    } catch (error) {
+      console.error('Error setting up push notifications:', error);
       toast({
-        title: "❌ Permission Denied",
-        description: "Please enable notifications in your browser settings manually and refresh the page.",
+        title: "❌ Setup Failed",
+        description: "Failed to set up push notifications: " + (error as Error).message,
         variant: "destructive",
       });
+    } finally {
+      setIsSettingUpPush(false);
     }
   };
 
@@ -101,10 +124,11 @@ const TaskManager = () => {
                 <Button 
                   variant="outline" 
                   onClick={handleRequestPermission}
+                  disabled={isSettingUpPush}
                   className="flex items-center gap-2"
                 >
                   <Bell className="h-4 w-4" />
-                  Enable Push Notifications
+                  {isSettingUpPush ? 'Setting up...' : 'Enable Push Notifications'}
                 </Button>
               )}
               {notificationPermission === 'granted' && (
@@ -127,17 +151,29 @@ const TaskManager = () => {
           </div>
 
           {/* Enhanced notification status info */}
-          {notificationPermission === 'granted' && (
+          {notificationPermission === 'granted' && pushSetupComplete && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-green-700">
-                <BellRing className="h-4 w-4" />
-                <span className="font-medium">Push Notifications Active</span>
+                <CheckCircle className="h-4 w-4" />
+                <span className="font-medium">Push Notifications Fully Active</span>
               </div>
               <p className="text-sm text-green-600 mt-1">
-                Permission: {notificationPermission} • Click "Test Push Notification" to verify it's working
+                ✅ Permission: {notificationPermission} • ✅ Push subscription registered
               </p>
               <p className="text-xs text-green-500 mt-1">
-                Push notifications will work even when you switch tabs or minimize the browser!
+                You will receive notifications for task assignments even when the browser is closed!
+              </p>
+            </div>
+          )}
+
+          {notificationPermission === 'granted' && !pushSetupComplete && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-yellow-700">
+                <AlertCircle className="h-4 w-4" />
+                <span className="font-medium">Push Notifications Partially Active</span>
+              </div>
+              <p className="text-sm text-yellow-600 mt-1">
+                Permission granted but push subscription not registered. Click "Test Push Notification" to complete setup.
               </p>
             </div>
           )}
@@ -153,6 +189,18 @@ const TaskManager = () => {
               </p>
               <p className="text-xs text-red-500 mt-1">
                 Look for a bell/notification icon in your browser's address bar or check Site Settings.
+              </p>
+            </div>
+          )}
+
+          {notificationPermission === 'default' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-blue-700">
+                <Bell className="h-4 w-4" />
+                <span className="font-medium">Enable Push Notifications for Task Updates</span>
+              </div>
+              <p className="text-sm text-blue-600 mt-1">
+                Click "Enable Push Notifications" to receive real-time task assignment notifications on your phone!
               </p>
             </div>
           )}

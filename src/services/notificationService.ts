@@ -59,14 +59,44 @@ class NotificationService {
   }
 
   async setupPushNotifications(): Promise<boolean> {
+    console.log('=== SETTING UP PUSH NOTIFICATIONS ===');
+    console.log('Current permission:', Notification.permission);
+    
     if (Notification.permission !== 'granted') {
       console.log('Cannot setup push notifications: permission not granted');
       return false;
     }
 
     try {
+      console.log('Requesting push subscription...');
       const subscribed = await pushNotificationService.requestPermissionAndSubscribe();
       console.log('Push subscription result:', subscribed);
+      
+      if (subscribed) {
+        console.log('✅ Push notifications setup completed successfully');
+        
+        // Verify subscription was saved by checking the database
+        const currentUser = localStorage.getItem('currentUser');
+        if (currentUser) {
+          const user = JSON.parse(currentUser);
+          console.log('Checking push subscription in database for user:', user.id);
+          
+          const { data: subscription, error } = await supabase
+            .from('push_subscriptions')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (error) {
+            console.error('Error checking push subscription:', error);
+          } else {
+            console.log('✅ Push subscription found in database:', subscription);
+          }
+        }
+      } else {
+        console.log('❌ Push notifications setup failed');
+      }
+      
       return subscribed;
     } catch (error) {
       console.error('Error setting up push notifications:', error);
@@ -75,7 +105,8 @@ class NotificationService {
   }
 
   async sendPushNotification(payload: NotificationPayload) {
-    console.log('Attempting to send push notification via service worker:', payload);
+    console.log('=== SENDING LOCAL PUSH NOTIFICATION ===');
+    console.log('Payload:', payload);
     
     if (Notification.permission !== 'granted') {
       console.log('Cannot send notification: permission not granted');
@@ -104,10 +135,10 @@ class NotificationService {
         navigator.vibrate([200, 100, 200]);
       }
 
-      console.log('Push notification sent successfully via service worker');
+      console.log('✅ Local push notification sent successfully via service worker');
       return true;
     } catch (error) {
-      console.error('Failed to show push notification:', error);
+      console.error('❌ Failed to show local push notification:', error);
       return null;
     }
   }
@@ -199,7 +230,7 @@ class NotificationService {
         console.log('Current user ID:', user.id, 'Target user ID:', userId);
         
         if (user.id === userId) {
-          console.log('User is currently logged in, sending local notification');
+          console.log('✅ User is currently logged in, sending local notification');
           // User is currently logged in, send local notification
           await this.sendLocalNotification({
             title,
@@ -211,20 +242,36 @@ class NotificationService {
           // Also send mobile notification for PWA
           await this.sendMobileNotification(title, body, { taskId });
         } else {
-          console.log('User is not currently logged in, sending external push only');
+          console.log('ℹ️ User is not currently logged in, will send external push only');
         }
       }
 
-      // Always send external push notification for all users
-      console.log('Sending external push notification...');
-      await pushNotificationService.sendPushNotification(
-        [userId],
-        title,
-        body,
-        { taskId, type }
-      );
+      // Check if user has push subscription before sending external push
+      console.log('🔍 Checking if user has push subscription...');
+      const { data: subscriptions, error } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', userId);
 
-      console.log(`✅ Notification sent to user ${userId}`);
+      if (error) {
+        console.error('❌ Error checking push subscriptions:', error);
+      } else {
+        console.log(`📊 Found ${subscriptions?.length || 0} push subscriptions for user ${userId}`);
+        
+        if (subscriptions && subscriptions.length > 0) {
+          console.log('✅ User has push subscription, sending external push notification...');
+          await pushNotificationService.sendPushNotification(
+            [userId],
+            title,
+            body,
+            { taskId, type }
+          );
+        } else {
+          console.log('⚠️ User has no push subscription registered, skipping external push');
+        }
+      }
+
+      console.log(`✅ Notification processing completed for user ${userId}`);
     } catch (error) {
       console.error('❌ Error sending notification to user:', error);
     }
