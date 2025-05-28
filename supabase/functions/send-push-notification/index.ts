@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -39,59 +40,46 @@ const FIREBASE_CONFIG = {
   measurementId: "G-YBBC3CXLEF"
 }
 
-// Helper function to convert base64 to base64url
-function base64ToBase64url(base64: string): string {
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-// Helper function to convert base64url to base64
-function base64urlToBase64(base64url: string): string {
-  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = base64.length % 4;
-  if (padding) {
-    base64 += '='.repeat(4 - padding);
-  }
-  return base64;
-}
-
-// Corrected JWT creation function
-async function createJWT(payload: any, privateKeyPem: string): Promise<string> {
-  console.log('🔧 Creating JWT with corrected implementation...');
+// Create JWT using Web Crypto API
+async function createJWT(payload: any): Promise<string> {
+  console.log('🔧 Creating JWT for Firebase authentication...');
   
+  // JWT header
   const header = {
     alg: 'RS256',
-    typ: 'JWT'
+    typ: 'JWT',
+    kid: SERVICE_ACCOUNT.private_key_id
   };
 
-  // Encode header and payload
-  const encodedHeader = base64ToBase64url(btoa(JSON.stringify(header)));
-  const encodedPayload = base64ToBase64url(btoa(JSON.stringify(payload)));
-  const message = `${encodedHeader}.${encodedPayload}`;
+  // Base64url encode header and payload
+  const encodedHeader = btoa(JSON.stringify(header))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+    
+  const encodedPayload = btoa(JSON.stringify(payload))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 
-  console.log('🔧 Message to sign:', message.substring(0, 100) + '...');
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  console.log('🔧 Signing input length:', signingInput.length);
+
+  // Extract and format private key
+  const privateKeyPem = SERVICE_ACCOUNT.private_key;
+  const privateKeyB64 = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\r?\n/g, '');
+
+  // Decode private key
+  const privateKeyArrayBuffer = Uint8Array.from(atob(privateKeyB64), c => c.charCodeAt(0)).buffer;
 
   try {
-    // Process the private key correctly
-    const privateKeyBody = privateKeyPem
-      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-      .replace(/-----END PRIVATE KEY-----/g, '')
-      .replace(/\s+/g, '');
-
-    console.log('🔧 Private key body length:', privateKeyBody.length);
-
-    // Decode the base64 private key
-    const privateKeyBytes = new Uint8Array(
-      atob(privateKeyBody)
-        .split('')
-        .map(char => char.charCodeAt(0))
-    );
-
-    console.log('🔧 Private key bytes length:', privateKeyBytes.length);
-
-    // Import the private key
-    const cryptoKey = await crypto.subtle.importKey(
+    // Import private key
+    const privateKey = await crypto.subtle.importKey(
       'pkcs8',
-      privateKeyBytes.buffer,
+      privateKeyArrayBuffer,
       {
         name: 'RSASSA-PKCS1-v1_5',
         hash: 'SHA-256',
@@ -102,22 +90,22 @@ async function createJWT(payload: any, privateKeyPem: string): Promise<string> {
 
     console.log('✅ Private key imported successfully');
 
-    // Sign the message
+    // Sign the JWT
     const signature = await crypto.subtle.sign(
       'RSASSA-PKCS1-v1_5',
-      cryptoKey,
-      new TextEncoder().encode(message)
+      privateKey,
+      new TextEncoder().encode(signingInput)
     );
 
-    console.log('✅ Message signed successfully, signature length:', signature.byteLength);
-
     // Convert signature to base64url
-    const signatureBytes = new Uint8Array(signature);
-    const signatureBase64 = btoa(String.fromCharCode(...signatureBytes));
-    const signatureBase64url = base64ToBase64url(signatureBase64);
-    
-    const jwt = `${message}.${signatureBase64url}`;
-    console.log('✅ JWT created successfully, total length:', jwt.length);
+    const signatureArray = new Uint8Array(signature);
+    const signatureB64 = btoa(String.fromCharCode.apply(null, Array.from(signatureArray)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+
+    const jwt = `${signingInput}.${signatureB64}`;
+    console.log('✅ JWT created successfully, length:', jwt.length);
     
     return jwt;
   } catch (error) {
@@ -143,7 +131,7 @@ async function getAccessToken(): Promise<string> {
     };
 
     console.log('🔧 Creating JWT assertion...');
-    const jwt = await createJWT(payload, SERVICE_ACCOUNT.private_key);
+    const jwt = await createJWT(payload);
 
     // Exchange JWT for access token
     console.log('🔄 Exchanging JWT for access token...');
