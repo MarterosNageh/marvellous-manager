@@ -14,6 +14,21 @@ interface PushSubscription {
   user_id: string;
 }
 
+// Firebase Admin SDK Service Account
+const SERVICE_ACCOUNT = {
+  "type": "service_account",
+  "project_id": "marvellous-manager",
+  "private_key_id": "f895afdec090175a1c2b87757c4debb2b5b6af5c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDyNlNcJmnCvnXn\n4sDGYmBf4XKq27MNwZZ2O2YxXtqMt7z5OlvJKGlhXcEcz2pO90b4d/XN8sYdLRYD\nRHBmc0k5nmwCM2o+6xtv+3IyQVq3P9B51d69nDnTT4idwKkuNn+/h7GhUs1gvFrS\ncoEyQVdPdQIOM2tI4HWNXGwtqF6CK6OsXv/2UHUCnmAo5hLhWZPwfpo7RVCggAdo\nQnSFfTUc16Xa/LCta7WqrihRHXkOEx7NMJvVl6cnWj6+krxDvQbcwR/fVThbpOnC\n6kQeEX/Dz8RVV71yEWcVgM3uR1DxvTraoHRIVMCnfy4F2HgeICDpTBd0H51ijN5e\n01gPmQFhAgMBAAECggEAJsAkRAjtQLfh+zBe8R5KFuzlwIoXsmq3XMESD3ICeyLm\nO+VnS96IRYiPXcGdW3baRuRCUim2InLVI76uUOW+4FYFJ7D8HYbVw+uxkHK+RbUS\n8HsUALfe1HzT+ZEaQAd+FrFp7Mpni0N3MFYbb2PeyRqKMqVtU6J9jBkuQXu/awmq\nnqsZYvjyjgv8ikV1QJmJXugtLndOVMk7/tWnIsmy+kmaG/d+YYW+Jx8D/CFXneqs\nMLy2LfnTzETFvT3MAECvw51/23cBWwQ9CWG1yfv6ClP6DqI0wcQ9apYPWb/e4LtW\nf0Z06LHrOmFbCaqlWPXFn+7wm4DVF0JAD3lkrGvj8QKBgQD7K86+QhCGH9gs9bPQ\nkEPnSlurCmCX103vIFdeiiaUV7A6bdRgipINkIXbProg+LGhfnqYYRPcI9DUMqjj\njnr2drAQfk5taEr9LqGHa/yuXJAQyu+gd979FfT2xej815Jx9KL5nIILY2Jrm9be\nlfgRNr1t3OGJjiGPIuu5i6xcFQKBgQD23mzBM6r1k28YKlVbMe9qX6J0wRsZz+uv\nVwpQfutZvqttJWJ2irZPed0GQym0WDlrpRJ6cOzu4No1PxaSBeMDR6/ZXz9eX3M3\nt014N3iB2V42MwQYrknGidmt/0uvFdcbKi9IcbF0oUsXKTCf0Pxqe5VdFc2tR/JS\nPm7UmdYHHQKBgFKcFvSGoA6tHJm0+j5HpL3GvB2mXRyzyMM0fOfwQj4aFTEyfF6A\nVQc3GH+Cww8jHLFD+yhxDWojMYUJYHjvnMvBP6k9Eah0W+2nz6LNxp7GfO+4/1Vk\n96d/+EDN2RKICHeIga3dZvw95NoFuIcfBicLPQSMWHW4lJsSXjt5j+f9AoGABzaq\noN6coT5koaUjB14nK8mNmrHF0/RCY8Y8U+vRfrbWlYLhJKua9imObs9pmY52ZxHU\nv2UrVzOUzLeCNlQbtQ3UMprY5C4P1NHzXo7oY4rxeM320a3OFBIVHUN3d69AsNeD\nuC8yS0EnS471j8XwikAANk8bynNuvj56yJWSLnUCgYB7iulqG8u7nKkYscgtqDW5\n5Ny6rjLqkdnSA3Vf0SmQqfGsguCcHAQcgA0YMxWROBfRATtvRqv60zU+UPlhAei9\nfcYHbBBKEwm/f++VopZ8+Xre18E0eRPryLfcDvxdWZCLvT0WmhVON27Hot58ywTE\npoR4ItAmeJ2XQa3wOLBk8A==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@marvellous-manager.iam.gserviceaccount.com",
+  "client_id": "111912629734263281888",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40marvellous-manager.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+};
+
 // Firebase configuration for FCM
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
@@ -25,156 +40,150 @@ const FIREBASE_CONFIG = {
   measurementId: "G-YBBC3CXLEF"
 }
 
-// Updated VAPID key for proper authentication
-const VAPID_PUBLIC_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
-
-async function sendFirebasePushNotification(subscription: PushSubscription, payload: any) {
-  console.log('📱 Attempting to send Firebase FCM push notification to:', subscription.endpoint.substring(0, 50) + '...')
-  console.log('🔑 Using VAPID public key:', VAPID_PUBLIC_KEY.substring(0, 30) + '...')
+// Get OAuth 2.0 access token using service account
+async function getAccessToken(): Promise<string> {
+  console.log('🔐 Getting Firebase Admin SDK access token...');
   
-  const webPushPayload = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    icon: payload.icon || '/favicon.ico',
-    badge: payload.badge || '/favicon.ico',
-    data: payload.data || {},
-    tag: payload.tag || 'default',
-    requireInteraction: true,
-    vibrate: [200, 100, 200]
-  })
-
   try {
-    console.log('📤 Sending to Firebase FCM endpoint:', subscription.endpoint)
+    // Create JWT assertion
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: SERVICE_ACCOUNT.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now
+    };
+
+    // Import the private key for signing
+    const privateKeyData = SERVICE_ACCOUNT.private_key.replace(/\\n/g, '\n');
+    const keyData = await crypto.subtle.importKey(
+      'pkcs8',
+      new TextEncoder().encode(privateKeyData),
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
+      },
+      false,
+      ['sign']
+    );
+
+    // Create and sign JWT
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const encodedHeader = btoa(JSON.stringify(header)).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
+    const encodedPayload = btoa(JSON.stringify(payload)).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
+    const signatureInput = `${encodedHeader}.${encodedPayload}`;
     
-    let response;
+    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyData, new TextEncoder().encode(signatureInput));
+    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
     
-    if (subscription.endpoint.includes('fcm.googleapis.com')) {
-      // Firebase Cloud Messaging - use proper Web Push Protocol with server key
-      console.log('🔥 Using Firebase FCM endpoint with project:', FIREBASE_CONFIG.projectId)
-      
-      // Extract FCM token from endpoint
-      const fcmToken = subscription.endpoint.split('/').pop();
-      console.log('🔑 FCM Token extracted:', fcmToken?.substring(0, 20) + '...')
-      
-      // Try to get server key from environment
-      const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
-      console.log('🔐 FCM Server Key available:', !!fcmServerKey);
-      
-      if (fcmServerKey) {
-        console.log('🔐 Using FCM Server Key for authentication')
-        
-        // Use FCM HTTP v1 API (legacy)
-        const fcmUrl = `https://fcm.googleapis.com/fcm/send`;
-        
-        const fcmPayload = {
-          to: fcmToken,
+    const jwt = `${signatureInput}.${encodedSignature}`;
+
+    // Exchange JWT for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Token request failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    console.log('✅ Firebase Admin SDK access token obtained');
+    return tokenData.access_token;
+  } catch (error) {
+    console.error('❌ Failed to get access token:', error);
+    throw error;
+  }
+}
+
+async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any, accessToken: string) {
+  console.log('📱 Sending Firebase Admin FCM notification to:', subscription.endpoint.substring(0, 50) + '...')
+  
+  try {
+    // Extract FCM token from endpoint
+    const fcmToken = subscription.endpoint.split('/').pop();
+    console.log('🔑 FCM Token extracted:', fcmToken?.substring(0, 20) + '...')
+    
+    if (!fcmToken) {
+      return { success: false, error: 'Invalid FCM endpoint - no token found' };
+    }
+
+    // Use Firebase Admin SDK HTTP v1 API
+    const fcmUrl = `https://fcm.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/messages:send`;
+    
+    const message = {
+      message: {
+        token: fcmToken,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          image: payload.icon || '/favicon.ico'
+        },
+        data: {
+          ...payload.data,
+          click_action: payload.data?.url || '/task-manager'
+        },
+        webpush: {
+          headers: {
+            'Urgency': 'high'
+          },
           notification: {
             title: payload.title,
             body: payload.body,
             icon: payload.icon || '/favicon.ico',
-            click_action: payload.data?.url || '/task-manager'
+            badge: payload.badge || '/favicon.ico',
+            requireInteraction: true,
+            vibrate: [200, 100, 200],
+            tag: payload.tag || 'firebase-admin-fcm'
           },
-          data: payload.data || {}
-        };
-
-        console.log('📤 Sending FCM payload:', JSON.stringify(fcmPayload, null, 2));
-
-        response = await fetch(fcmUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `key=${fcmServerKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(fcmPayload)
-        });
-        
-        console.log('📤 FCM Server Response status:', response.status)
-        
-        if (!response.ok) {
-          const responseText = await response.text()
-          console.error('❌ FCM Server Response body:', responseText)
-          return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` }
-        }
-        
-        const result = await response.json()
-        console.log('✅ FCM Server Response:', result)
-        
-        if (result.success === 1) {
-          return { success: true, fcmResponse: result }
-        } else {
-          return { success: false, error: `FCM failed: ${JSON.stringify(result)}` }
-        }
-        
-      } else {
-        console.log('⚠️ No FCM Server Key found - trying Web Push with VAPID authentication')
-        
-        // Use Web Push Protocol with VAPID authentication
-        const headers = {
-          'Content-Type': 'application/json',
-          'TTL': '86400',
-          'Urgency': 'high'
-        }
-        
-        console.log('📤 Sending Web Push with VAPID to FCM endpoint...')
-        response = await fetch(subscription.endpoint, {
-          method: 'POST',
-          headers,
-          body: webPushPayload
-        })
-        
-        console.log('📤 Web Push to FCM Response status:', response.status)
-        
-        if (!response.ok) {
-          const responseText = await response.text()
-          console.error('❌ Web Push to FCM failed:', response.status, response.statusText, responseText)
-          return { 
-            success: false, 
-            error: `Web Push FCM ${response.status}: ${responseText}`,
-            recommendation: 'Add FCM_SERVER_KEY to Supabase secrets for better FCM support'
+          fcm_options: {
+            link: payload.data?.url || '/task-manager'
           }
         }
-        
-        return { 
-          success: true, 
-          note: 'Web Push to FCM endpoint successful (VAPID authenticated)',
-          method: 'web-push-vapid'
-        }
       }
-      
-    } else {
-      // Standard Web Push for non-FCM services
-      console.log('🌐 Using standard Web Push endpoint with VAPID')
-      response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'TTL': '86400',
-        },
-        body: webPushPayload
-      })
-    }
+    };
 
+    console.log('📤 Sending Firebase Admin FCM message:', JSON.stringify(message, null, 2));
+
+    const response = await fetch(fcmUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message)
+    });
+    
+    console.log('📤 Firebase Admin FCM Response status:', response.status)
+    
     if (!response.ok) {
-      console.error('❌ Push notification failed:', response.status, response.statusText)
       const responseText = await response.text()
-      console.error('❌ Response body:', responseText)
-      return { success: false, error: `HTTP ${response.status}: ${responseText}` }
+      console.error('❌ Firebase Admin FCM Response body:', responseText)
+      return { success: false, error: `Firebase Admin FCM HTTP ${response.status}: ${responseText}` }
     }
-
-    console.log('✅ Push notification sent successfully')
-    return { success: true }
+    
+    const result = await response.json()
+    console.log('✅ Firebase Admin FCM Response:', result)
+    
+    return { success: true, fcmResponse: result, method: 'firebase-admin-sdk' }
+    
   } catch (error) {
-    console.error('❌ Error sending push notification:', error)
+    console.error('❌ Error sending Firebase Admin FCM notification:', error)
     return { success: false, error: error.message }
   }
 }
 
 serve(async (req) => {
-  console.log('📱 === FIREBASE FCM CROSS-DEVICE PUSH NOTIFICATION FUNCTION ===')
+  console.log('📱 === FIREBASE ADMIN SDK FCM PUSH NOTIFICATION FUNCTION ===')
   console.log('🔗 Request method:', req.method)
   console.log('🔥 Firebase Project:', FIREBASE_CONFIG.projectId)
-  console.log('🔑 FCM Server Key available:', !!Deno.env.get('FCM_SERVER_KEY'))
-  console.log('🔑 VAPID Public Key configured:', VAPID_PUBLIC_KEY.substring(0, 30) + '...')
+  console.log('🔐 Using Firebase Admin SDK with service account')
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -191,14 +200,18 @@ serve(async (req) => {
     console.log('📨 Raw request body:', requestBody)
     
     const { userIds, title, body, data } = JSON.parse(requestBody)
-    console.log('📱 === FIREBASE FCM NOTIFICATION REQUEST ===')
+    console.log('📱 === FIREBASE ADMIN FCM NOTIFICATION REQUEST ===')
     console.log('👥 Target users:', userIds)
     console.log('📢 Title:', title)
     console.log('💬 Body:', body)
     console.log('📦 Data:', data)
 
+    // Get Firebase Admin SDK access token
+    console.log('🔐 Getting Firebase Admin SDK access token...');
+    const accessToken = await getAccessToken();
+
     // Get push subscriptions for the specified users
-    console.log('🔍 Querying push_subscriptions for Firebase FCM cross-device delivery...')
+    console.log('🔍 Querying push_subscriptions for Firebase Admin FCM delivery...')
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -209,7 +222,8 @@ serve(async (req) => {
       throw error
     }
 
-    console.log('📱 Firebase FCM cross-device subscriptions found:', subscriptions?.length || 0)
+    console.log('📱 Firebase Admin FCM subscriptions found:', subscriptions?.length || 0)
+    
     if (subscriptions && subscriptions.length > 0) {
       console.log('📱 Device breakdown:')
       const devicesByUser = subscriptions.reduce((acc, sub) => {
@@ -223,7 +237,7 @@ serve(async (req) => {
     }
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('⚠️ No Firebase FCM cross-device subscriptions found for users:', userIds)
+      console.log('⚠️ No Firebase Admin FCM subscriptions found for users:', userIds)
       
       // Check total subscriptions in database
       const { data: allSubs, error: allSubsError } = await supabase
@@ -246,38 +260,33 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No Firebase FCM cross-device subscriptions found, notifications limited to current browser',
+          message: 'No Firebase Admin FCM subscriptions found',
           sentCount: 0,
           targetUsers: userIds.length,
           totalSubscriptionsInDB: allSubs?.length || 0,
-          recommendation: 'Users need to enable push notifications on their other devices',
-          firebaseProject: FIREBASE_CONFIG.projectId,
-          vapidKeyConfigured: true
+          method: 'firebase-admin-sdk'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Send Firebase FCM cross-device push notifications
-    console.log('📤 Sending Firebase FCM cross-device notifications to', subscriptions.length, 'device(s)...')
+    // Send Firebase Admin FCM notifications
+    console.log('📤 Sending Firebase Admin FCM notifications to', subscriptions.length, 'device(s)...')
     const pushPromises = subscriptions.map(async (subscription: PushSubscription, index: number) => {
-      console.log(`📤 [${index + 1}/${subscriptions.length}] Sending Firebase FCM to user ${subscription.user_id}`)
+      console.log(`📤 [${index + 1}/${subscriptions.length}] Sending Firebase Admin FCM to user ${subscription.user_id}`)
       
-      const result = await sendFirebasePushNotification(subscription, {
+      const result = await sendFirebaseAdminFCM(subscription, {
         title,
         body,
         data: data || {},
         icon: '/favicon.ico',
         badge: '/favicon.ico',
-        tag: data?.tag || 'firebase-fcm'
-      })
+        tag: data?.tag || 'firebase-admin-fcm'
+      }, accessToken)
 
       console.log(`📤 [${index + 1}/${subscriptions.length}] Result:`, result.success ? '✅ Success' : `❌ Failed: ${result.error}`)
-      if (result.note) {
-        console.log(`📤 [${index + 1}/${subscriptions.length}] Note:`, result.note)
-      }
-      if (result.recommendation) {
-        console.log(`📤 [${index + 1}/${subscriptions.length}] Recommendation:`, result.recommendation)
+      if (result.method) {
+        console.log(`📤 [${index + 1}/${subscriptions.length}] Method:`, result.method)
       }
 
       return {
@@ -290,37 +299,33 @@ serve(async (req) => {
     const results = await Promise.all(pushPromises)
     const successCount = results.filter(r => r.success).length
     
-    console.log('📱 === FIREBASE FCM CROSS-DEVICE NOTIFICATION RESULTS ===')
+    console.log('📱 === FIREBASE ADMIN FCM NOTIFICATION RESULTS ===')
     console.log(`✅ Successful deliveries: ${successCount}/${results.length}`)
     console.log(`❌ Failed deliveries: ${results.length - successCount}/${results.length}`)
     console.log('📊 Detailed results:', results)
 
-    // Enhanced response with Firebase FCM delivery insights
+    // Enhanced response with Firebase Admin FCM delivery insights
     const response = {
       success: true, 
       results,
       sentCount: successCount,
       totalSubscriptions: results.length,
       targetUsers: userIds.length,
-      message: `Firebase FCM cross-device notifications processed for ${successCount}/${results.length} devices`,
+      message: `Firebase Admin FCM notifications processed for ${successCount}/${results.length} devices`,
       deliveryInsights: {
         totalDevicesTargeted: results.length,
         successfulDeliveries: successCount,
         failedDeliveries: results.length - successCount,
-        usersWithMultipleDevices: Object.values(devicesByUser).filter(count => count > 1).length,
-        crossDeviceCapability: successCount > 0 ? 'Active' : 'Limited',
+        method: 'firebase-admin-sdk',
+        authMethod: 'service-account-oauth2',
         firebaseProject: FIREBASE_CONFIG.projectId,
-        fcmServerKeyConfigured: !!Deno.env.get('FCM_SERVER_KEY'),
-        vapidKeyConfigured: true,
-        vapidKey: VAPID_PUBLIC_KEY.substring(0, 30) + '...',
-        recommendation: !Deno.env.get('FCM_SERVER_KEY') ? 'Add FCM_SERVER_KEY to Supabase secrets for optimal FCM delivery' : 'Firebase FCM optimally configured'
+        recommendation: successCount === results.length ? 'All notifications delivered successfully!' : 'Some notifications failed - check device tokens'
       }
     };
 
-    console.log('📱 === FIREBASE FCM DELIVERY COMPLETE ===')
-    console.log('🌐 Cross-device capability:', response.deliveryInsights.crossDeviceCapability)
-    console.log('🔑 FCM Server Key configured:', response.deliveryInsights.fcmServerKeyConfigured)
-    console.log('🔑 VAPID Key configured:', response.deliveryInsights.vapidKeyConfigured)
+    console.log('📱 === FIREBASE ADMIN FCM DELIVERY COMPLETE ===')
+    console.log('🔐 Authentication method: Firebase Admin SDK with Service Account')
+    console.log('✅ Cross-device capability: Active')
 
     return new Response(
       JSON.stringify(response),
@@ -328,14 +333,13 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error in Firebase FCM cross-device notification function:', error)
+    console.error('❌ Error in Firebase Admin FCM notification function:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        details: 'Firebase FCM cross-device notification system encountered an error. Check function logs for details.',
-        firebaseProject: FIREBASE_CONFIG.projectId,
-        vapidKeyConfigured: true
+        details: 'Firebase Admin FCM notification system encountered an error. Check function logs for details.',
+        method: 'firebase-admin-sdk'
       }),
       { 
         status: 500,
