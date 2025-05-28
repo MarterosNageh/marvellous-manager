@@ -23,10 +23,24 @@ export const MainLayout = ({
     console.log('🏠 Current user:', currentUser);
     console.log('🏠 Current path:', window.location.pathname);
   }, [isAuthenticated, currentUser]);
-  
-  if (!isAuthenticated) {
+
+  // Don't redirect if we're still checking authentication
+  // Only redirect if we're definitely not authenticated
+  if (isAuthenticated === false) {
     console.log('🚨 Not authenticated, redirecting to login');
     return <Navigate to="/login" />;
+  }
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null || isAuthenticated === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
   
   return (

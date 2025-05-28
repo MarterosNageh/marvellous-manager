@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +8,7 @@ interface AuthContextType {
   currentUser: User | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  isAuthenticated: boolean;
+  isAuthenticated: boolean | null; // null = loading, false = not authenticated, true = authenticated
   addUser: (user: Omit<User, "id">) => Promise<void>;
   removeUser: (userId: string) => Promise<void>;
   users: User[];
@@ -18,28 +19,34 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // Start with null (loading)
 
   // Initialize - check for stored user first before any other operations
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log('🔐 Initializing authentication...');
+      
       // First check for stored user in localStorage to restore session
       try {
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
           setCurrentUser(parsedUser);
-          console.log("Session restored from localStorage:", parsedUser.username);
+          setIsAuthenticated(true);
+          console.log("✅ Session restored from localStorage:", parsedUser.username);
+        } else {
+          console.log("❌ No stored session found");
+          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error("Error parsing stored user:", error);
         localStorage.removeItem('currentUser');
+        setIsAuthenticated(false);
       }
 
       // Then fetch users and check/create admin user
       await fetchUsers();
       await checkAndCreateAdminUser();
-      setIsLoading(false);
     };
 
     initializeAuth();
@@ -94,10 +101,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.session) {
         await fetchCurrentUser();
       }
-      setIsLoading(false);
+      setIsAuthenticated(false);
     } catch (error) {
       console.error("Error checking session:", error);
-      setIsLoading(false);
+      setIsAuthenticated(false);
     }
   };
 
@@ -198,6 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
       
       setCurrentUser(user);
+      setIsAuthenticated(true);
       
       // Store user in localStorage for session persistence
       localStorage.setItem('currentUser', JSON.stringify(user));
@@ -213,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await supabase.auth.signOut();
       setCurrentUser(null);
+      setIsAuthenticated(false);
       // Clear authentication state from localStorage
       localStorage.removeItem('currentUser');
     } catch (error) {
@@ -300,7 +309,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     currentUser,
     login,
     logout,
-    isAuthenticated: !!currentUser,
+    isAuthenticated: isAuthenticated === true, // Convert null to false for backwards compatibility
     addUser,
     removeUser,
     users,
