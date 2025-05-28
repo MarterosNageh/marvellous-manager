@@ -6,9 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useTask } from "@/context/TaskContext";
 import { useToast } from "@/hooks/use-toast";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 
 interface CreateTaskDialogProps {
   children: React.ReactNode;
@@ -23,6 +28,7 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
   const [dueDate, setDueDate] = useState("");
   const [projectId, setProjectId] = useState("");
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
   const { createTask, projects, users } = useTask();
   const { toast } = useToast();
 
@@ -71,12 +77,20 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
     }
   };
 
-  const handleAssigneeChange = (userId: string) => {
+  const handleAssigneeToggle = (userId: string) => {
     setAssigneeIds(prev => 
       prev.includes(userId) 
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const removeAssignee = (userId: string) => {
+    setAssigneeIds(prev => prev.filter(id => id !== userId));
+  };
+
+  const getSelectedAssignees = () => {
+    return users.filter(user => assigneeIds.includes(user.id));
   };
 
   return (
@@ -172,22 +186,80 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
 
           <div>
             <Label>Assignees</Label>
-            <div className="space-y-2 mt-2">
-              {users.map((user) => (
-                <div key={user.id} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={`assignee-${user.id}`}
-                    checked={assigneeIds.includes(user.id)}
-                    onChange={() => handleAssigneeChange(user.id)}
-                    className="rounded"
-                  />
-                  <Label htmlFor={`assignee-${user.id}`} className="text-sm">
-                    {user.username} {user.isAdmin && "(Admin)"}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            <Popover open={assigneeDropdownOpen} onOpenChange={setAssigneeDropdownOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={assigneeDropdownOpen}
+                  className="w-full justify-between"
+                >
+                  <span className="truncate">
+                    {assigneeIds.length === 0
+                      ? "Select assignees..."
+                      : `${assigneeIds.length} assignee${assigneeIds.length > 1 ? 's' : ''} selected`}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search users..." />
+                  <CommandList>
+                    <CommandEmpty>No users found.</CommandEmpty>
+                    <CommandGroup>
+                      {users.map((user) => (
+                        <CommandItem
+                          key={user.id}
+                          onSelect={() => handleAssigneeToggle(user.id)}
+                          className="flex items-center space-x-2"
+                        >
+                          <Checkbox
+                            checked={assigneeIds.includes(user.id)}
+                            onChange={() => handleAssigneeToggle(user.id)}
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
+                              {user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm">{user.username}</span>
+                            {user.isAdmin && (
+                              <Badge variant="outline" className="text-xs">
+                                Admin
+                              </Badge>
+                            )}
+                          </div>
+                          {assigneeIds.includes(user.id) && (
+                            <Check className="ml-auto h-4 w-4" />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Selected Assignees Display */}
+            {getSelectedAssignees().length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {getSelectedAssignees().map((user) => (
+                  <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
+                      {user.username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-xs">{user.username}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAssignee(user.id)}
+                      className="ml-1 hover:bg-gray-200 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">
