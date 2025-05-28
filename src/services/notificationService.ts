@@ -140,34 +140,27 @@ class NotificationService {
     try {
       console.log(`Sending notification to user ${userId}:`, title);
 
-      // Send local notification
-      await this.sendLocalNotification({
-        title,
-        body,
-        tag: `task-${taskId}`,
-        data: { taskId, url: `/task-manager` }
-      });
+      // Check if user is currently logged in by checking localStorage
+      const currentUser = localStorage.getItem('currentUser');
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        if (user.id === userId) {
+          // User is currently logged in, send local notification
+          await this.sendLocalNotification({
+            title,
+            body,
+            tag: `task-${taskId}`,
+            data: { taskId, url: `/task-manager` }
+          });
+        }
+      }
 
-      // Send mobile notification
+      // Always send mobile notification for PWA
       await this.sendMobileNotification(title, body, { taskId });
 
       console.log(`Notification sent to user ${userId}:`, title);
     } catch (error) {
       console.error('Error sending notification to user:', error);
-    }
-  }
-
-  async sendNotificationToAssignees(
-    assigneeIds: string[],
-    title: string,
-    body: string,
-    taskId?: string,
-    excludeUserId?: string
-  ) {
-    for (const userId of assigneeIds) {
-      if (userId !== excludeUserId) {
-        await this.sendNotificationToUser(userId, title, body, taskId);
-      }
     }
   }
 

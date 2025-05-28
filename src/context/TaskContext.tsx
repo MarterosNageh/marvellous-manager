@@ -1,8 +1,8 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { notificationService } from "@/services/notificationService";
 
 interface Project {
   id: string;
@@ -50,6 +50,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
+
+    // Initialize notification service
+    notificationService.init();
   }, []);
 
   const fetchData = async () => {
@@ -153,7 +156,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           status: data.status,
           due_date: data.due_date,
           project_id: data.project_id,
-          created_by: users[0]?.id || '',
+          created_by: currentUser?.id || users[0]?.id || '',
         }])
         .select()
         .single();
@@ -171,11 +174,29 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           .insert(assignments);
 
         if (assignmentError) throw assignmentError;
+
+        // Send notifications to assigned users
+        await notificationService.sendTaskAssignmentNotifications(
+          data.assignee_ids,
+          data.title,
+          taskData.id,
+          currentUser?.id
+        );
       }
 
       await fetchData();
+      
+      toast({
+        title: "Success",
+        description: "Task created successfully",
+      });
     } catch (error) {
       console.error('Error creating task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create task",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -266,6 +287,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignTask = async (taskId: string, userIds: string[]) => {
     try {
+      // Get current task to get its title for notifications
+      const currentTask = tasks.find(task => task.id === taskId);
+      
       await supabase
         .from('task_assignments')
         .delete()
@@ -282,6 +306,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           .insert(assignments);
 
         if (error) throw error;
+
+        // Send notifications to newly assigned users
+        if (currentTask) {
+          await notificationService.sendTaskAssignmentNotifications(
+            userIds,
+            currentTask.title,
+            taskId,
+            currentUser?.id
+          );
+        }
       }
 
       await fetchData();
