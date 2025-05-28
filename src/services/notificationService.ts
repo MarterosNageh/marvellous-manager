@@ -9,6 +9,7 @@ interface NotificationPayload {
   badge?: string;
   tag?: string;
   data?: any;
+  requireInteraction?: boolean;
 }
 
 class NotificationService {
@@ -124,9 +125,8 @@ class NotificationService {
         badge: payload.badge || '/favicon.ico',
         tag: payload.tag,
         data: payload.data,
-        requireInteraction: true, // Keep notification visible until user interacts
-        silent: false,
-        vibrate: [200, 100, 200] // Mobile vibration pattern
+        requireInteraction: payload.requireInteraction || true,
+        silent: false
       });
 
       // Add vibration for mobile devices
