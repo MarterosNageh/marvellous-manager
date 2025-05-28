@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,7 +93,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         },
         async (payload) => {
           console.log('Real-time task update:', payload);
-          await fetchData(); // Refetch to get complete task with relationships
+          // Update the task in state immediately
+          const updatedTaskData = payload.new;
+          setTasks(prevTasks => 
+            prevTasks.map(task => 
+              task.id === updatedTaskData.id 
+                ? { ...task, ...updatedTaskData }
+                : task
+            )
+          );
+          // Also refetch to ensure we have complete relationships
+          setTimeout(() => fetchData(), 100);
         }
       )
       .on(
@@ -284,6 +293,15 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('Updating task in database:', taskId, updates);
 
+      // Optimistically update the UI immediately
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, ...updates }
+            : task
+        )
+      );
+
       // Only send the fields that can be updated in the database
       const updateData: any = {};
       
@@ -302,6 +320,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Supabase error:', error);
+        // Revert optimistic update on error
+        await fetchData();
         throw error;
       }
       
