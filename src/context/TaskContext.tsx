@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,69 +61,94 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     
     initNotifications();
 
-    // Setup real-time subscriptions
-    setupRealtimeSubscriptions();
+    // Setup real-time subscriptions with error handling
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    const setupRealtime = () => {
+      console.log('Setting up real-time subscriptions...');
+      
+      // Clean up any existing channels
+      supabase.removeAllChannels();
+
+      // Create a single channel for all real-time updates
+      const channel = supabase
+        .channel(`task-updates-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tasks'
+          },
+          (payload) => {
+            console.log('Task change detected:', payload);
+            // Refetch data to ensure consistency
+            fetchData();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'task_assignments'
+          },
+          (payload) => {
+            console.log('Task assignment change detected:', payload);
+            // Refetch data to ensure consistency
+            fetchData();
+          }
+        )
+        .subscribe((status, err) => {
+          console.log('Subscription status:', status);
+          if (err) {
+            console.error('Subscription error:', err);
+          }
+          
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to real-time updates');
+            retryCount = 0; // Reset retry count on success
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('Real-time subscription failed:', status);
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Retrying subscription (attempt ${retryCount}/${maxRetries})...`);
+              setTimeout(() => {
+                setupRealtime();
+              }, 2000 * retryCount); // Exponential backoff
+            } else {
+              console.error('Max retries reached for real-time subscription');
+              // Fall back to polling for updates
+              setupPolling();
+            }
+          }
+        });
+    };
+
+    // Fallback polling mechanism
+    const setupPolling = () => {
+      console.log('Setting up polling fallback...');
+      const interval = setInterval(() => {
+        console.log('Polling for updates...');
+        fetchData();
+      }, 10000); // Poll every 10 seconds
+      
+      return () => clearInterval(interval);
+    };
+
+    // Start with real-time, fallback to polling if needed
+    setupRealtime();
 
     return () => {
-      // Cleanup subscriptions on unmount
+      console.log('Cleaning up subscriptions...');
       supabase.removeAllChannels();
     };
   }, []);
 
-  const setupRealtimeSubscriptions = () => {
-    console.log('Setting up real-time subscriptions...');
-    
-    // Remove any existing channels first
-    supabase.removeAllChannels();
-
-    // Subscribe to tasks table changes with a simple channel name
-    const channel = supabase
-      .channel('tasks-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks'
-        },
-        async (payload) => {
-          console.log('Real-time task change received:', payload.eventType, payload);
-          // Always refetch data to ensure consistency across all devices
-          await fetchData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'task_assignments'
-        },
-        async (payload) => {
-          console.log('Real-time task assignment change received:', payload.eventType, payload);
-          // Always refetch data to ensure consistency across all devices
-          await fetchData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to real-time changes');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to real-time changes, retrying...');
-          // Retry after a delay
-          setTimeout(() => {
-            setupRealtimeSubscriptions();
-          }, 3000);
-        }
-      });
-
-    console.log('Real-time subscription configured');
-  };
-
   const fetchData = async () => {
     try {
-      setLoading(true);
+      console.log('Fetching data...');
 
       // Fetch users
       const { data: usersData, error: usersError } = await supabase
