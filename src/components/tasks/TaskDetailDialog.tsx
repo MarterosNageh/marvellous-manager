@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,13 +39,27 @@ const statusIcons = {
 };
 
 export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, onOpenChange }) => {
-  const { updateTask, currentUser } = useTask();
+  const { updateTask, deleteTask, currentUser, tasks } = useTask();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState(task);
 
+  // Check if task still exists in the tasks array
+  const taskExists = tasks.find(t => t.id === task.id);
+
+  // Close dialog immediately if task doesn't exist (was deleted)
+  useEffect(() => {
+    if (open && !taskExists) {
+      onOpenChange(false);
+    }
+  }, [taskExists, open, onOpenChange]);
+
+  // Update editedTask when task prop changes
+  useEffect(() => {
+    setEditedTask(task);
+  }, [task]);
+
   const handleStatusChange = async (newStatus: TaskStatus) => {
-    const updatedTask = { ...task, status: newStatus };
-    await updateTask(task.id, updatedTask);
+    await updateTask(task.id, { status: newStatus });
   };
 
   const handleSave = async () => {
@@ -56,6 +70,14 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
   const handleCancel = () => {
     setEditedTask(task);
     setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      // Close dialog immediately before deleting
+      onOpenChange(false);
+      await deleteTask(task.id);
+    }
   };
 
   const formatDueDate = (dateString: string) => {
@@ -109,9 +131,14 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)} size="sm" variant="outline">
-                Edit Task
-              </Button>
+              <>
+                <Button onClick={() => setIsEditing(true)} size="sm" variant="outline">
+                  Edit Task
+                </Button>
+                <Button onClick={handleDelete} size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                  Delete
+                </Button>
+              </>
             )}
           </div>
         </DialogHeader>

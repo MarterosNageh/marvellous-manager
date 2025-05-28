@@ -215,7 +215,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
 
-      await fetchData();
+      // Update tasks state immediately for better UX
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? { ...task, ...updates } : task
+        )
+      );
       
       toast({
         title: "Success",
@@ -241,9 +246,20 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      await fetchData();
+      // Remove task from state immediately for better UX
+      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+      
+      toast({
+        title: "Success",
+        description: "Task deleted successfully",
+      });
     } catch (error) {
       console.error('Error deleting task:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to delete task",
+        variant: "destructive",
+      });
       throw error;
     }
   };

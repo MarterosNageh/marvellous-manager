@@ -39,11 +39,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const [detailOpen, setDetailOpen] = useState(false);
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed') => {
-    await updateTask(task.id, { ...task, status: newStatus });
+    await updateTask(task.id, { status: newStatus });
   };
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this task?')) {
+      // Close the detail dialog if it's open
+      setDetailOpen(false);
       await deleteTask(task.id);
     }
   };
