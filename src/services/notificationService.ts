@@ -20,15 +20,6 @@ class NotificationService {
       try {
         this.registration = await navigator.serviceWorker.register('/sw.js');
         console.log('Service Worker registered:', this.registration);
-        
-        // Request permission immediately after initialization
-        if (!this.permissionRequested) {
-          await this.requestPermission();
-          this.permissionRequested = true;
-        }
-        
-        // Initialize push notifications
-        await pushNotificationService.requestPermissionAndSubscribe();
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -54,6 +45,13 @@ class NotificationService {
     try {
       const permission = await Notification.requestPermission();
       console.log('Notification permission result:', permission);
+      
+      if (permission === 'granted') {
+        // Automatically subscribe to push notifications when permission is granted
+        const subscribed = await pushNotificationService.requestPermissionAndSubscribe();
+        console.log('Push subscription result:', subscribed);
+      }
+      
       return permission === 'granted';
     } catch (error) {
       console.error('Error requesting notification permission:', error);
@@ -64,7 +62,7 @@ class NotificationService {
   async sendLocalNotification(payload: NotificationPayload) {
     const hasPermission = await this.requestPermission();
     if (!hasPermission) {
-      console.log('Notification permission not granted');
+      console.log('Notification permission not granted, cannot send local notification');
       return;
     }
 
@@ -104,6 +102,12 @@ class NotificationService {
   }
 
   async sendMobileNotification(title: string, body: string, data?: any) {
+    // Check permission first
+    if (Notification.permission !== 'granted') {
+      console.log('Cannot send mobile notification: permission not granted');
+      return;
+    }
+
     // For PWA mobile notifications
     if (this.registration && 'showNotification' in this.registration) {
       try {
@@ -153,28 +157,12 @@ class NotificationService {
     for (const userId of assigneeIds) {
       if (userId !== createdBy) {
         console.log('Sending notification to user:', userId);
-        
-        // Send local notification (will only show for current user)
-        await this.sendLocalNotification({
-          title: 'New Task Assigned',
-          body: `You have been assigned to task: "${taskTitle}"`,
-          tag: `task-${taskId}`,
-          data: { taskId, url: `/task-manager` }
-        });
-        
-        // Send mobile notification for PWA
-        await this.sendMobileNotification(
+        await this.sendNotificationToUser(
+          userId,
           'New Task Assigned',
           `You have been assigned to task: "${taskTitle}"`,
-          { taskId }
-        );
-        
-        // Send external push notification
-        await pushNotificationService.sendPushNotification(
-          [userId],
-          'New Task Assigned',
-          `You have been assigned to task: "${taskTitle}"`,
-          { taskId, type: 'task_assignment' }
+          taskId,
+          'task_assignment'
         );
       }
     }
@@ -210,11 +198,11 @@ class NotificationService {
             tag: `task-${taskId}`,
             data: { taskId, url: `/task-manager` }
           });
+
+          // Also send mobile notification for PWA
+          await this.sendMobileNotification(title, body, { taskId });
         }
       }
-
-      // Always send mobile notification for PWA
-      await this.sendMobileNotification(title, body, { taskId });
 
       // Send external push notification
       await pushNotificationService.sendPushNotification(
@@ -252,6 +240,26 @@ class NotificationService {
     } catch (error) {
       console.error('Error sending notifications to admins:', error);
     }
+  }
+
+  // Test method to send a notification immediately
+  async sendTestNotification() {
+    console.log('Sending test notification...');
+    
+    const hasPermission = await this.requestPermission();
+    if (!hasPermission) {
+      console.log('Cannot send test notification: permission not granted');
+      return false;
+    }
+
+    await this.sendLocalNotification({
+      title: 'Test Notification',
+      body: 'This is a test notification to verify the system is working!',
+      tag: 'test-notification',
+      data: { test: true }
+    });
+
+    return true;
   }
 }
 
