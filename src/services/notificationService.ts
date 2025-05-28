@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -224,30 +223,27 @@ class NotificationService {
 
       // Get current user to check if they're the target user
       const currentUser = localStorage.getItem('currentUser');
+      let isCurrentUser = false;
+      
       if (currentUser) {
         const user = JSON.parse(currentUser);
         console.log('👤 Current user ID:', user.id, 'Target user ID:', userId);
-        
-        if (user.id === userId) {
-          console.log('✅ User is currently logged in, sending local push notification');
-          // User is currently logged in, send local notification with same config as test
-          await this.sendPushNotification({
-            title,
-            body,
-            tag: `task-${taskId}`,
-            data: { taskId, url: `/task-manager` },
-            requireInteraction: true
-          });
-
-          console.log('📱 Also sending mobile push notification...');
-          // Also send mobile notification for PWA using the same method as test
-          await this.sendMobileNotification(title, body, { taskId });
-        } else {
-          console.log('ℹ️ User is not currently logged in, will send external push only');
-        }
+        isCurrentUser = user.id === userId;
       }
 
-      // Always try to send external push notification for mobile devices
+      // Always send local notification if this is the current user AND they have permission
+      if (isCurrentUser && Notification.permission === 'granted') {
+        console.log('✅ Sending local push notification to current user');
+        await this.sendPushNotification({
+          title,
+          body,
+          tag: `task-${taskId}`,
+          data: { taskId, url: `/task-manager` },
+          requireInteraction: true
+        });
+      }
+
+      // Always attempt to send external push notification for ALL assigned users
       console.log('🔍 Checking if user has push subscription...');
       const { data: subscriptions, error } = await supabase
         .from('push_subscriptions')
@@ -277,7 +273,12 @@ class NotificationService {
             }
           );
         } else {
-          console.log('⚠️ User has no push subscription registered, skipping external push');
+          console.log('⚠️ User has no push subscription registered');
+          
+          // If it's not the current user and they have no push subscription, log this
+          if (!isCurrentUser) {
+            console.log('💡 User is not currently logged in and has no push subscription - notification cannot be delivered');
+          }
         }
       }
 
