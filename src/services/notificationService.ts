@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -166,37 +167,16 @@ class NotificationService {
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // Get current logged-in user
-    const currentUser = localStorage.getItem('currentUser');
-    let currentUserId = null;
-    
-    if (currentUser) {
-      try {
-        const user = JSON.parse(currentUser);
-        currentUserId = user.id;
-        console.log('👤 Current user ID:', currentUserId);
-      } catch (error) {
-        console.error('❌ Error parsing current user:', error);
-      }
-    }
-    
-    // Send notifications to all assigned users
+    // Send notifications to all assigned users - NO CONDITIONS
     for (const userId of assigneeIds) {
-      console.log(`📤 Processing notification for user: ${userId}`);
-      
-      // Don't send notification to the task creator
-      if (userId !== createdBy) {
-        console.log(`✅ Sending notification to user: ${userId} (not the creator)`);
-        await this.sendNotificationToUser(
-          userId,
-          '🎯 New Task Assigned',
-          `You have been assigned to task: "${taskTitle}"`,
-          taskId,
-          'task_assignment'
-        );
-      } else {
-        console.log(`⏭️ Skipping notification for creator: ${userId}`);
-      }
+      console.log(`📤 Sending notification to ALL assigned users: ${userId}`);
+      await this.sendNotificationToUser(
+        userId,
+        '🎯 New Task Assigned',
+        `You have been assigned to task: "${taskTitle}"`,
+        taskId,
+        'task_assignment'
+      );
     }
 
     // Send to all admins (excluding the creator)
@@ -231,7 +211,7 @@ class NotificationService {
         isCurrentUser = user.id === userId;
       }
 
-      // Always send local notification if this is the current user AND they have permission
+      // Send local notification if this is the current user AND they have permission
       if (isCurrentUser && Notification.permission === 'granted') {
         console.log('✅ Sending local push notification to current user');
         await this.sendPushNotification({
@@ -243,44 +223,21 @@ class NotificationService {
         });
       }
 
-      // Always attempt to send external push notification for ALL assigned users
-      console.log('🔍 Checking if user has push subscription...');
-      const { data: subscriptions, error } = await supabase
-        .from('push_subscriptions')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (error) {
-        console.error('❌ Error checking push subscriptions:', error);
-      } else {
-        console.log(`📊 Found ${subscriptions?.length || 0} push subscriptions for user ${userId}`);
-        
-        if (subscriptions && subscriptions.length > 0) {
-          console.log('✅ User has push subscription, sending external push notification...');
-          
-          // Send external push with same configuration as working test notification
-          await pushNotificationService.sendPushNotification(
-            [userId],
-            title,
-            body,
-            { 
-              taskId, 
-              type, 
-              requireInteraction: true,
-              tag: `task-${taskId}`,
-              icon: '/favicon.ico',
-              badge: '/favicon.ico'
-            }
-          );
-        } else {
-          console.log('⚠️ User has no push subscription registered');
-          
-          // If it's not the current user and they have no push subscription, log this
-          if (!isCurrentUser) {
-            console.log('💡 User is not currently logged in and has no push subscription - notification cannot be delivered');
-          }
+      // ALWAYS send external push notification to ALL users - NO CONDITIONS
+      console.log('📱 Sending external push notification to user:', userId);
+      await pushNotificationService.sendPushNotification(
+        [userId],
+        title,
+        body,
+        { 
+          taskId, 
+          type, 
+          requireInteraction: true,
+          tag: `task-${taskId}`,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico'
         }
-      }
+      );
 
       console.log(`✅ Notification processing completed for user ${userId}`);
     } catch (error) {
