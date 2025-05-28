@@ -1,12 +1,14 @@
+
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TaskProvider } from "@/context/TaskContext";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
+import { FCMDebugger } from "@/components/FCMDebugger";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle } from "lucide-react";
+import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle, Bug } from "lucide-react";
 import { notificationService } from "@/services/notificationService";
 import { pushNotificationService } from "@/services/pushNotificationService";
 import { useToast } from "@/hooks/use-toast";
@@ -286,6 +288,10 @@ const TaskManager = () => {
                 <List className="h-4 w-4" />
                 List
               </TabsTrigger>
+              <TabsTrigger value="debug" className="flex items-center gap-2">
+                <Bug className="h-4 w-4" />
+                FCM Debug
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="board" className="mt-6">
@@ -294,6 +300,19 @@ const TaskManager = () => {
             
             <TabsContent value="list" className="mt-6">
               <TaskList />
+            </TabsContent>
+
+            <TabsContent value="debug" className="mt-6">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">FCM Debug Center</h2>
+                  <p className="text-muted-foreground">
+                    Comprehensive testing and debugging tools for Firebase Cloud Messaging
+                  </p>
+                </div>
+                
+                <FCMDebugger />
+              </div>
             </TabsContent>
           </Tabs>
         </div>

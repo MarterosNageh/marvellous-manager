@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -78,9 +77,6 @@ const AppContent = () => {
         
         {/* Knowledge Base */}
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
-
-        {/* FCM Debug */}
-        <Route path="/fcm-debug" element={<FCMDebug />} />
 
         {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
