@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +53,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       setCurrentUser(JSON.parse(storedUser));
     }
 
-    // Initialize notification service and request permission
+    // Initialize notification service
     const initNotifications = async () => {
       await notificationService.init();
       const hasPermission = await notificationService.requestPermission();
@@ -61,19 +62,55 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     
     initNotifications();
 
-    // Setup real-time subscriptions with error handling
-    let retryCount = 0;
-    const maxRetries = 3;
+    // Set up real-time subscriptions
+    console.log('Setting up real-time subscriptions...');
     
-    const setupRealtime = () => {
-      console.log('Setting up real-time subscriptions...');
-      
-      // Clean up any existing channels
-      supabase.removeAllChannels();
+    const channel = supabase
+      .channel('task-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('Task change detected:', payload.eventType, payload);
+          // Immediately refetch all data to ensure consistency
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_assignments'
+        },
+        (payload) => {
+          console.log('Task assignment change detected:', payload.eventType, payload);
+          // Immediately refetch all data to ensure consistency
+          fetchData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to real-time updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Real-time subscription failed, will retry...');
+          // Retry subscription after a short delay
+          setTimeout(() => {
+            channel.unsubscribe();
+            // Re-setup the subscription
+            setupRealtimeSubscription();
+          }, 2000);
+        }
+      });
 
-      // Create a single channel for all real-time updates
-      const channel = supabase
-        .channel(`task-updates-${Date.now()}`)
+    const setupRealtimeSubscription = () => {
+      const retryChannel = supabase
+        .channel(`task-updates-retry-${Date.now()}`)
         .on(
           'postgres_changes',
           {
@@ -82,8 +119,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             table: 'tasks'
           },
           (payload) => {
-            console.log('Task change detected:', payload);
-            // Refetch data to ensure consistency
+            console.log('Task change detected (retry):', payload.eventType, payload);
             fetchData();
           }
         )
@@ -95,50 +131,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             table: 'task_assignments'
           },
           (payload) => {
-            console.log('Task assignment change detected:', payload);
-            // Refetch data to ensure consistency
+            console.log('Task assignment change detected (retry):', payload.eventType, payload);
             fetchData();
           }
         )
-        .subscribe((status, err) => {
-          console.log('Subscription status:', status);
-          if (err) {
-            console.error('Subscription error:', err);
-          }
-          
-          if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to real-time updates');
-            retryCount = 0; // Reset retry count on success
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.error('Real-time subscription failed:', status);
-            if (retryCount < maxRetries) {
-              retryCount++;
-              console.log(`Retrying subscription (attempt ${retryCount}/${maxRetries})...`);
-              setTimeout(() => {
-                setupRealtime();
-              }, 2000 * retryCount); // Exponential backoff
-            } else {
-              console.error('Max retries reached for real-time subscription');
-              // Fall back to polling for updates
-              setupPolling();
-            }
-          }
+        .subscribe((status) => {
+          console.log('Retry subscription status:', status);
         });
     };
-
-    // Fallback polling mechanism
-    const setupPolling = () => {
-      console.log('Setting up polling fallback...');
-      const interval = setInterval(() => {
-        console.log('Polling for updates...');
-        fetchData();
-      }, 10000); // Poll every 10 seconds
-      
-      return () => clearInterval(interval);
-    };
-
-    // Start with real-time, fallback to polling if needed
-    setupRealtime();
 
     return () => {
       console.log('Cleaning up subscriptions...');
