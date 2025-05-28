@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
-import { ArrowLeft, Edit, Trash2, Printer, Archive } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import type { HardDrive, PrintHistory } from "@/types";
 
@@ -82,15 +83,12 @@ const HardDriveDetail = () => {
 
   const handlePrint = () => {
     if (!hardDrive) return;
-    
-    // Navigate to print page with hard drive data
-    navigate('/print', { 
-      state: { 
-        type: 'hardDriveDetail',
-        hardDrive,
-        project 
-      } 
-    });
+    navigate(`/hard-drives/${hardDrive.id}/print`);
+  };
+
+  const handleQRCode = () => {
+    if (!hardDrive) return;
+    navigate(`/hard-drives/${hardDrive.id}/qr`);
   };
 
   if (loading) {
@@ -113,7 +111,7 @@ const HardDriveDetail = () => {
     );
   }
 
-  // Filter print history for this hard drive and transform to match PrintHistoryProps
+  // Filter print history for this hard drive
   const hardDrivePrintHistory = printHistory
     .filter(history => history.hardDriveId === hardDrive.id)
     .map(history => ({
@@ -122,7 +120,6 @@ const HardDriveDetail = () => {
       hard_drive_id: history.hardDriveId,
       printed_at: history.timestamp,
       printed_by: history.operatorName,
-      // Add other required properties if needed
     }));
 
   return (
@@ -145,10 +142,18 @@ const HardDriveDetail = () => {
             <Button 
               variant="outline" 
               size="sm"
+              onClick={handleQRCode}
+            >
+              <QrCode className="h-4 w-4 mr-2" />
+              QR Code
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
               onClick={handlePrint}
             >
               <Printer className="h-4 w-4 mr-2" />
-              Print Label
+              Print Forms
             </Button>
             <Button 
               variant="outline" 
