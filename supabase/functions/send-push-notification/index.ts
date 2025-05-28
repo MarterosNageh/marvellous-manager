@@ -45,39 +45,70 @@ function base64ToBase64url(base64: string): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-// Helper function to encode JWT payload
-function encodeJWT(header: any, payload: any, privateKey: string): Promise<string> {
+// Helper function to encode JWT payload with proper key formatting
+async function encodeJWT(header: any, payload: any, privateKey: string): Promise<string> {
+  console.log('🔧 Starting JWT creation...');
+  
   const headerB64 = base64ToBase64url(btoa(JSON.stringify(header)));
   const payloadB64 = base64ToBase64url(btoa(JSON.stringify(payload)));
   const data = `${headerB64}.${payloadB64}`;
   
-  // Convert private key to proper format for crypto.subtle
-  const pemHeader = "-----BEGIN PRIVATE KEY-----";
-  const pemFooter = "-----END PRIVATE KEY-----";
-  const pemContents = privateKey.replace(pemHeader, "").replace(pemFooter, "").replace(/\s/g, "");
+  console.log('🔧 JWT data to sign:', data.substring(0, 100) + '...');
   
-  // Decode base64 to binary
-  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-  
-  return crypto.subtle.importKey(
-    "pkcs8",
-    binaryDer,
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256",
-    },
-    false,
-    ["sign"]
-  ).then(key => {
-    return crypto.subtle.sign(
+  try {
+    // Clean and format the private key properly
+    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+    const pemFooter = "-----END PRIVATE KEY-----";
+    
+    // Remove headers, footers, and all whitespace/newlines
+    const cleanedKey = privateKey
+      .replace(pemHeader, "")
+      .replace(pemFooter, "")
+      .replace(/\s/g, "")
+      .replace(/\n/g, "")
+      .replace(/\r/g, "");
+    
+    console.log('🔧 Cleaned private key length:', cleanedKey.length);
+    
+    // Convert base64 to binary
+    const binaryDer = Uint8Array.from(atob(cleanedKey), c => c.charCodeAt(0));
+    console.log('🔧 Binary DER length:', binaryDer.length);
+    
+    // Import the private key for RSA-SHA256 signing
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      binaryDer,
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        hash: "SHA-256",
+      },
+      false,
+      ["sign"]
+    );
+    
+    console.log('✅ Private key imported successfully');
+    
+    // Sign the JWT data
+    const signature = await crypto.subtle.sign(
       "RSASSA-PKCS1-v1_5",
-      key,
+      cryptoKey,
       new TextEncoder().encode(data)
     );
-  }).then(signature => {
+    
+    console.log('✅ JWT signed successfully, signature length:', signature.byteLength);
+    
+    // Convert signature to base64url
     const signatureB64 = base64ToBase64url(btoa(String.fromCharCode(...new Uint8Array(signature))));
-    return `${data}.${signatureB64}`;
-  });
+    const jwt = `${data}.${signatureB64}`;
+    
+    console.log('✅ Final JWT length:', jwt.length);
+    console.log('✅ Final JWT header:', jwt.substring(0, 50) + '...');
+    
+    return jwt;
+  } catch (error) {
+    console.error('❌ JWT creation failed:', error);
+    throw new Error(`JWT creation failed: ${error.message}`);
+  }
 }
 
 // Get OAuth 2.0 access token using service account
@@ -86,36 +117,53 @@ async function getAccessToken(): Promise<string> {
   
   try {
     const now = Math.floor(Date.now() / 1000);
+    const expiry = now + 3600; // 1 hour from now
+    
     const payload = {
       iss: SERVICE_ACCOUNT.client_email,
       scope: 'https://www.googleapis.com/auth/firebase.messaging',
       aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
+      exp: expiry,
       iat: now
     };
 
-    const header = { alg: 'RS256', typ: 'JWT' };
+    const header = { 
+      alg: 'RS256', 
+      typ: 'JWT' 
+    };
     
-    // Create JWT using our custom function
+    console.log('🔧 JWT payload:', JSON.stringify(payload, null, 2));
+    
+    // Create JWT using our fixed function
     const jwt = await encodeJWT(header, payload, SERVICE_ACCOUNT.private_key);
+    console.log('✅ JWT created successfully');
 
     // Exchange JWT for access token
+    console.log('🔄 Exchanging JWT for access token...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
         assertion: jwt
       })
     });
 
+    console.log('📡 Token response status:', tokenResponse.status);
+    
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
+      console.error('❌ Token request failed:', errorText);
       throw new Error(`Token request failed: ${tokenResponse.status} - ${errorText}`);
     }
 
     const tokenData = await tokenResponse.json();
     console.log('✅ Firebase Admin SDK access token obtained');
+    console.log('✅ Token expires in:', tokenData.expires_in, 'seconds');
+    
     return tokenData.access_token;
   } catch (error) {
     console.error('❌ Failed to get access token:', error);
@@ -170,7 +218,7 @@ async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any
       }
     };
 
-    console.log('📤 Sending Firebase Admin FCM message:', JSON.stringify(message, null, 2));
+    console.log('📤 Sending Firebase Admin FCM message...');
 
     const response = await fetch(fcmUrl, {
       method: 'POST',
@@ -247,10 +295,10 @@ serve(async (req) => {
     
     if (subscriptions && subscriptions.length > 0) {
       console.log('📱 Device breakdown:')
-      const devicesByUser = subscriptions.reduce((acc, sub) => {
+      const devicesByUser = subscriptions.reduce((acc: Record<string, number>, sub) => {
         acc[sub.user_id] = (acc[sub.user_id] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>);
+      }, {});
       
       Object.entries(devicesByUser).forEach(([userId, count]) => {
         console.log(`  👤 User ${userId}: ${count} device(s)`)
