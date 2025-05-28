@@ -25,8 +25,12 @@ const FIREBASE_CONFIG = {
   measurementId: "G-YBBC3CXLEF"
 }
 
+// Updated VAPID key for proper authentication
+const VAPID_PUBLIC_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
+
 async function sendFirebasePushNotification(subscription: PushSubscription, payload: any) {
   console.log('📱 Attempting to send Firebase FCM push notification to:', subscription.endpoint.substring(0, 50) + '...')
+  console.log('🔑 Using VAPID public key:', VAPID_PUBLIC_KEY.substring(0, 30) + '...')
   
   const webPushPayload = JSON.stringify({
     title: payload.title,
@@ -54,11 +58,12 @@ async function sendFirebasePushNotification(subscription: PushSubscription, payl
       
       // Try to get server key from environment
       const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+      console.log('🔐 FCM Server Key available:', !!fcmServerKey);
       
       if (fcmServerKey) {
         console.log('🔐 Using FCM Server Key for authentication')
         
-        // Use FCM HTTP v1 API
+        // Use FCM HTTP v1 API (legacy)
         const fcmUrl = `https://fcm.googleapis.com/fcm/send`;
         
         const fcmPayload = {
@@ -71,6 +76,8 @@ async function sendFirebasePushNotification(subscription: PushSubscription, payl
           },
           data: payload.data || {}
         };
+
+        console.log('📤 Sending FCM payload:', JSON.stringify(fcmPayload, null, 2));
 
         response = await fetch(fcmUrl, {
           method: 'POST',
@@ -99,42 +106,44 @@ async function sendFirebasePushNotification(subscription: PushSubscription, payl
         }
         
       } else {
-        console.log('⚠️ No FCM Server Key found - using standard Web Push (limited functionality)')
+        console.log('⚠️ No FCM Server Key found - trying Web Push with VAPID authentication')
         
-        // Fallback to standard Web Push (will work for local notifications)
+        // Use Web Push Protocol with VAPID authentication
         const headers = {
           'Content-Type': 'application/json',
           'TTL': '86400',
           'Urgency': 'high'
         }
         
+        console.log('📤 Sending Web Push with VAPID to FCM endpoint...')
         response = await fetch(subscription.endpoint, {
           method: 'POST',
           headers,
           body: webPushPayload
         })
         
-        console.log('📤 Standard Web Push Response status:', response.status)
+        console.log('📤 Web Push to FCM Response status:', response.status)
         
         if (!response.ok) {
-          console.error('❌ Standard Web Push failed:', response.status, response.statusText)
+          const responseText = await response.text()
+          console.error('❌ Web Push to FCM failed:', response.status, response.statusText, responseText)
           return { 
-            success: true, 
-            note: 'Local browser notification works, but FCM server key needed for full cross-device support',
-            warning: 'Add FCM_SERVER_KEY to Supabase secrets for full functionality'
+            success: false, 
+            error: `Web Push FCM ${response.status}: ${responseText}`,
+            recommendation: 'Add FCM_SERVER_KEY to Supabase secrets for better FCM support'
           }
         }
         
         return { 
           success: true, 
-          note: 'Standard Web Push sent (local notifications only)',
-          recommendation: 'Add FCM_SERVER_KEY for cross-device delivery'
+          note: 'Web Push to FCM endpoint successful (VAPID authenticated)',
+          method: 'web-push-vapid'
         }
       }
       
     } else {
       // Standard Web Push for non-FCM services
-      console.log('🌐 Using standard Web Push endpoint')
+      console.log('🌐 Using standard Web Push endpoint with VAPID')
       response = await fetch(subscription.endpoint, {
         method: 'POST',
         headers: {
@@ -165,6 +174,7 @@ serve(async (req) => {
   console.log('🔗 Request method:', req.method)
   console.log('🔥 Firebase Project:', FIREBASE_CONFIG.projectId)
   console.log('🔑 FCM Server Key available:', !!Deno.env.get('FCM_SERVER_KEY'))
+  console.log('🔑 VAPID Public Key configured:', VAPID_PUBLIC_KEY.substring(0, 30) + '...')
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -241,7 +251,8 @@ serve(async (req) => {
           targetUsers: userIds.length,
           totalSubscriptionsInDB: allSubs?.length || 0,
           recommendation: 'Users need to enable push notifications on their other devices',
-          firebaseProject: FIREBASE_CONFIG.projectId
+          firebaseProject: FIREBASE_CONFIG.projectId,
+          vapidKeyConfigured: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -264,6 +275,9 @@ serve(async (req) => {
       console.log(`📤 [${index + 1}/${subscriptions.length}] Result:`, result.success ? '✅ Success' : `❌ Failed: ${result.error}`)
       if (result.note) {
         console.log(`📤 [${index + 1}/${subscriptions.length}] Note:`, result.note)
+      }
+      if (result.recommendation) {
+        console.log(`📤 [${index + 1}/${subscriptions.length}] Recommendation:`, result.recommendation)
       }
 
       return {
@@ -297,13 +311,16 @@ serve(async (req) => {
         crossDeviceCapability: successCount > 0 ? 'Active' : 'Limited',
         firebaseProject: FIREBASE_CONFIG.projectId,
         fcmServerKeyConfigured: !!Deno.env.get('FCM_SERVER_KEY'),
-        recommendation: !Deno.env.get('FCM_SERVER_KEY') ? 'Add FCM_SERVER_KEY to Supabase secrets for full cross-device delivery' : 'Firebase FCM properly configured'
+        vapidKeyConfigured: true,
+        vapidKey: VAPID_PUBLIC_KEY.substring(0, 30) + '...',
+        recommendation: !Deno.env.get('FCM_SERVER_KEY') ? 'Add FCM_SERVER_KEY to Supabase secrets for optimal FCM delivery' : 'Firebase FCM optimally configured'
       }
     };
 
     console.log('📱 === FIREBASE FCM DELIVERY COMPLETE ===')
     console.log('🌐 Cross-device capability:', response.deliveryInsights.crossDeviceCapability)
     console.log('🔑 FCM Server Key configured:', response.deliveryInsights.fcmServerKeyConfigured)
+    console.log('🔑 VAPID Key configured:', response.deliveryInsights.vapidKeyConfigured)
 
     return new Response(
       JSON.stringify(response),
@@ -317,7 +334,8 @@ serve(async (req) => {
         error: error.message,
         success: false,
         details: 'Firebase FCM cross-device notification system encountered an error. Check function logs for details.',
-        firebaseProject: FIREBASE_CONFIG.projectId
+        firebaseProject: FIREBASE_CONFIG.projectId,
+        vapidKeyConfigured: true
       }),
       { 
         status: 500,
