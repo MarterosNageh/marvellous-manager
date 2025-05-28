@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -14,6 +15,7 @@ interface NotificationPayload {
 class NotificationService {
   private registration: ServiceWorkerRegistration | null = null;
   private permissionRequested = false;
+  private realtimeChannel: any = null;
 
   async init() {
     if ('serviceWorker' in navigator) {
@@ -30,9 +32,152 @@ class NotificationService {
           console.log('🔄 Auto-setting up push notifications...');
           await this.setupPushNotifications();
         }
+
+        // Setup real-time notifications
+        await this.setupRealtimeNotifications();
       } catch (error) {
         console.error('❌ Service Worker registration failed:', error);
       }
+    }
+  }
+
+  async setupRealtimeNotifications() {
+    console.log('🔔 Setting up real-time notifications...');
+    
+    try {
+      // Get current user
+      const currentUser = localStorage.getItem('currentUser');
+      if (!currentUser) {
+        console.log('⚠️ No current user, skipping real-time setup');
+        return;
+      }
+
+      const user = JSON.parse(currentUser);
+      
+      // Clean up existing channel
+      if (this.realtimeChannel) {
+        this.realtimeChannel.unsubscribe();
+      }
+
+      // Create new real-time channel for task notifications
+      this.realtimeChannel = supabase
+        .channel(`task-notifications-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'task_assignments',
+            filter: `user_id=eq.${user.id}`
+          },
+          async (payload) => {
+            console.log('🔔 Real-time task assignment:', payload);
+            
+            // Fetch task details
+            const { data: task } = await supabase
+              .from('tasks')
+              .select('title, description')
+              .eq('id', payload.new.task_id)
+              .single();
+
+            if (task) {
+              // Show browser notification
+              await this.showBrowserNotification({
+                title: '🎯 New Task Assigned (Real-time)',
+                body: `You have been assigned to: "${task.title}"`,
+                icon: '/favicon.ico',
+                tag: `realtime-task-${payload.new.task_id}`,
+                data: { taskId: payload.new.task_id, type: 'realtime_assignment' }
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tasks'
+          },
+          async (payload) => {
+            console.log('🔄 Real-time task update:', payload);
+            
+            // Check if this user is assigned to this task
+            const { data: assignment } = await supabase
+              .from('task_assignments')
+              .select('id')
+              .eq('task_id', payload.new.id)
+              .eq('user_id', user.id)
+              .single();
+
+            if (assignment && payload.new.title) {
+              // Show browser notification for task updates
+              await this.showBrowserNotification({
+                title: '📝 Task Updated (Real-time)',
+                body: `Task "${payload.new.title}" has been updated`,
+                icon: '/favicon.ico',
+                tag: `realtime-update-${payload.new.id}`,
+                data: { taskId: payload.new.id, type: 'realtime_update' }
+              });
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔔 Real-time subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Real-time notifications active');
+          }
+        });
+
+    } catch (error) {
+      console.error('❌ Error setting up real-time notifications:', error);
+    }
+  }
+
+  async showBrowserNotification(payload: NotificationPayload) {
+    console.log('🖥️ Showing browser notification:', payload.title);
+    
+    // Check permission
+    if (Notification.permission !== 'granted') {
+      console.log('❌ Browser notification permission not granted');
+      return false;
+    }
+
+    try {
+      // Show native browser notification
+      const notification = new Notification(payload.title, {
+        body: payload.body,
+        icon: payload.icon || '/favicon.ico',
+        badge: payload.badge || '/favicon.ico',
+        tag: payload.tag,
+        data: payload.data,
+        requireInteraction: payload.requireInteraction || true,
+        silent: false
+      });
+
+      // Add click handler
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+        
+        // Navigate to task manager if data contains taskId
+        if (payload.data?.taskId) {
+          window.location.href = '/task-manager';
+        }
+      };
+
+      // Auto close after 5 seconds unless requireInteraction is true
+      if (!payload.requireInteraction) {
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+      }
+
+      console.log('✅ Browser notification shown successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to show browser notification:', error);
+      return false;
     }
   }
 
@@ -152,13 +297,13 @@ class NotificationService {
     taskId: string,
     createdBy?: string
   ) {
-    console.log('📋 === SENDING TASK ASSIGNMENT NOTIFICATIONS TO ALL DEVICES ===');
+    console.log('📋 === SENDING ENHANCED TASK ASSIGNMENT NOTIFICATIONS ===');
     console.log('👥 Assignee IDs:', assigneeIds);
     console.log('📝 Task Title:', taskTitle);
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // ALWAYS send external push notifications to ALL assigned users - NO CONDITIONS
+    // Send external push notifications to ALL assigned users
     console.log('📱 === SENDING EXTERNAL PUSH TO ALL ASSIGNED USERS ===');
     await pushNotificationService.sendPushNotification(
       assigneeIds,
@@ -193,11 +338,11 @@ class NotificationService {
     type: string = 'general'
   ) {
     try {
-      console.log(`📤 === SENDING EXTERNAL PUSH TO USER ${userId} ===`);
+      console.log(`📤 === SENDING ENHANCED NOTIFICATION TO USER ${userId} ===`);
       console.log('📢 Title:', title);
       console.log('💬 Body:', body);
 
-      // ALWAYS send external push notification to ALL devices for this user
+      // Send external push notification to ALL devices for this user
       console.log('📱 === SENDING TO ALL DEVICES FOR USER ===');
       await pushNotificationService.sendPushNotification(
         [userId],
@@ -259,7 +404,7 @@ class NotificationService {
   }
 
   async sendTestNotification() {
-    console.log('🧪 === SENDING TEST PUSH NOTIFICATION ===');
+    console.log('🧪 === SENDING ENHANCED TEST NOTIFICATION ===');
     console.log('🔔 Current permission status:', Notification.permission);
     
     if (Notification.permission !== 'granted') {
@@ -280,19 +425,36 @@ class NotificationService {
       return false;
     }
 
-    console.log('🧪 Sending test push notification...');
+    console.log('🧪 Sending enhanced test notifications...');
 
-    // Send push notification via service worker
-    const result = await this.sendPushNotification({
-      title: '🔔 Test Push Notification',
-      body: 'This is a test push notification! If you can see this on your phone, push notifications are working correctly.',
-      tag: 'test-notification',
-      data: { test: true, timestamp: Date.now() },
+    // Send browser notification
+    await this.showBrowserNotification({
+      title: '🖥️ Browser Test Notification',
+      body: 'This is a browser-based test notification! Click to focus the window.',
+      tag: 'browser-test',
+      data: { test: true, type: 'browser', timestamp: Date.now() },
       requireInteraction: true
     });
 
-    console.log('🧪 Test push notification result:', result);
+    // Send push notification via service worker
+    const result = await this.sendPushNotification({
+      title: '📱 Service Worker Test Notification',
+      body: 'This is a service worker push notification test!',
+      tag: 'sw-test-notification',
+      data: { test: true, type: 'service-worker', timestamp: Date.now() },
+      requireInteraction: true
+    });
+
+    console.log('🧪 Enhanced test notifications result:', result);
     return !!result;
+  }
+
+  cleanup() {
+    if (this.realtimeChannel) {
+      console.log('🧹 Cleaning up real-time notifications...');
+      this.realtimeChannel.unsubscribe();
+      this.realtimeChannel = null;
+    }
   }
 }
 

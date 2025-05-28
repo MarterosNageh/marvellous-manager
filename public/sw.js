@@ -1,5 +1,5 @@
 
-console.log('🔧 Enhanced Service Worker loaded');
+console.log('🔧 Enhanced Service Worker with Browser Integration loaded');
 
 self.addEventListener('push', function(event) {
   console.log('📱 Enhanced Push event received:', event);
@@ -17,7 +17,8 @@ self.addEventListener('push', function(event) {
         dateOfArrival: Date.now(),
         primaryKey: data.taskId || data.data?.taskId || '1',
         url: data.data?.url || '/task-manager',
-        test: data.test || false
+        test: data.test || false,
+        type: data.type || 'unknown'
       },
       actions: [
         {
@@ -53,7 +54,11 @@ self.addEventListener('push', function(event) {
         badge: '/favicon.ico',
         vibrate: [200, 100, 200],
         requireInteraction: true,
-        tag: 'default'
+        tag: 'default',
+        data: {
+          url: '/task-manager',
+          type: 'default'
+        }
       })
     );
   }
@@ -73,7 +78,8 @@ self.addEventListener('message', function(event) {
       data: {
         dateOfArrival: Date.now(),
         primaryKey: taskId || '1',
-        url: '/task-manager'
+        url: '/task-manager',
+        type: 'manual-message'
       },
       actions: [
         {
@@ -108,12 +114,16 @@ self.addEventListener('notificationclick', function(event) {
     console.log('🔗 Opening URL:', urlToOpen);
     
     event.waitUntil(
-      clients.matchAll({ type: 'window' }).then(function(clientList) {
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
         // Check if there's already a tab open with our app
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i];
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            console.log('🔄 Focusing existing tab');
+            console.log('🔄 Focusing existing tab and navigating to task manager');
+            client.postMessage({ 
+              type: 'NAVIGATE_TO_TASK_MANAGER', 
+              taskId: event.notification.data?.primaryKey 
+            });
             return client.focus();
           }
         }
