@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,13 +76,37 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'tasks'
         },
         async (payload) => {
-          console.log('Real-time task change:', payload);
-          await fetchData(); // Refetch all data to maintain consistency
+          console.log('Real-time task insert:', payload);
+          await fetchData(); // Refetch to get complete task with relationships
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tasks'
+        },
+        async (payload) => {
+          console.log('Real-time task update:', payload);
+          await fetchData(); // Refetch to get complete task with relationships
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('Real-time task delete:', payload);
+          setTasks(prev => prev.filter(task => task.id !== payload.old.id));
         }
       )
       .on(
@@ -93,7 +118,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         },
         async (payload) => {
           console.log('Real-time task assignment change:', payload);
-          await fetchData(); // Refetch all data to maintain consistency
+          await fetchData(); // Refetch to get updated assignments
         }
       )
       .subscribe();
