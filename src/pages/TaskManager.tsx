@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle } from "lucide-react";
 import { notificationService } from "@/services/notificationService";
+import { pushNotificationService } from "@/services/pushNotificationService";
 import { useToast } from "@/hooks/use-toast";
 
 const TaskManager = () => {
