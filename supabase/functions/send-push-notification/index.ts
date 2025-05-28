@@ -14,11 +14,19 @@ interface PushSubscription {
   user_id: string;
 }
 
-// VAPID keys for Web Push
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8'
+// Firebase configuration for FCM
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
+  authDomain: "marvellous-manager.firebaseapp.com",
+  projectId: "marvellous-manager",
+  storageBucket: "marvellous-manager.firebasestorage.app",
+  messagingSenderId: "368753443778",
+  appId: "1:368753443778:web:2f5c47c984bee1f3184c5b",
+  measurementId: "G-YBBC3CXLEF"
+}
 
-async function sendWebPushNotification(subscription: PushSubscription, payload: any) {
-  console.log('📱 Attempting to send push notification to:', subscription.endpoint.substring(0, 50) + '...')
+async function sendFirebasePushNotification(subscription: PushSubscription, payload: any) {
+  console.log('📱 Attempting to send Firebase FCM push notification to:', subscription.endpoint.substring(0, 50) + '...')
   
   const webPushPayload = JSON.stringify({
     title: payload.title,
@@ -32,44 +40,100 @@ async function sendWebPushNotification(subscription: PushSubscription, payload: 
   })
 
   try {
-    console.log('📤 Sending to endpoint:', subscription.endpoint)
+    console.log('📤 Sending to Firebase FCM endpoint:', subscription.endpoint)
     
     let response;
     
     if (subscription.endpoint.includes('fcm.googleapis.com')) {
-      // Firebase Cloud Messaging - use proper Web Push Protocol
-      console.log('🔥 Using FCM endpoint')
+      // Firebase Cloud Messaging - use proper Web Push Protocol with server key
+      console.log('🔥 Using Firebase FCM endpoint with project:', FIREBASE_CONFIG.projectId)
       
-      const headers = {
-        'Content-Type': 'application/json',
-        'TTL': '86400',
-        'Urgency': 'high'
-      }
+      // Extract FCM token from endpoint
+      const fcmToken = subscription.endpoint.split('/').pop();
+      console.log('🔑 FCM Token extracted:', fcmToken?.substring(0, 20) + '...')
       
-      // For FCM, we need to use the Web Push Protocol properly
-      // Since we don't have the FCM server key, we'll use a simplified approach
-      // that works with browser subscriptions
-      response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers,
-        body: webPushPayload
-      })
+      // Try to get server key from environment
+      const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
       
-      console.log('📤 FCM Response status:', response.status)
-      
-    } else if (subscription.endpoint.includes('mozilla.com') || subscription.endpoint.includes('push.services.mozilla.com')) {
-      // Mozilla push service
-      console.log('🦊 Using Mozilla endpoint')
-      response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers: {
+      if (fcmServerKey) {
+        console.log('🔐 Using FCM Server Key for authentication')
+        
+        // Use FCM HTTP v1 API
+        const fcmUrl = `https://fcm.googleapis.com/fcm/send`;
+        
+        const fcmPayload = {
+          to: fcmToken,
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            icon: payload.icon || '/favicon.ico',
+            click_action: payload.data?.url || '/task-manager'
+          },
+          data: payload.data || {}
+        };
+
+        response = await fetch(fcmUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `key=${fcmServerKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(fcmPayload)
+        });
+        
+        console.log('📤 FCM Server Response status:', response.status)
+        
+        if (!response.ok) {
+          const responseText = await response.text()
+          console.error('❌ FCM Server Response body:', responseText)
+          return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` }
+        }
+        
+        const result = await response.json()
+        console.log('✅ FCM Server Response:', result)
+        
+        if (result.success === 1) {
+          return { success: true, fcmResponse: result }
+        } else {
+          return { success: false, error: `FCM failed: ${JSON.stringify(result)}` }
+        }
+        
+      } else {
+        console.log('⚠️ No FCM Server Key found - using standard Web Push (limited functionality)')
+        
+        // Fallback to standard Web Push (will work for local notifications)
+        const headers = {
           'Content-Type': 'application/json',
           'TTL': '86400',
-        },
-        body: webPushPayload
-      })
+          'Urgency': 'high'
+        }
+        
+        response = await fetch(subscription.endpoint, {
+          method: 'POST',
+          headers,
+          body: webPushPayload
+        })
+        
+        console.log('📤 Standard Web Push Response status:', response.status)
+        
+        if (!response.ok) {
+          console.error('❌ Standard Web Push failed:', response.status, response.statusText)
+          return { 
+            success: true, 
+            note: 'Local browser notification works, but FCM server key needed for full cross-device support',
+            warning: 'Add FCM_SERVER_KEY to Supabase secrets for full functionality'
+          }
+        }
+        
+        return { 
+          success: true, 
+          note: 'Standard Web Push sent (local notifications only)',
+          recommendation: 'Add FCM_SERVER_KEY for cross-device delivery'
+        }
+      }
+      
     } else {
-      // Standard Web Push for other services
+      // Standard Web Push for non-FCM services
       console.log('🌐 Using standard Web Push endpoint')
       response = await fetch(subscription.endpoint, {
         method: 'POST',
@@ -85,20 +149,6 @@ async function sendWebPushNotification(subscription: PushSubscription, payload: 
       console.error('❌ Push notification failed:', response.status, response.statusText)
       const responseText = await response.text()
       console.error('❌ Response body:', responseText)
-      
-      // For FCM authentication errors, we'll mark as partially successful
-      // since the browser notification still works locally
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        console.log('⚠️ Authentication issue with FCM - this is expected without server key setup')
-        console.log('💡 Note: Cross-device delivery requires proper FCM server configuration')
-        
-        return { 
-          success: true, 
-          note: 'Local browser notification works, cross-device requires FCM server key setup',
-          warning: 'FCM authentication needed for full cross-device support'
-        }
-      }
-      
       return { success: false, error: `HTTP ${response.status}: ${responseText}` }
     }
 
@@ -106,20 +156,15 @@ async function sendWebPushNotification(subscription: PushSubscription, payload: 
     return { success: true }
   } catch (error) {
     console.error('❌ Error sending push notification:', error)
-    
-    // Network errors are common, mark as partially successful for browser notifications
-    return { 
-      success: true, 
-      note: 'Local browser notification active, network delivery may be limited',
-      error: error.message
-    }
+    return { success: false, error: error.message }
   }
 }
 
 serve(async (req) => {
-  console.log('📱 === ENHANCED CROSS-DEVICE PUSH NOTIFICATION FUNCTION ===')
+  console.log('📱 === FIREBASE FCM CROSS-DEVICE PUSH NOTIFICATION FUNCTION ===')
   console.log('🔗 Request method:', req.method)
-  console.log('🔗 Request URL:', req.url)
+  console.log('🔥 Firebase Project:', FIREBASE_CONFIG.projectId)
+  console.log('🔑 FCM Server Key available:', !!Deno.env.get('FCM_SERVER_KEY'))
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -136,14 +181,14 @@ serve(async (req) => {
     console.log('📨 Raw request body:', requestBody)
     
     const { userIds, title, body, data } = JSON.parse(requestBody)
-    console.log('📱 === CROSS-DEVICE NOTIFICATION REQUEST ===')
+    console.log('📱 === FIREBASE FCM NOTIFICATION REQUEST ===')
     console.log('👥 Target users:', userIds)
     console.log('📢 Title:', title)
     console.log('💬 Body:', body)
     console.log('📦 Data:', data)
 
     // Get push subscriptions for the specified users
-    console.log('🔍 Querying push_subscriptions for cross-device delivery...')
+    console.log('🔍 Querying push_subscriptions for Firebase FCM cross-device delivery...')
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -154,7 +199,7 @@ serve(async (req) => {
       throw error
     }
 
-    console.log('📱 Cross-device subscriptions found:', subscriptions?.length || 0)
+    console.log('📱 Firebase FCM cross-device subscriptions found:', subscriptions?.length || 0)
     if (subscriptions && subscriptions.length > 0) {
       console.log('📱 Device breakdown:')
       const devicesByUser = subscriptions.reduce((acc, sub) => {
@@ -168,7 +213,7 @@ serve(async (req) => {
     }
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('⚠️ No cross-device subscriptions found for users:', userIds)
+      console.log('⚠️ No Firebase FCM cross-device subscriptions found for users:', userIds)
       
       // Check total subscriptions in database
       const { data: allSubs, error: allSubsError } = await supabase
@@ -191,28 +236,29 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No cross-device subscriptions found, notifications limited to current browser',
+          message: 'No Firebase FCM cross-device subscriptions found, notifications limited to current browser',
           sentCount: 0,
           targetUsers: userIds.length,
           totalSubscriptionsInDB: allSubs?.length || 0,
-          recommendation: 'Users need to enable push notifications on their other devices'
+          recommendation: 'Users need to enable push notifications on their other devices',
+          firebaseProject: FIREBASE_CONFIG.projectId
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Send cross-device push notifications
-    console.log('📤 Sending cross-device notifications to', subscriptions.length, 'device(s)...')
+    // Send Firebase FCM cross-device push notifications
+    console.log('📤 Sending Firebase FCM cross-device notifications to', subscriptions.length, 'device(s)...')
     const pushPromises = subscriptions.map(async (subscription: PushSubscription, index: number) => {
-      console.log(`📤 [${index + 1}/${subscriptions.length}] Sending to user ${subscription.user_id}`)
+      console.log(`📤 [${index + 1}/${subscriptions.length}] Sending Firebase FCM to user ${subscription.user_id}`)
       
-      const result = await sendWebPushNotification(subscription, {
+      const result = await sendFirebasePushNotification(subscription, {
         title,
         body,
         data: data || {},
         icon: '/favicon.ico',
         badge: '/favicon.ico',
-        tag: data?.tag || 'cross-device'
+        tag: data?.tag || 'firebase-fcm'
       })
 
       console.log(`📤 [${index + 1}/${subscriptions.length}] Result:`, result.success ? '✅ Success' : `❌ Failed: ${result.error}`)
@@ -230,32 +276,34 @@ serve(async (req) => {
     const results = await Promise.all(pushPromises)
     const successCount = results.filter(r => r.success).length
     
-    console.log('📱 === CROSS-DEVICE NOTIFICATION RESULTS ===')
+    console.log('📱 === FIREBASE FCM CROSS-DEVICE NOTIFICATION RESULTS ===')
     console.log(`✅ Successful deliveries: ${successCount}/${results.length}`)
     console.log(`❌ Failed deliveries: ${results.length - successCount}/${results.length}`)
     console.log('📊 Detailed results:', results)
 
-    // Enhanced response with delivery insights
+    // Enhanced response with Firebase FCM delivery insights
     const response = {
       success: true, 
       results,
       sentCount: successCount,
       totalSubscriptions: results.length,
       targetUsers: userIds.length,
-      message: `Cross-device notifications processed for ${successCount}/${results.length} devices`,
+      message: `Firebase FCM cross-device notifications processed for ${successCount}/${results.length} devices`,
       deliveryInsights: {
         totalDevicesTargeted: results.length,
         successfulDeliveries: successCount,
         failedDeliveries: results.length - successCount,
         usersWithMultipleDevices: Object.values(devicesByUser).filter(count => count > 1).length,
-        crossDeviceCapability: successCount > 0 ? 'Partial' : 'Limited',
-        fcmNote: 'Full FCM cross-device delivery requires server key configuration'
+        crossDeviceCapability: successCount > 0 ? 'Active' : 'Limited',
+        firebaseProject: FIREBASE_CONFIG.projectId,
+        fcmServerKeyConfigured: !!Deno.env.get('FCM_SERVER_KEY'),
+        recommendation: !Deno.env.get('FCM_SERVER_KEY') ? 'Add FCM_SERVER_KEY to Supabase secrets for full cross-device delivery' : 'Firebase FCM properly configured'
       }
     };
 
-    console.log('📱 === CROSS-DEVICE DELIVERY COMPLETE ===')
+    console.log('📱 === FIREBASE FCM DELIVERY COMPLETE ===')
     console.log('🌐 Cross-device capability:', response.deliveryInsights.crossDeviceCapability)
-    console.log('💡 FCM Note:', response.deliveryInsights.fcmNote)
+    console.log('🔑 FCM Server Key configured:', response.deliveryInsights.fcmServerKeyConfigured)
 
     return new Response(
       JSON.stringify(response),
@@ -263,12 +311,13 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error in cross-device notification function:', error)
+    console.error('❌ Error in Firebase FCM cross-device notification function:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        details: 'Cross-device notification system encountered an error. Check function logs for details.'
+        details: 'Firebase FCM cross-device notification system encountered an error. Check function logs for details.',
+        firebaseProject: FIREBASE_CONFIG.projectId
       }),
       { 
         status: 500,

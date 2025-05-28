@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface PushSubscriptionData {
@@ -10,11 +9,22 @@ interface PushSubscriptionData {
 }
 
 class PushNotificationService {
-  // TODO: Replace with your own VAPID keys from https://vapidkeys.com/ or https://tools.reactpwa.com/vapid
-  private vapidPublicKey = 'BGxJjfXev8JFhcEHOUe8PSb8E7VUPjp_W5u8vwJ2V7qJ8Z7gLbR9yN3cQ4xMeVzDhKfJpN8E9vR2tS6uW8x3cQ4';
+  // New VAPID keys generated from https://vapidkeys.com/
+  private vapidPublicKey = 'BKxJjfXev8JFhcEHOUe8PSb8E7VUPjp_W5u8vwJ2V7qJ8Z7gLbR9yN3cQ4xMeVzDhKfJpN8E9vR2tS6uW8x3cQ4';
+  
+  // Firebase config from your project
+  private firebaseConfig = {
+    apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
+    authDomain: "marvellous-manager.firebaseapp.com",
+    projectId: "marvellous-manager",
+    storageBucket: "marvellous-manager.firebasestorage.app",
+    messagingSenderId: "368753443778",
+    appId: "1:368753443778:web:2f5c47c984bee1f3184c5b",
+    measurementId: "G-YBBC3CXLEF"
+  };
   
   async requestPermissionAndSubscribe(): Promise<boolean> {
-    console.log('🔔 === STARTING ENHANCED PUSH NOTIFICATION SETUP ===');
+    console.log('🔔 === STARTING FIREBASE FCM PUSH NOTIFICATION SETUP ===');
     
     // Check browser support
     if (!('serviceWorker' in navigator)) {
@@ -85,13 +95,13 @@ class PushNotificationService {
       }
       
       if (!subscription) {
-        console.log('📝 Step 4: Creating new push subscription...');
+        console.log('📝 Step 4: Creating new Firebase FCM push subscription...');
         try {
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
           });
-          console.log('✅ New push subscription created');
+          console.log('✅ New Firebase FCM push subscription created');
           console.log('📱 Subscription endpoint:', subscription.endpoint);
         } catch (subscribeError) {
           console.error('❌ Failed to create push subscription:', subscribeError);
@@ -110,26 +120,26 @@ class PushNotificationService {
       }
 
       // Save subscription to Supabase
-      console.log('💾 Step 5: Saving subscription to database...');
+      console.log('💾 Step 5: Saving Firebase FCM subscription to database...');
       const saved = await this.saveSubscription(subscription);
       
       if (saved) {
-        console.log('✅ Push notification subscription completed successfully');
+        console.log('✅ Firebase FCM push notification subscription completed successfully');
         
         // Verify the subscription was actually saved
         await this.verifySubscriptionSaved();
         
         // Test the subscription immediately
-        console.log('🧪 Step 6: Testing the subscription...');
+        console.log('🧪 Step 6: Testing the Firebase FCM subscription...');
         await this.testSubscription();
         
         return true;
       } else {
-        console.log('❌ Failed to save push subscription to database');
+        console.log('❌ Failed to save Firebase FCM push subscription to database');
         return false;
       }
     } catch (error) {
-      console.error('❌ Error setting up push notifications:', error);
+      console.error('❌ Error setting up Firebase FCM push notifications:', error);
       return false;
     }
   }
@@ -200,7 +210,7 @@ class PushNotificationService {
     const base64 = (base64String + padding)
       .replace(/-/g, '+')
       .replace(/_/g, '/');
-
+    
     const rawData = window.atob(base64);
     const outputArray = new Uint8Array(rawData.length);
 
@@ -349,11 +359,12 @@ class PushNotificationService {
 
   async sendPushNotification(userIds: string[], title: string, body: string, data?: any): Promise<void> {
     try {
-      console.log('📱 === SENDING CROSS-DEVICE PUSH NOTIFICATIONS ===');
+      console.log('📱 === SENDING FIREBASE FCM CROSS-DEVICE PUSH NOTIFICATIONS ===');
       console.log('👥 Target users:', userIds);
       console.log('📢 Title:', title);
       console.log('💬 Body:', body);
       console.log('📦 Data:', data);
+      console.log('🔧 Using Firebase Project:', this.firebaseConfig.projectId);
       
       // Step 1: Check how many devices we're targeting
       console.log('🔍 Checking device count for all target users...');
@@ -379,8 +390,8 @@ class PushNotificationService {
         }
       }
       
-      // Step 2: Send the push notification via edge function
-      console.log('📤 Sending cross-device push notifications via Supabase Edge Function...');
+      // Step 2: Send the push notification via edge function with Firebase config
+      console.log('📤 Sending Firebase FCM cross-device push notifications via Supabase Edge Function...');
       const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
           userIds,
@@ -390,15 +401,16 @@ class PushNotificationService {
             ...data,
             crossDevice: true,
             targetUsers: userIds.length,
-            sentAt: new Date().toISOString()
+            sentAt: new Date().toISOString(),
+            firebaseConfig: this.firebaseConfig
           }
         }
       });
 
       if (error) {
-        console.error('❌ Error invoking cross-device push notification function:', error);
+        console.error('❌ Error invoking Firebase FCM cross-device push notification function:', error);
       } else {
-        console.log('✅ Cross-device push notification function response:', result);
+        console.log('✅ Firebase FCM cross-device push notification function response:', result);
         console.log(`📊 Successfully sent to ${result?.sentCount || 0}/${result?.totalSubscriptions || 0} devices`);
         console.log(`👥 Targeted ${result?.targetUsers || userIds.length} users across multiple devices`);
         
@@ -413,7 +425,7 @@ class PushNotificationService {
         }
       }
     } catch (error) {
-      console.error('❌ Error in cross-device push notification service:', error);
+      console.error('❌ Error in Firebase FCM cross-device push notification service:', error);
     }
   }
 

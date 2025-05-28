@@ -1,12 +1,24 @@
 
-console.log('🔧 Enhanced Service Worker with Browser Integration loaded');
+console.log('🔧 Firebase FCM Enhanced Service Worker loaded');
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
+  authDomain: "marvellous-manager.firebaseapp.com",
+  projectId: "marvellous-manager",
+  storageBucket: "marvellous-manager.firebasestorage.app",
+  messagingSenderId: "368753443778",
+  appId: "1:368753443778:web:2f5c47c984bee1f3184c5b",
+  measurementId: "G-YBBC3CXLEF"
+};
 
 self.addEventListener('push', function(event) {
-  console.log('📱 Enhanced Push event received:', event);
+  console.log('📱 Firebase FCM Enhanced Push event received:', event);
+  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
   
   if (event.data) {
     const data = event.data.json();
-    console.log('📱 Enhanced Push data:', data);
+    console.log('📱 Firebase FCM Enhanced Push data:', data);
     
     const options = {
       body: data.body || data.message,
@@ -18,7 +30,8 @@ self.addEventListener('push', function(event) {
         primaryKey: data.taskId || data.data?.taskId || '1',
         url: data.data?.url || '/task-manager',
         test: data.test || false,
-        type: data.type || 'unknown'
+        type: data.type || 'firebase-fcm',
+        firebaseProject: firebaseConfig.projectId
       },
       actions: [
         {
@@ -34,30 +47,31 @@ self.addEventListener('push', function(event) {
       ],
       requireInteraction: true,
       silent: false,
-      tag: data.tag || 'default',
+      tag: data.tag || 'firebase-fcm',
       timestamp: Date.now()
     };
     
-    console.log('📱 Showing enhanced notification with options:', options);
+    console.log('📱 Showing Firebase FCM enhanced notification with options:', options);
     
     event.waitUntil(
       self.registration.showNotification(data.title, options)
     );
   } else {
-    console.log('📱 Push event received but no data');
+    console.log('📱 Firebase FCM Push event received but no data');
     
     // Show a default notification
     event.waitUntil(
       self.registration.showNotification('New Notification', {
-        body: 'You have a new notification',
+        body: 'You have a new notification from Firebase FCM',
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         vibrate: [200, 100, 200],
         requireInteraction: true,
-        tag: 'default',
+        tag: 'firebase-fcm-default',
         data: {
           url: '/task-manager',
-          type: 'default'
+          type: 'firebase-fcm-default',
+          firebaseProject: firebaseConfig.projectId
         }
       })
     );
@@ -65,7 +79,7 @@ self.addEventListener('push', function(event) {
 });
 
 self.addEventListener('message', function(event) {
-  console.log('💬 Enhanced Service Worker message received:', event.data);
+  console.log('💬 Firebase FCM Enhanced Service Worker message received:', event.data);
   
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { title, message, taskId } = event.data;
@@ -79,7 +93,8 @@ self.addEventListener('message', function(event) {
         dateOfArrival: Date.now(),
         primaryKey: taskId || '1',
         url: '/task-manager',
-        type: 'manual-message'
+        type: 'firebase-fcm-manual-message',
+        firebaseProject: firebaseConfig.projectId
       },
       actions: [
         {
@@ -95,7 +110,7 @@ self.addEventListener('message', function(event) {
       ],
       requireInteraction: true,
       silent: false,
-      tag: 'manual-message'
+      tag: 'firebase-fcm-manual-message'
     };
     
     event.waitUntil(
@@ -105,7 +120,8 @@ self.addEventListener('message', function(event) {
 });
 
 self.addEventListener('notificationclick', function(event) {
-  console.log('🖱️ Enhanced Notification clicked:', event.action, event.notification.data);
+  console.log('🖱️ Firebase FCM Enhanced Notification clicked:', event.action, event.notification.data);
+  console.log('🔥 Firebase Project:', event.notification.data?.firebaseProject);
   
   event.notification.close();
   
@@ -122,7 +138,8 @@ self.addEventListener('notificationclick', function(event) {
             console.log('🔄 Focusing existing tab and navigating to task manager');
             client.postMessage({ 
               type: 'NAVIGATE_TO_TASK_MANAGER', 
-              taskId: event.notification.data?.primaryKey 
+              taskId: event.notification.data?.primaryKey,
+              firebaseProject: firebaseConfig.projectId
             });
             return client.focus();
           }
@@ -140,17 +157,19 @@ self.addEventListener('notificationclick', function(event) {
 
 // Handle notification close
 self.addEventListener('notificationclose', function(event) {
-  console.log('❌ Enhanced Notification closed:', event.notification.data);
+  console.log('❌ Firebase FCM Enhanced Notification closed:', event.notification.data);
 });
 
 // Handle service worker activation
 self.addEventListener('activate', function(event) {
-  console.log('🚀 Enhanced Service Worker activated');
+  console.log('🚀 Firebase FCM Enhanced Service Worker activated');
+  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
   event.waitUntil(self.clients.claim());
 });
 
 // Handle service worker installation
 self.addEventListener('install', function(event) {
-  console.log('📦 Enhanced Service Worker installed');
+  console.log('📦 Firebase FCM Enhanced Service Worker installed');
+  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
   event.waitUntil(self.skipWaiting());
 });
