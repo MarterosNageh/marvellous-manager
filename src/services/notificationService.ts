@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -81,29 +80,15 @@ class NotificationService {
       if (subscribed) {
         console.log('✅ Push notifications setup completed successfully');
         
-        // Verify subscription was saved by checking the database
-        const currentUser = localStorage.getItem('currentUser');
-        if (currentUser) {
-          const user = JSON.parse(currentUser);
-          console.log('🔍 Checking push subscription in database for user:', user.id);
-          
-          const { data: subscription, error } = await supabase
-            .from('push_subscriptions')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-            
-          if (error) {
-            console.error('❌ Error checking push subscription:', error);
-          } else {
-            console.log('✅ Push subscription found in database:', subscription);
-          }
-        }
+        // Verify subscription status
+        const hasSubscription = await pushNotificationService.getSubscriptionStatus();
+        console.log('🔍 Subscription verification:', hasSubscription);
+        
+        return hasSubscription;
       } else {
         console.log('❌ Push notifications setup failed');
+        return false;
       }
-      
-      return subscribed;
     } catch (error) {
       console.error('❌ Error setting up push notifications:', error);
       return false;
@@ -289,6 +274,11 @@ class NotificationService {
     // Setup push notifications if not already done
     const pushSetup = await this.setupPushNotifications();
     console.log('📱 Push notification setup result:', pushSetup);
+
+    if (!pushSetup) {
+      console.log('❌ Push notifications not properly set up');
+      return false;
+    }
 
     console.log('🧪 Sending test push notification...');
 
