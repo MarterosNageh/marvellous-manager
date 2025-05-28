@@ -33,6 +33,9 @@ const TaskManager = () => {
     console.log('=== TEST PUSH NOTIFICATION BUTTON CLICKED ===');
     console.log('Current permission:', Notification.permission);
     
+    // First, check the database state
+    await pushNotificationService.checkAllSubscriptions();
+    
     try {
       const success = await notificationService.sendTestNotification();
       if (success) {
@@ -61,6 +64,9 @@ const TaskManager = () => {
     setIsSettingUpPush(true);
     console.log('=== SETTING UP PUSH NOTIFICATIONS ===');
     
+    // First check current database state
+    await pushNotificationService.checkAllSubscriptions();
+    
     try {
       console.log('Step 1: Requesting notification permission...');
       const granted = await notificationService.requestPermission();
@@ -68,11 +74,14 @@ const TaskManager = () => {
       
       if (granted) {
         console.log('Step 2: Setting up push notifications...');
-        // Setup push notifications
-        const pushSetup = await notificationService.setupPushNotifications();
+        // Setup push notifications with better error handling
+        const pushSetup = await pushNotificationService.requestPermissionAndSubscribe();
         setPushSetupComplete(pushSetup);
         
         if (pushSetup) {
+          // Verify the setup worked by checking database again
+          await pushNotificationService.checkAllSubscriptions();
+          
           toast({
             title: "✅ Push Notifications Enabled!",
             description: "You will now receive push notifications for tasks. Try the test button to verify!",
@@ -89,8 +98,8 @@ const TaskManager = () => {
           }, 1000);
         } else {
           toast({
-            title: "⚠️ Partial Setup",
-            description: "Notification permission granted, but push setup failed. Local notifications will work.",
+            title: "⚠️ Setup Failed",
+            description: "Push notification setup failed. Please check console logs and try again.",
             variant: "destructive",
           });
         }

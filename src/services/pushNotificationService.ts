@@ -13,44 +13,59 @@ class PushNotificationService {
   private vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8';
   
   async requestPermissionAndSubscribe(): Promise<boolean> {
+    console.log('🔔 === STARTING PUSH NOTIFICATION SETUP ===');
+    
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       console.log('❌ Push messaging is not supported');
       return false;
     }
 
     try {
-      console.log('🔔 Requesting notification permission...');
+      console.log('🔔 Step 1: Requesting notification permission...');
       const permission = await Notification.requestPermission();
+      console.log('🔔 Permission result:', permission);
+      
       if (permission !== 'granted') {
         console.log('❌ Notification permission denied');
         return false;
       }
 
-      console.log('⚙️ Getting service worker registration...');
+      console.log('⚙️ Step 2: Getting service worker registration...');
       const registration = await navigator.serviceWorker.ready;
+      console.log('✅ Service worker ready');
       
       // Check if already subscribed
       let subscription = await registration.pushManager.getSubscription();
+      console.log('🔍 Existing subscription:', subscription ? 'Found' : 'None');
       
       if (!subscription) {
-        console.log('📝 Creating new push subscription...');
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
-        });
-        console.log('✅ New push subscription created');
+        console.log('📝 Step 3: Creating new push subscription...');
+        try {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
+          });
+          console.log('✅ New push subscription created:', subscription.endpoint);
+        } catch (subscribeError) {
+          console.error('❌ Failed to create push subscription:', subscribeError);
+          return false;
+        }
       } else {
-        console.log('♻️ Using existing push subscription');
+        console.log('♻️ Using existing push subscription:', subscription.endpoint);
       }
 
       // Save subscription to Supabase
+      console.log('💾 Step 4: Saving subscription to database...');
       const saved = await this.saveSubscription(subscription as unknown as PushSubscriptionData);
       
       if (saved) {
-        console.log('✅ Push notification subscription successful');
+        console.log('✅ Push notification subscription completed successfully');
+        
+        // Verify the subscription was actually saved
+        await this.verifySubscriptionSaved();
         return true;
       } else {
-        console.log('❌ Failed to save push subscription');
+        console.log('❌ Failed to save push subscription to database');
         return false;
       }
     } catch (error) {
@@ -84,44 +99,96 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       console.log('💾 Saving push subscription for user:', user.id);
-      console.log('📱 Subscription endpoint:', subscription.endpoint);
+      console.log('📱 Subscription details:');
+      console.log('  - Endpoint:', subscription.endpoint);
+      console.log('  - p256dh key length:', subscription.keys.p256dh.length);
+      console.log('  - auth key length:', subscription.keys.auth.length);
       
-      // Use upsert to handle existing subscriptions
-      const { data, error } = await supabase
+      // First check if subscription already exists
+      const { data: existingSubscription, error: checkError } = await supabase
         .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh_key: subscription.keys.p256dh,
-          auth_key: subscription.keys.auth
-        }, {
-          onConflict: 'user_id,endpoint'
-        })
-        .select();
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('endpoint', subscription.endpoint)
+        .single();
 
-      if (error) {
-        console.error('❌ Error saving push subscription:', error);
-        return false;
-      } else {
-        console.log('✅ Push subscription saved successfully:', data);
-        
-        // Verify subscription was saved by checking the database
-        const { data: verification, error: verifyError } = await supabase
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('❌ Error checking existing subscription:', checkError);
+      }
+
+      if (existingSubscription) {
+        console.log('ℹ️ Subscription already exists, updating...');
+        const { data, error } = await supabase
           .from('push_subscriptions')
-          .select('*')
-          .eq('user_id', user.id);
-          
-        if (verifyError) {
-          console.error('❌ Error verifying subscription:', verifyError);
+          .update({
+            p256dh_key: subscription.keys.p256dh,
+            auth_key: subscription.keys.auth,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingSubscription.id)
+          .select();
+
+        if (error) {
+          console.error('❌ Error updating existing subscription:', error);
+          return false;
         } else {
-          console.log('🔍 Verified subscriptions for user:', verification);
+          console.log('✅ Existing subscription updated successfully:', data);
+          return true;
         }
-        
-        return true;
+      } else {
+        console.log('➕ Creating new subscription...');
+        const { data, error } = await supabase
+          .from('push_subscriptions')
+          .insert({
+            user_id: user.id,
+            endpoint: subscription.endpoint,
+            p256dh_key: subscription.keys.p256dh,
+            auth_key: subscription.keys.auth
+          })
+          .select();
+
+        if (error) {
+          console.error('❌ Error creating new subscription:', error);
+          console.error('❌ Error details:', JSON.stringify(error, null, 2));
+          return false;
+        } else {
+          console.log('✅ New subscription saved successfully:', data);
+          return true;
+        }
       }
     } catch (error) {
-      console.error('❌ Error saving subscription:', error);
+      console.error('❌ Unexpected error saving subscription:', error);
       return false;
+    }
+  }
+
+  private async verifySubscriptionSaved(): Promise<void> {
+    try {
+      const currentUser = localStorage.getItem('currentUser');
+      if (!currentUser) return;
+
+      const user = JSON.parse(currentUser);
+      
+      console.log('🔍 Verifying subscription was saved...');
+      const { data: subscriptions, error } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (error) {
+        console.error('❌ Error verifying subscription:', error);
+      } else {
+        console.log('🔍 Current subscriptions in database:', subscriptions);
+        console.log(`📊 Total subscriptions for user ${user.id}:`, subscriptions?.length || 0);
+        
+        if (subscriptions && subscriptions.length > 0) {
+          subscriptions.forEach((sub, index) => {
+            console.log(`  ${index + 1}. ID: ${sub.id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error during verification:', error);
     }
   }
 
@@ -182,6 +249,7 @@ class PushNotificationService {
         console.error('❌ Error checking subscriptions:', checkError);
       } else {
         console.log('🔍 Found subscriptions before sending:', subscriptionCheck);
+        console.log(`📊 Total subscriptions found: ${subscriptionCheck?.length || 0}`);
       }
       
       const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
@@ -226,6 +294,30 @@ class PushNotificationService {
     } catch (error) {
       console.error('❌ Error getting subscription status:', error);
       return false;
+    }
+  }
+
+  async checkAllSubscriptions(): Promise<void> {
+    try {
+      console.log('🔍 === CHECKING ALL PUSH SUBSCRIPTIONS ===');
+      const { data: allSubscriptions, error } = await supabase
+        .from('push_subscriptions')
+        .select('*');
+        
+      if (error) {
+        console.error('❌ Error fetching all subscriptions:', error);
+      } else {
+        console.log(`📊 Total subscriptions in database: ${allSubscriptions?.length || 0}`);
+        if (allSubscriptions && allSubscriptions.length > 0) {
+          allSubscriptions.forEach((sub, index) => {
+            console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+          });
+        } else {
+          console.log('⚠️ No push subscriptions found in database!');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error checking all subscriptions:', error);
     }
   }
 }

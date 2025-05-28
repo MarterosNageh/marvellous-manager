@@ -13,6 +13,7 @@ export const usePushNotifications = () => {
     // Check if push notifications are supported
     const supported = 'serviceWorker' in navigator && 'PushManager' in window;
     setIsSupported(supported);
+    console.log('🔍 Push notifications supported:', supported);
 
     if (supported) {
       checkSubscriptionStatus();
@@ -21,16 +22,31 @@ export const usePushNotifications = () => {
 
   const checkSubscriptionStatus = async () => {
     try {
+      console.log('🔍 Checking subscription status...');
+      
+      // Check both browser subscription and database subscription
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
+      const browserSubscription = await registration.pushManager.getSubscription();
+      console.log('🔍 Browser subscription:', browserSubscription ? 'Found' : 'None');
+      
+      const databaseSubscription = await pushNotificationService.getSubscriptionStatus();
+      console.log('🔍 Database subscription:', databaseSubscription ? 'Found' : 'None');
+      
+      // Only consider subscribed if both browser and database have subscription
+      const actuallySubscribed = !!(browserSubscription && databaseSubscription);
+      console.log('🔍 Actually subscribed:', actuallySubscribed);
+      
+      setIsSubscribed(actuallySubscribed);
     } catch (error) {
       console.error('Error checking subscription status:', error);
+      setIsSubscribed(false);
     }
   };
 
   const subscribeToPush = async () => {
     setIsLoading(true);
+    console.log('🔔 Starting push subscription process...');
+    
     try {
       const success = await pushNotificationService.requestPermissionAndSubscribe();
       if (success) {
@@ -39,10 +55,13 @@ export const usePushNotifications = () => {
           title: "Success",
           description: "Push notifications enabled successfully",
         });
+        
+        // Verify the subscription is working
+        await checkSubscriptionStatus();
       } else {
         toast({
           title: "Error",
-          description: "Failed to enable push notifications",
+          description: "Failed to enable push notifications. Check console for details.",
           variant: "destructive",
         });
       }
@@ -88,5 +107,6 @@ export const usePushNotifications = () => {
     subscribeToPush,
     unsubscribeFromPush,
     pushNotificationService,
+    checkSubscriptionStatus,
   };
 };
