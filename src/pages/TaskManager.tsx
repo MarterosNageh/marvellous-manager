@@ -10,6 +10,7 @@ import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle } from "lu
 import { notificationService } from "@/services/notificationService";
 import { pushNotificationService } from "@/services/pushNotificationService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const TaskManager = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
