@@ -1,5 +1,4 @@
 
-
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -168,23 +167,28 @@ class NotificationService {
     taskId: string,
     createdBy?: string
   ) {
-    console.log('📋 === SENDING TASK ASSIGNMENT NOTIFICATIONS ===');
+    console.log('📋 === SENDING TASK ASSIGNMENT NOTIFICATIONS TO ALL DEVICES ===');
     console.log('👥 Assignee IDs:', assigneeIds);
     console.log('📝 Task Title:', taskTitle);
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // Send notifications to ALL assigned users - NO CONDITIONS
-    for (const userId of assigneeIds) {
-      console.log(`📤 Sending notification to ALL assigned users: ${userId}`);
-      await this.sendNotificationToUser(
-        userId,
-        '🎯 New Task Assigned',
-        `You have been assigned to task: "${taskTitle}"`,
-        taskId,
-        'task_assignment'
-      );
-    }
+    // ALWAYS send external push notifications to ALL assigned users - NO CONDITIONS
+    console.log('📱 === SENDING EXTERNAL PUSH TO ALL ASSIGNED USERS ===');
+    await pushNotificationService.sendPushNotification(
+      assigneeIds,
+      '🎯 New Task Assigned',
+      `You have been assigned to task: "${taskTitle}"`,
+      { 
+        taskId, 
+        type: 'task_assignment', 
+        requireInteraction: true,
+        tag: `task-${taskId}`,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        url: '/task-manager'
+      }
+    );
 
     // Send to all admins (excluding the creator)
     console.log('👑 Sending notifications to admins...');
@@ -204,39 +208,12 @@ class NotificationService {
     type: string = 'general'
   ) {
     try {
-      console.log(`📤 === SENDING NOTIFICATION TO USER ${userId} ===`);
+      console.log(`📤 === SENDING EXTERNAL PUSH TO USER ${userId} ===`);
       console.log('📢 Title:', title);
       console.log('💬 Body:', body);
 
-      // Get current user to check if they're the target user
-      const currentUser = localStorage.getItem('currentUser');
-      let isCurrentUser = false;
-      
-      if (currentUser) {
-        const user = JSON.parse(currentUser);
-        console.log('👤 Current user ID:', user.id, 'Target user ID:', userId);
-        isCurrentUser = user.id === userId;
-      }
-
-      // Send local notification if this is the current user AND they have permission
-      if (isCurrentUser && Notification.permission === 'granted') {
-        console.log('✅ Sending local push notification to current user');
-        await this.sendPushNotification({
-          title,
-          body,
-          tag: `task-${taskId}`,
-          data: { taskId, url: `/task-manager` },
-          requireInteraction: true
-        });
-      }
-
-      // ALWAYS send external push notification to ALL users
-      console.log('📱 === SENDING EXTERNAL PUSH NOTIFICATION TO ALL DEVICES ===');
-      console.log('📱 Target user:', userId);
-      console.log('📱 Notification title:', title);
-      console.log('📱 Notification body:', body);
-      
-      // Send to ALL devices for this user
+      // ALWAYS send external push notification to ALL devices for this user
+      console.log('📱 === SENDING TO ALL DEVICES FOR USER ===');
       await pushNotificationService.sendPushNotification(
         [userId],
         title,
@@ -330,4 +307,3 @@ class NotificationService {
 }
 
 export const notificationService = new NotificationService();
-

@@ -248,14 +248,19 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('✅ Task assignments created');
 
-        // Send push notifications to assigned users
-        console.log('🔔 Sending task assignment notifications...');
+        // CRITICAL: Send push notifications to ALL assigned users immediately
+        console.log('🔔 === TRIGGERING CROSS-DEVICE PUSH NOTIFICATIONS ===');
+        console.log('📱 This will send to ALL devices for ALL assigned users');
+        
+        // Send push notifications to assigned users with enhanced logging
         await notificationService.sendTaskAssignmentNotifications(
           data.assignee_ids,
           data.title,
           taskData.id,
           currentUser?.id
         );
+        
+        console.log('📱 === CROSS-DEVICE NOTIFICATIONS COMPLETE ===');
       }
       
       toast({
