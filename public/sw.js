@@ -1,16 +1,18 @@
 
+console.log('🔧 Service Worker loaded');
+
 self.addEventListener('push', function(event) {
-  console.log('Push event received:', event);
+  console.log('📱 Push event received:', event);
   
   if (event.data) {
     const data = event.data.json();
-    console.log('Push data:', data);
+    console.log('📱 Push data:', data);
     
     const options = {
       body: data.body || data.message,
       icon: data.icon || '/favicon.ico',
       badge: data.badge || '/favicon.ico',
-      vibrate: [100, 50, 100],
+      vibrate: [200, 100, 200],
       data: {
         dateOfArrival: Date.now(),
         primaryKey: data.taskId || data.data?.taskId || '1',
@@ -28,8 +30,9 @@ self.addEventListener('push', function(event) {
           icon: '/favicon.ico'
         }
       ],
-      requireInteraction: false,
-      silent: false
+      requireInteraction: true, // Keep notification visible until user interacts
+      silent: false,
+      tag: data.tag || 'default'
     };
     
     event.waitUntil(
@@ -39,6 +42,8 @@ self.addEventListener('push', function(event) {
 });
 
 self.addEventListener('message', function(event) {
+  console.log('💬 Service Worker message received:', event.data);
+  
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { title, message, taskId } = event.data;
     
@@ -49,7 +54,8 @@ self.addEventListener('message', function(event) {
       vibrate: [200, 100, 200],
       data: {
         dateOfArrival: Date.now(),
-        primaryKey: taskId || '1'
+        primaryKey: taskId || '1',
+        url: '/task-manager'
       },
       actions: [
         {
@@ -62,7 +68,9 @@ self.addEventListener('message', function(event) {
           title: 'Close',
           icon: '/favicon.ico'
         }
-      ]
+      ],
+      requireInteraction: true,
+      silent: false
     };
     
     event.waitUntil(
@@ -72,11 +80,18 @@ self.addEventListener('message', function(event) {
 });
 
 self.addEventListener('notificationclick', function(event) {
+  console.log('🖱️ Notification clicked:', event.action, event.notification.data);
+  
   event.notification.close();
   
-  if (event.action === 'explore') {
+  if (event.action === 'explore' || !event.action) {
     event.waitUntil(
       clients.openWindow('/task-manager')
     );
   }
+});
+
+// Handle notification close
+self.addEventListener('notificationclose', function(event) {
+  console.log('❌ Notification closed:', event.notification.data);
 });

@@ -38,13 +38,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { updateTask, deleteTask, currentUser } = useTask();
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed') => {
+  const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed', event: React.MouseEvent) => {
+    event.stopPropagation();
     await updateTask(task.id, { status: newStatus });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (window.confirm('Are you sure you want to delete this task?')) {
-      // Close the detail dialog if it's open
       setDetailOpen(false);
       await deleteTask(task.id);
     }
@@ -88,17 +89,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleStatusChange('pending')}>
+                <DropdownMenuItem onClick={(e) => handleStatusChange('pending', e)}>
                   Move to Pending
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
+                <DropdownMenuItem onClick={(e) => handleStatusChange('in_progress', e)}>
                   Move to In Progress
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange('under_review')}>
+                <DropdownMenuItem onClick={(e) => handleStatusChange('under_review', e)}>
                   Move to Under Review
                 </DropdownMenuItem>
                 {currentUser?.isAdmin && (
-                  <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
+                  <DropdownMenuItem onClick={(e) => handleStatusChange('completed', e)}>
                     Move to Completed
                   </DropdownMenuItem>
                 )}

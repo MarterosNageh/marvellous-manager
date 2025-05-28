@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,111 +44,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchData();
-    
-    // Get current user from localStorage
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    }
-
-    // Initialize notification service
-    const initNotifications = async () => {
-      await notificationService.init();
-      const hasPermission = await notificationService.requestPermission();
-      console.log('Notification permission:', hasPermission ? 'granted' : 'denied');
-    };
-    
-    initNotifications();
-
-    // Set up real-time subscriptions
-    console.log('Setting up real-time subscriptions...');
-    
-    const channel = supabase
-      .channel('task-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks'
-        },
-        (payload) => {
-          console.log('Task change detected:', payload.eventType, payload);
-          // Immediately refetch all data to ensure consistency
-          fetchData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'task_assignments'
-        },
-        (payload) => {
-          console.log('Task assignment change detected:', payload.eventType, payload);
-          // Immediately refetch all data to ensure consistency
-          fetchData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to real-time updates');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Real-time subscription failed, will retry...');
-          // Retry subscription after a short delay
-          setTimeout(() => {
-            channel.unsubscribe();
-            // Re-setup the subscription
-            setupRealtimeSubscription();
-          }, 2000);
-        }
-      });
-
-    const setupRealtimeSubscription = () => {
-      const retryChannel = supabase
-        .channel(`task-updates-retry-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tasks'
-          },
-          (payload) => {
-            console.log('Task change detected (retry):', payload.eventType, payload);
-            fetchData();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'task_assignments'
-          },
-          (payload) => {
-            console.log('Task assignment change detected (retry):', payload.eventType, payload);
-            fetchData();
-          }
-        )
-        .subscribe((status) => {
-          console.log('Retry subscription status:', status);
-        });
-    };
-
-    return () => {
-      console.log('Cleaning up subscriptions...');
-      supabase.removeAllChannels();
-    };
-  }, []);
-
+  // Function to fetch all data
   const fetchData = async () => {
     try {
-      console.log('Fetching data...');
+      console.log('🔄 Fetching all data...');
 
       // Fetch users
       const { data: usersData, error: usersError } = await supabase
@@ -223,9 +123,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       }));
 
       setTasks(transformedTasks);
-      console.log('Data fetched successfully, tasks count:', transformedTasks.length);
+      console.log('✅ Data fetched successfully, tasks count:', transformedTasks.length);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('❌ Error fetching data:', error);
       toast({
         title: "Error",
         description: "Failed to load data",
@@ -236,11 +136,83 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  useEffect(() => {
+    // Initial data fetch
+    fetchData();
+    
+    // Get current user from localStorage
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+
+    // Initialize notification service
+    const initNotifications = async () => {
+      await notificationService.init();
+    };
+    initNotifications();
+
+    // Set up real-time subscriptions with better error handling
+    console.log('🔌 Setting up real-time subscriptions...');
+    
+    const setupRealtimeSubscription = () => {
+      const channel = supabase
+        .channel(`task-updates-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tasks'
+          },
+          (payload) => {
+            console.log('📝 Task change detected:', payload.eventType, payload);
+            // Immediate UI update for better responsiveness
+            fetchData();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'task_assignments'
+          },
+          (payload) => {
+            console.log('👥 Task assignment change detected:', payload.eventType, payload);
+            // Immediate UI update for better responsiveness
+            fetchData();
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔌 Real-time subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to real-time updates');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Real-time subscription failed, retrying in 3 seconds...');
+            setTimeout(() => {
+              channel.unsubscribe();
+              setupRealtimeSubscription();
+            }, 3000);
+          }
+        });
+
+      return channel;
+    };
+
+    const channel = setupRealtimeSubscription();
+
+    return () => {
+      console.log('🧹 Cleaning up real-time subscriptions...');
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  }, []);
+
   const createTask = async (data: CreateTaskData) => {
     try {
-      console.log('=== CREATING TASK ===');
-      console.log('Task data:', data);
-      console.log('Current user:', currentUser?.id);
+      console.log('📝 Creating task:', data.title);
       
       const { data: taskData, error: taskError } = await supabase
         .from('tasks')
@@ -258,10 +230,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (taskError) throw taskError;
 
-      console.log('Task created successfully:', taskData);
+      console.log('✅ Task created:', taskData.id);
 
       if (data.assignee_ids && data.assignee_ids.length > 0) {
-        console.log('Creating task assignments for:', data.assignee_ids);
+        console.log('👥 Creating assignments for:', data.assignee_ids);
         
         const assignments = data.assignee_ids.map(userId => ({
           task_id: taskData.id,
@@ -274,25 +246,27 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         if (assignmentError) throw assignmentError;
 
-        console.log('Task assignments created successfully');
+        console.log('✅ Task assignments created');
 
-        // Send notifications to assigned users
-        console.log('Triggering task assignment notifications...');
+        // Send push notifications to assigned users
+        console.log('🔔 Sending task assignment notifications...');
         await notificationService.sendTaskAssignmentNotifications(
           data.assignee_ids,
           data.title,
           taskData.id,
           currentUser?.id
         );
-        console.log('Task assignment notifications triggered');
       }
       
       toast({
         title: "Success",
         description: "Task created successfully",
       });
+
+      // Force immediate refresh for real-time feel
+      await fetchData();
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error('❌ Error creating task:', error);
       toast({
         title: "Error",
         description: "Failed to create task",
@@ -314,7 +288,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      console.log('Updating task in database:', taskId, updates);
+      console.log('📝 Updating task:', taskId, updates);
 
       // Only send the fields that can be updated in the database
       const updateData: any = {};
@@ -333,18 +307,21 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', taskId);
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Supabase error:', error);
         throw error;
       }
 
-      console.log('Task updated successfully in database');
+      console.log('✅ Task updated successfully');
       
       toast({
         title: "Success",
         description: "Task updated successfully",
       });
+
+      // Force immediate refresh for real-time feel
+      await fetchData();
     } catch (error) {
-      console.error('Error updating task:', error);
+      console.error('❌ Error updating task:', error);
       toast({
         title: "Error",
         description: "Failed to update task",
@@ -356,6 +333,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteTask = async (taskId: string) => {
     try {
+      console.log('🗑️ Deleting task:', taskId);
+
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -363,12 +342,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
       
+      console.log('✅ Task deleted successfully');
+      
       toast({
         title: "Success",
         description: "Task deleted successfully",
       });
+
+      // Force immediate refresh for real-time feel
+      await fetchData();
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error('❌ Error deleting task:', error);
       toast({
         title: "Error", 
         description: "Failed to delete task",
@@ -380,6 +364,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignTask = async (taskId: string, userIds: string[]) => {
     try {
+      console.log('👥 Assigning task:', taskId, 'to users:', userIds);
+
       // Get current task to get its title for notifications
       const currentTask = tasks.find(task => task.id === taskId);
       
@@ -410,8 +396,13 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       }
+
+      console.log('✅ Task assignment completed');
+
+      // Force immediate refresh for real-time feel
+      await fetchData();
     } catch (error) {
-      console.error('Error assigning task:', error);
+      console.error('❌ Error assigning task:', error);
       throw error;
     }
   };
