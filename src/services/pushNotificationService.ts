@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 interface PushSubscriptionData {
@@ -9,7 +10,8 @@ interface PushSubscriptionData {
 }
 
 class PushNotificationService {
-  private vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8';
+  // TODO: Replace with your own VAPID keys from https://vapidkeys.com/ or https://tools.reactpwa.com/vapid
+  private vapidPublicKey = 'BGxJjfXev8JFhcEHOUe8PSb8E7VUPjp_W5u8vwJ2V7qJ8Z7gLbR9yN3cQ4xMeVzDhKfJpN8E9vR2tS6uW8x3cQ4';
   
   async requestPermissionAndSubscribe(): Promise<boolean> {
     console.log('🔔 === STARTING ENHANCED PUSH NOTIFICATION SETUP ===');
