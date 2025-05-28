@@ -7,7 +7,7 @@ import { TaskList } from "@/components/tasks/TaskList";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, Bell } from "lucide-react";
+import { Plus, List, Kanban, Bell, BellRing } from "lucide-react";
 import { notificationService } from "@/services/notificationService";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,24 +20,48 @@ const TaskManager = () => {
     const initNotifications = async () => {
       await notificationService.init();
       setNotificationPermission(Notification.permission);
+      
+      console.log('TaskManager: Notification permission on load:', Notification.permission);
+      
+      // If permission is already granted, try to send an instant test
+      if (Notification.permission === 'granted') {
+        console.log('Permission already granted, sending welcome notification...');
+        setTimeout(async () => {
+          await notificationService.sendLocalNotification({
+            title: '🎉 Welcome to Task Manager!',
+            body: 'Notifications are enabled and working!',
+            tag: 'welcome-notification'
+          });
+        }, 1000);
+      }
     };
 
     initNotifications();
   }, []);
 
   const handleTestNotification = async () => {
-    console.log('Test notification button clicked');
+    console.log('=== TEST NOTIFICATION BUTTON CLICKED ===');
+    console.log('Current permission:', Notification.permission);
     
     try {
       const success = await notificationService.sendTestNotification();
       if (success) {
         toast({
-          title: "Success",
-          description: "Test notification sent! Check if you received it.",
+          title: "🔔 Test Notification Sent!",
+          description: "Check if you received the notification. It should appear in a few seconds.",
         });
+        
+        // Also try to send an immediate browser notification for testing
+        if (Notification.permission === 'granted') {
+          console.log('Sending immediate browser notification for testing...');
+          new Notification('🚀 Direct Browser Notification', {
+            body: 'This is sent directly from the browser to test if notifications work!',
+            icon: '/favicon.ico'
+          });
+        }
       } else {
         toast({
-          title: "Error",
+          title: "❌ Error",
           description: "Could not send test notification. Please check permissions.",
           variant: "destructive",
         });
@@ -45,26 +69,36 @@ const TaskManager = () => {
     } catch (error) {
       console.error('Error sending test notification:', error);
       toast({
-        title: "Error",
-        description: "Failed to send test notification.",
+        title: "❌ Error",
+        description: "Failed to send test notification: " + (error as Error).message,
         variant: "destructive",
       });
     }
   };
 
   const handleRequestPermission = async () => {
+    console.log('Requesting notification permission...');
     const granted = await notificationService.requestPermission();
     setNotificationPermission(Notification.permission);
     
     if (granted) {
       toast({
-        title: "Success",
-        description: "Notification permission granted!",
+        title: "✅ Success",
+        description: "Notification permission granted! Try the test button now.",
       });
+      
+      // Send an immediate welcome notification
+      setTimeout(async () => {
+        await notificationService.sendLocalNotification({
+          title: '🎉 Notifications Enabled!',
+          body: 'You will now receive task notifications!',
+          tag: 'permission-granted'
+        });
+      }, 500);
     } else {
       toast({
-        title: "Permission Denied",
-        description: "Please enable notifications in your browser settings.",
+        title: "❌ Permission Denied",
+        description: "Please enable notifications in your browser settings and refresh the page.",
         variant: "destructive",
       });
     }
@@ -91,10 +125,10 @@ const TaskManager = () => {
                 <Button 
                   variant="outline" 
                   onClick={handleTestNotification}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                 >
-                  <Bell className="h-4 w-4" />
-                  Test Notification
+                  <BellRing className="h-4 w-4" />
+                  🔔 Test Notification
                 </Button>
               )}
               <CreateTaskDialog>
@@ -105,6 +139,19 @@ const TaskManager = () => {
               </CreateTaskDialog>
             </div>
           </div>
+
+          {/* Debug info for notifications */}
+          {notificationPermission === 'granted' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-green-700">
+                <BellRing className="h-4 w-4" />
+                <span className="font-medium">Notifications Active</span>
+              </div>
+              <p className="text-sm text-green-600 mt-1">
+                Permission: {notificationPermission} • Click "Test Notification" to verify it's working
+              </p>
+            </div>
+          )}
 
           <Tabs defaultValue="board" className="w-full">
             <TabsList>

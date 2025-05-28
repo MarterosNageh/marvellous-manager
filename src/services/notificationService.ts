@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -32,13 +31,18 @@ class NotificationService {
       return false;
     }
 
+    console.log('Current notification permission:', Notification.permission);
+
     if (Notification.permission === 'granted') {
       console.log('Notification permission already granted');
+      // Automatically subscribe to push notifications when permission is granted
+      const subscribed = await pushNotificationService.requestPermissionAndSubscribe();
+      console.log('Push subscription result:', subscribed);
       return true;
     }
 
     if (Notification.permission === 'denied') {
-      console.log('Notification permission denied');
+      console.log('Notification permission denied - cannot request again');
       return false;
     }
 
@@ -60,10 +64,11 @@ class NotificationService {
   }
 
   async sendLocalNotification(payload: NotificationPayload) {
-    const hasPermission = await this.requestPermission();
-    if (!hasPermission) {
-      console.log('Notification permission not granted, cannot send local notification');
-      return;
+    console.log('Attempting to send local notification:', payload);
+    
+    if (Notification.permission !== 'granted') {
+      console.log('Cannot send notification: permission not granted');
+      return null;
     }
 
     try {
@@ -73,8 +78,11 @@ class NotificationService {
         badge: payload.badge || '/favicon.ico',
         tag: payload.tag,
         data: payload.data,
-        requireInteraction: false
+        requireInteraction: false,
+        silent: false
       });
+
+      console.log('Local notification created successfully:', notification);
 
       // Add vibration for mobile devices
       if ('vibrate' in navigator) {
@@ -82,6 +90,7 @@ class NotificationService {
       }
 
       notification.onclick = () => {
+        console.log('Notification clicked');
         window.focus();
         notification.close();
         if (payload.data?.url) {
@@ -89,19 +98,21 @@ class NotificationService {
         }
       };
 
-      // Auto close after 5 seconds
+      // Auto close after 10 seconds
       setTimeout(() => {
         notification.close();
-      }, 5000);
+      }, 10000);
 
-      console.log('Local notification sent successfully');
       return notification;
     } catch (error) {
       console.error('Failed to show notification:', error);
+      return null;
     }
   }
 
   async sendMobileNotification(title: string, body: string, data?: any) {
+    console.log('Attempting to send mobile notification:', { title, body, data });
+    
     // Check permission first
     if (Notification.permission !== 'granted') {
       console.log('Cannot send mobile notification: permission not granted');
@@ -117,18 +128,16 @@ class NotificationService {
           badge: '/favicon.ico',
           data,
           requireInteraction: false,
-          silent: false
+          silent: false,
+          vibrate: [200, 100, 200]
         });
         
-        // Add vibration for mobile devices
-        if ('vibrate' in navigator) {
-          navigator.vibrate([200, 100, 200]);
-        }
-        
-        console.log('Mobile notification sent successfully');
+        console.log('Mobile notification sent successfully via service worker');
       } catch (error) {
         console.error('Failed to show mobile notification:', error);
       }
+    } else {
+      console.log('Service worker not available for mobile notifications');
     }
   }
 
@@ -242,21 +251,39 @@ class NotificationService {
     }
   }
 
-  // Test method to send a notification immediately
   async sendTestNotification() {
-    console.log('Sending test notification...');
+    console.log('=== SENDING TEST NOTIFICATION ===');
+    console.log('Current permission status:', Notification.permission);
     
-    const hasPermission = await this.requestPermission();
-    if (!hasPermission) {
-      console.log('Cannot send test notification: permission not granted');
-      return false;
+    if (Notification.permission !== 'granted') {
+      console.log('Permission not granted, requesting...');
+      const hasPermission = await this.requestPermission();
+      if (!hasPermission) {
+        console.log('Cannot send test notification: permission not granted');
+        return false;
+      }
     }
 
-    await this.sendLocalNotification({
-      title: 'Test Notification',
-      body: 'This is a test notification to verify the system is working!',
+    console.log('Sending both local and mobile notifications...');
+
+    // Send local notification
+    const localNotification = await this.sendLocalNotification({
+      title: '🔔 Test Notification',
+      body: 'This is a test notification! If you can see this, notifications are working correctly.',
       tag: 'test-notification',
-      data: { test: true }
+      data: { test: true, timestamp: Date.now() }
+    });
+
+    // Send mobile notification via service worker
+    await this.sendMobileNotification(
+      '🔔 Test Notification (Mobile)',
+      'This is a mobile test notification via service worker!',
+      { test: true, timestamp: Date.now() }
+    );
+
+    console.log('Test notifications sent:', {
+      local: !!localNotification,
+      mobile: true
     });
 
     return true;
