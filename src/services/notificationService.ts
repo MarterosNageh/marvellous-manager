@@ -42,33 +42,12 @@ class NotificationService {
     return permission === 'granted';
   }
 
-  async subscribeToPushNotifications(userId: string): Promise<PushSubscription | null> {
-    if (!this.registration) {
-      await this.init();
-    }
-
-    if (!this.registration) {
-      console.error('Service Worker not available');
-      return null;
-    }
-
-    try {
-      const subscription = await this.registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(process.env.VAPID_PUBLIC_KEY || '')
-      });
-
-      console.log('Push subscription created:', subscription.endpoint);
-      return subscription;
-    } catch (error) {
-      console.error('Failed to subscribe to push notifications:', error);
-      return null;
-    }
-  }
-
   async sendLocalNotification(payload: NotificationPayload) {
     const hasPermission = await this.requestPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      console.log('Notification permission not granted');
+      return;
+    }
 
     try {
       const notification = new Notification(payload.title, {
@@ -77,7 +56,7 @@ class NotificationService {
         badge: payload.badge || '/favicon.ico',
         tag: payload.tag,
         data: payload.data,
-        requireInteraction: true
+        requireInteraction: false
       });
 
       // Add vibration for mobile devices
@@ -92,6 +71,11 @@ class NotificationService {
           window.location.href = payload.data.url;
         }
       };
+
+      // Auto close after 5 seconds
+      setTimeout(() => {
+        notification.close();
+      }, 5000);
 
       return notification;
     } catch (error) {
@@ -108,8 +92,8 @@ class NotificationService {
           icon: '/favicon.ico',
           badge: '/favicon.ico',
           data,
-          requireInteraction: true,
-          // Remove actions as they're not supported in basic notifications
+          requireInteraction: false,
+          silent: false
         });
       } catch (error) {
         console.error('Failed to show mobile notification:', error);
@@ -209,21 +193,6 @@ class NotificationService {
     } catch (error) {
       console.error('Error sending notifications to admins:', error);
     }
-  }
-
-  private urlBase64ToUint8Array(base64String: string): Uint8Array {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding)
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
   }
 }
 
