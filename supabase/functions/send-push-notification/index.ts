@@ -14,11 +14,12 @@ interface PushSubscription {
   user_id: string;
 }
 
-// VAPID keys for Web Push (these should match your client-side keys)
+// VAPID keys for Web Push
 const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8'
-const VAPID_PRIVATE_KEY = 'your-vapid-private-key' // This should be stored as a secret
 
 async function sendWebPushNotification(subscription: PushSubscription, payload: any) {
+  console.log('📱 Attempting to send push notification to:', subscription.endpoint.substring(0, 50) + '...')
+  
   const webPushPayload = {
     title: payload.title,
     body: payload.body,
@@ -26,26 +27,49 @@ async function sendWebPushNotification(subscription: PushSubscription, payload: 
     badge: payload.badge || '/favicon.ico',
     data: payload.data || {},
     tag: payload.tag || 'default',
-    requireInteraction: true
+    requireInteraction: true,
+    vibrate: [200, 100, 200]
   }
 
   try {
-    // Use fetch to send the push notification via Web Push API
-    const response = await fetch(subscription.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'TTL': '86400', // 24 hours
-      },
-      body: JSON.stringify(webPushPayload)
-    })
-
-    if (!response.ok) {
-      console.error('Push notification failed:', response.status, response.statusText)
-      return { success: false, error: `HTTP ${response.status}` }
+    console.log('📤 Sending to endpoint:', subscription.endpoint)
+    
+    // Use Web Push protocol for different push services
+    let response;
+    
+    if (subscription.endpoint.includes('fcm.googleapis.com')) {
+      // Firebase Cloud Messaging
+      response = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'TTL': '86400',
+        },
+        body: JSON.stringify({
+          to: subscription.endpoint.split('/').pop(),
+          notification: webPushPayload
+        })
+      })
+    } else {
+      // Standard Web Push
+      response = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'TTL': '86400',
+        },
+        body: JSON.stringify(webPushPayload)
+      })
     }
 
-    console.log('✅ Push notification sent successfully to:', subscription.endpoint)
+    if (!response.ok) {
+      console.error('❌ Push notification failed:', response.status, response.statusText)
+      const responseText = await response.text()
+      console.error('❌ Response body:', responseText)
+      return { success: false, error: `HTTP ${response.status}: ${responseText}` }
+    }
+
+    console.log('✅ Push notification sent successfully')
     return { success: true }
   } catch (error) {
     console.error('❌ Error sending push notification:', error)
@@ -54,6 +78,10 @@ async function sendWebPushNotification(subscription: PushSubscription, payload: 
 }
 
 serve(async (req) => {
+  console.log('📱 === PUSH NOTIFICATION EDGE FUNCTION CALLED ===')
+  console.log('🔗 Request method:', req.method)
+  console.log('🔗 Request URL:', req.url)
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -65,13 +93,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    const { userIds, title, body, data } = await req.json()
-    console.log('📱 === PUSH NOTIFICATION REQUEST ===')
+    const requestBody = await req.text()
+    console.log('📨 Raw request body:', requestBody)
+    
+    const { userIds, title, body, data } = JSON.parse(requestBody)
+    console.log('📱 === PUSH NOTIFICATION REQUEST DETAILS ===')
     console.log('👥 Target users:', userIds)
     console.log('📢 Title:', title)
     console.log('💬 Body:', body)
+    console.log('📦 Data:', data)
 
     // Get push subscriptions for the specified users
+    console.log('🔍 Querying push_subscriptions table...')
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -82,24 +115,50 @@ serve(async (req) => {
       throw error
     }
 
-    console.log('📱 Found subscriptions:', subscriptions?.length || 0)
+    console.log('📱 Query result - subscriptions found:', subscriptions?.length || 0)
+    if (subscriptions && subscriptions.length > 0) {
+      subscriptions.forEach((sub, index) => {
+        console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`)
+      })
+    }
 
     if (!subscriptions || subscriptions.length === 0) {
       console.log('⚠️ No push subscriptions found for users:', userIds)
+      
+      // Check if there are ANY subscriptions in the table
+      const { data: allSubs, error: allSubsError } = await supabase
+        .from('push_subscriptions')
+        .select('user_id, endpoint')
+        .limit(10);
+        
+      if (allSubsError) {
+        console.error('❌ Error checking all subscriptions:', allSubsError)
+      } else {
+        console.log('📊 Total subscriptions in table:', allSubs?.length || 0)
+        if (allSubs && allSubs.length > 0) {
+          console.log('📋 Existing subscriptions:')
+          allSubs.forEach((sub, index) => {
+            console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`)
+          })
+        }
+      }
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No subscriptions found',
+          message: 'No subscriptions found for target users',
           sentCount: 0,
-          targetUsers: userIds.length
+          targetUsers: userIds.length,
+          totalSubscriptionsInDB: allSubs?.length || 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Send push notifications to all found subscriptions
-    const pushPromises = subscriptions.map(async (subscription: PushSubscription) => {
-      console.log(`📤 Sending push to user ${subscription.user_id} via ${subscription.endpoint}`)
+    console.log('📤 Sending push notifications to', subscriptions.length, 'subscriptions...')
+    const pushPromises = subscriptions.map(async (subscription: PushSubscription, index: number) => {
+      console.log(`📤 [${index + 1}/${subscriptions.length}] Sending push to user ${subscription.user_id}`)
       
       const result = await sendWebPushNotification(subscription, {
         title,
@@ -110,9 +169,11 @@ serve(async (req) => {
         tag: data?.tag || 'default'
       })
 
+      console.log(`📤 [${index + 1}/${subscriptions.length}] Result:`, result.success ? '✅ Success' : `❌ Failed: ${result.error}`)
+
       return {
         userId: subscription.user_id,
-        endpoint: subscription.endpoint,
+        endpoint: subscription.endpoint.substring(0, 50) + '...',
         ...result
       }
     })
@@ -120,9 +181,10 @@ serve(async (req) => {
     const results = await Promise.all(pushPromises)
     const successCount = results.filter(r => r.success).length
     
-    console.log('📱 === PUSH NOTIFICATION RESULTS ===')
+    console.log('📱 === PUSH NOTIFICATION RESULTS SUMMARY ===')
     console.log(`✅ Successful: ${successCount}/${results.length}`)
-    console.log('📊 Results:', results)
+    console.log(`❌ Failed: ${results.length - successCount}/${results.length}`)
+    console.log('📊 Detailed results:', results)
 
     return new Response(
       JSON.stringify({ 
@@ -141,7 +203,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        success: false 
+        success: false,
+        details: 'Check function logs for more information'
       }),
       { 
         status: 500,
