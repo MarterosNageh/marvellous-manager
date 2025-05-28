@@ -109,9 +109,14 @@ class NotificationService {
           badge: '/favicon.ico',
           data,
           requireInteraction: false,
-          silent: false,
-          vibrate: [200, 100, 200]
+          silent: false
         });
+        
+        // Add vibration for mobile devices (handled separately)
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
+        
         console.log('Mobile notification sent successfully');
       } catch (error) {
         console.error('Failed to show mobile notification:', error);
