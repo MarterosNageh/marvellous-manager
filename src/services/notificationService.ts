@@ -1,4 +1,5 @@
 
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -167,7 +168,7 @@ class NotificationService {
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // Send notifications to all assigned users - NO CONDITIONS
+    // Send notifications to ALL assigned users - NO CONDITIONS
     for (const userId of assigneeIds) {
       console.log(`📤 Sending notification to ALL assigned users: ${userId}`);
       await this.sendNotificationToUser(
@@ -223,8 +224,13 @@ class NotificationService {
         });
       }
 
-      // ALWAYS send external push notification to ALL users - NO CONDITIONS
-      console.log('📱 Sending external push notification to user:', userId);
+      // ALWAYS send external push notification to ALL users
+      console.log('📱 === SENDING EXTERNAL PUSH NOTIFICATION ===');
+      console.log('📱 Target user:', userId);
+      console.log('📱 Notification title:', title);
+      console.log('📱 Notification body:', body);
+      
+      // Use the same successful configuration as test notifications
       await pushNotificationService.sendPushNotification(
         [userId],
         title,
@@ -235,10 +241,12 @@ class NotificationService {
           requireInteraction: true,
           tag: `task-${taskId}`,
           icon: '/favicon.ico',
-          badge: '/favicon.ico'
+          badge: '/favicon.ico',
+          url: '/task-manager'
         }
       );
-
+      
+      console.log('📱 External push notification sent to:', userId);
       console.log(`✅ Notification processing completed for user ${userId}`);
     } catch (error) {
       console.error('❌ Error sending notification to user:', error);
@@ -316,3 +324,4 @@ class NotificationService {
 }
 
 export const notificationService = new NotificationService();
+
