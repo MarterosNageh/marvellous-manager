@@ -39,17 +39,17 @@ const statusIcons = {
 };
 
 export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, onOpenChange }) => {
-  const { updateTask } = useTask();
+  const { updateTask, currentUser } = useTask();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState(task);
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
     const updatedTask = { ...task, status: newStatus };
-    await updateTask(updatedTask);
+    await updateTask(task.id, updatedTask);
   };
 
   const handleSave = async () => {
-    await updateTask(editedTask);
+    await updateTask(task.id, editedTask);
     setIsEditing(false);
   };
 
@@ -146,12 +146,14 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
                     Under Review
                   </div>
                 </SelectItem>
-                <SelectItem value="completed">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    Completed
-                  </div>
-                </SelectItem>
+                {currentUser?.isAdmin && (
+                  <SelectItem value="completed">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      Completed
+                    </div>
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

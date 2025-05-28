@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle } from "lucide-react";
+import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Circle, Clock, Eye, CheckCircle } from "lucide-react";
 import { Task } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 import { TaskDetailDialog } from "./TaskDetailDialog";
@@ -35,11 +35,11 @@ const statusIcons = {
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
-  const { updateTask, deleteTask } = useTask();
+  const { updateTask, deleteTask, currentUser } = useTask();
   const [detailOpen, setDetailOpen] = useState(false);
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed') => {
-    await updateTask({ ...task, status: newStatus });
+    await updateTask(task.id, { ...task, status: newStatus });
   };
 
   const handleDelete = async () => {
@@ -95,9 +95,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                 <DropdownMenuItem onClick={() => handleStatusChange('under_review')}>
                   Move to Under Review
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
-                  Move to Completed
-                </DropdownMenuItem>
+                {currentUser?.isAdmin && (
+                  <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
+                    Move to Completed
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleDelete} className="text-red-600 hover:text-red-700">
                   Delete Task
                 </DropdownMenuItem>

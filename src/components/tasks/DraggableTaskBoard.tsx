@@ -14,7 +14,7 @@ const statusColumns: { status: TaskStatus; title: string; color: string }[] = [
 ];
 
 export const DraggableTaskBoard = () => {
-  const { tasks, updateTask, loading } = useTask();
+  const { tasks, updateTask, loading, currentUser } = useTask();
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -38,8 +38,14 @@ export const DraggableTaskBoard = () => {
       return;
     }
 
+    // Check if trying to move to completed and user is not admin
+    if (newStatus === 'completed' && currentUser && !currentUser.isAdmin) {
+      setDraggedTask(null);
+      return;
+    }
+
     try {
-      await updateTask({ ...task, status: newStatus });
+      await updateTask(draggedTask, { ...task, status: newStatus });
     } catch (error) {
       console.error('Error updating task status:', error);
     } finally {

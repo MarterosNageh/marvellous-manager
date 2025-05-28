@@ -10,8 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Kanban } from "lucide-react";
 
 const TaskManager = () => {
-  const [createTaskOpen, setCreateTaskOpen] = useState(false);
-
   return (
     <TaskProvider>
       <MainLayout>
@@ -19,10 +17,12 @@ const TaskManager = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Task Manager</h1>
             <div className="flex gap-2">
-              <Button onClick={() => setCreateTaskOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Task
-              </Button>
+              <CreateTaskDialog>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Task
+                </Button>
+              </CreateTaskDialog>
             </div>
           </div>
 
@@ -46,11 +46,6 @@ const TaskManager = () => {
               <TaskList />
             </TabsContent>
           </Tabs>
-
-          <CreateTaskDialog 
-            open={createTaskOpen}
-            onOpenChange={setCreateTaskOpen}
-          />
         </div>
       </MainLayout>
     </TaskProvider>

@@ -30,6 +30,7 @@ interface TaskContextType {
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   assignTask: (taskId: string, userIds: string[]) => Promise<void>;
+  currentUser: User | null;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -39,10 +40,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchData();
+    // Get current user from localStorage
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
   }, []);
 
   const fetchData = async () => {
@@ -61,6 +68,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         username: user.username,
         password: user.password,
         isAdmin: user.is_admin,
+        role: user.is_admin ? 'admin' : 'user',
       }));
       setUsers(transformedUsers);
 
@@ -105,7 +113,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         updated_at: task.updated_at,
         assignees: task.task_assignments?.map((assignment: any) => {
           const user = transformedUsers.find(u => u.id === assignment.user_id);
-          return user ? { id: user.id, username: user.username } : null;
+          return user ? { 
+            id: user.id, 
+            username: user.username,
+            role: user.role || 'user'
+          } : null;
         }).filter(Boolean) || [],
         tags: [],
         subtasks: task.subtasks?.map((subtask: any) => ({
@@ -141,14 +153,13 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           status: data.status,
           due_date: data.due_date,
           project_id: data.project_id,
-          created_by: users[0]?.id || '', // Assume first user for now
+          created_by: users[0]?.id || '',
         }])
         .select()
         .single();
 
       if (taskError) throw taskError;
 
-      // Handle assignments
       if (data.assignee_ids && data.assignee_ids.length > 0) {
         const assignments = data.assignee_ids.map(userId => ({
           task_id: taskData.id,
@@ -162,7 +173,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         if (assignmentError) throw assignmentError;
       }
 
-      // Refresh data
       await fetchData();
     } catch (error) {
       console.error('Error creating task:', error);
@@ -172,6 +182,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     try {
+      // Check if trying to update status to completed and user is not admin
+      if (updates.status === 'completed' && currentUser && !currentUser.isAdmin) {
+        toast({
+          title: "Access Denied",
+          description: "Only admins can mark tasks as completed",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('tasks')
         .update({
@@ -186,10 +206,19 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      // Refresh data
       await fetchData();
+      
+      toast({
+        title: "Success",
+        description: "Task updated successfully",
+      });
     } catch (error) {
       console.error('Error updating task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update task",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -203,7 +232,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      // Refresh data
       await fetchData();
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -213,13 +241,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignTask = async (taskId: string, userIds: string[]) => {
     try {
-      // Remove existing assignments
       await supabase
         .from('task_assignments')
         .delete()
         .eq('task_id', taskId);
 
-      // Add new assignments
       if (userIds.length > 0) {
         const assignments = userIds.map(userId => ({
           task_id: taskId,
@@ -233,7 +259,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         if (error) throw error;
       }
 
-      // Refresh data
       await fetchData();
     } catch (error) {
       console.error('Error assigning task:', error);
@@ -250,6 +275,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     updateTask,
     deleteTask,
     assignTask,
+    currentUser,
   };
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;

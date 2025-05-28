@@ -57,7 +57,7 @@ export const TaskUtilizationTable = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>User</TableHead>
+              <TableHead>User Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Total Tasks</TableHead>
               <TableHead>Active Tasks</TableHead>
@@ -73,8 +73,8 @@ export const TaskUtilizationTable = () => {
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.username}</TableCell>
                 <TableCell>
-                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                    {user.role}
+                  <Badge variant={user.isAdmin ? 'default' : 'secondary'}>
+                    {user.isAdmin ? 'Admin' : 'User'}
                   </Badge>
                 </TableCell>
                 <TableCell>{totalTasks}</TableCell>

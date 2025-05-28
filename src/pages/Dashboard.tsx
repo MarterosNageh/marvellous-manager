@@ -217,103 +217,55 @@ const DashboardContent = () => {
         </Card>
       </div>
 
-      <TaskUtilizationTable />
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Storage Utilization</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full bg-gray-100 h-5 rounded-lg overflow-hidden flex items-center">
-              <div 
-                className="bg-primary h-full transition-all" 
-                style={{
-                  width: `${percentUsed}%`,
-                  minWidth: 8,
-                  borderRadius: 8
-                }} 
-                aria-label="Utilization percent" 
-              />
-              <span className="pl-2 text-xs">{percentUsed}% utilized</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Based on estimated max 10 drives per project
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Critical Storage Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {lowSpaceHardDrives.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All drives have sufficient space</p>
-            ) : (
-              <div className="space-y-2">
-                {lowSpaceHardDrives.slice(0, 3).map(drive => (
-                  <div key={drive.id} className="flex justify-between items-center">
-                    <span className="text-sm truncate">{drive.name}</span>
-                    <Badge variant="destructive" className="text-xs">Low Space</Badge>
-                  </div>
-                ))}
-                {lowSpaceHardDrives.length > 3 && (
-                  <p className="text-xs text-muted-foreground">
-                    +{lowSpaceHardDrives.length - 3} more drives need attention
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Recent Projects</h2>
-          <Link to="/projects">
-            <Button variant="outline" size="sm">
-              View All
-            </Button>
-          </Link>
-        </div>
-        
-        {projects.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground">No projects found. Create your first project!</p>
-              <Link to="/projects/new" className="mt-4 inline-block">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Project
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {projects.slice(0, 3).map(project => (
-              <Link key={project.id} to={`/projects/${project.id}`}>
-                <Card className="h-full hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle>{project.name}</CardTitle>
-                    <CardDescription>
-                      Created on {new Date(project.createdAt).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {project.description || "No description"}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Storage Utilization</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full bg-gray-100 h-5 rounded-lg overflow-hidden flex items-center">
+            <div 
+              className="bg-primary h-full transition-all" 
+              style={{
+                width: `${percentUsed}%`,
+                minWidth: 8,
+                borderRadius: 8
+              }} 
+              aria-label="Utilization percent" 
+            />
+            <span className="pl-2 text-xs">{percentUsed}% utilized</span>
           </div>
-        )}
-      </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Based on estimated max 10 drives per project
+          </p>
+        </CardContent>
+      </Card>
 
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Critical Storage Alerts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {lowSpaceHardDrives.length === 0 ? (
+            <p className="text-sm text-muted-foreground">All drives have sufficient space</p>
+          ) : (
+            <div className="space-y-2">
+              {lowSpaceHardDrives.slice(0, 3).map(drive => (
+                <div key={drive.id} className="flex justify-between items-center">
+                  <span className="text-sm truncate">{drive.name}</span>
+                  <Badge variant="destructive" className="text-xs">Low Space</Badge>
+                </div>
+              ))}
+              {lowSpaceHardDrives.length > 3 && (
+                <p className="text-xs text-muted-foreground">
+                  +{lowSpaceHardDrives.length - 3} more drives need attention
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Hard Drive sections first */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Recent Hard Drives</h2>
@@ -353,6 +305,51 @@ const DashboardContent = () => {
                     </p>
                     <p className="text-sm">
                       <span className="font-medium">Free Space:</span> {hardDrive.freeSpace}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Recent Projects</h2>
+          <Link to="/projects">
+            <Button variant="outline" size="sm">
+              View All
+            </Button>
+          </Link>
+        </div>
+        
+        {projects.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">No projects found. Create your first project!</p>
+              <Link to="/projects/new" className="mt-4 inline-block">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Project
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {projects.slice(0, 3).map(project => (
+              <Link key={project.id} to={`/projects/${project.id}`}>
+                <Card className="h-full hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <CardTitle>{project.name}</CardTitle>
+                    <CardDescription>
+                      Created on {new Date(project.createdAt).toLocaleDateString()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {project.description || "No description"}
                     </p>
                   </CardContent>
                 </Card>
@@ -423,6 +420,9 @@ const DashboardContent = () => {
           </div>
         )}
       </div>
+
+      {/* Task Utilization Table at the end */}
+      <TaskUtilizationTable />
     </div>
   );
 };

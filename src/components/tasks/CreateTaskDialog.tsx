@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useTask } from "@/context/TaskContext";
 import { useToast } from "@/hooks/use-toast";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
-import { format } from "date-fns";
 
 interface CreateTaskDialogProps {
   children: React.ReactNode;
@@ -55,7 +54,6 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
         description: "Task created successfully",
       });
 
-      // Reset form
       setTitle("");
       setDescription("");
       setPriority("medium");
@@ -162,7 +160,7 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
                 <SelectValue placeholder="Select a project (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unassigned">No Project</SelectItem>
+                <SelectItem value="none">No Project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
