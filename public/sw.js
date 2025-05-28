@@ -1,15 +1,20 @@
 
 self.addEventListener('push', function(event) {
+  console.log('Push event received:', event);
+  
   if (event.data) {
     const data = event.data.json();
+    console.log('Push data:', data);
+    
     const options = {
-      body: data.message,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      body: data.body || data.message,
+      icon: data.icon || '/favicon.ico',
+      badge: data.badge || '/favicon.ico',
       vibrate: [100, 50, 100],
       data: {
         dateOfArrival: Date.now(),
-        primaryKey: data.taskId || '1'
+        primaryKey: data.taskId || data.data?.taskId || '1',
+        url: data.data?.url || '/task-manager'
       },
       actions: [
         {
@@ -22,7 +27,9 @@ self.addEventListener('push', function(event) {
           title: 'Close',
           icon: '/favicon.ico'
         }
-      ]
+      ],
+      requireInteraction: false,
+      silent: false
     };
     
     event.waitUntil(

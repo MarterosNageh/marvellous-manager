@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { pushNotificationService } from "./pushNotificationService";
 
 interface NotificationPayload {
   title: string;
@@ -25,6 +26,9 @@ class NotificationService {
           await this.requestPermission();
           this.permissionRequested = true;
         }
+        
+        // Initialize push notifications
+        await pushNotificationService.requestPermissionAndSubscribe();
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -164,6 +168,14 @@ class NotificationService {
           `You have been assigned to task: "${taskTitle}"`,
           { taskId }
         );
+        
+        // Send external push notification
+        await pushNotificationService.sendPushNotification(
+          [userId],
+          'New Task Assigned',
+          `You have been assigned to task: "${taskTitle}"`,
+          { taskId, type: 'task_assignment' }
+        );
       }
     }
 
@@ -203,6 +215,14 @@ class NotificationService {
 
       // Always send mobile notification for PWA
       await this.sendMobileNotification(title, body, { taskId });
+
+      // Send external push notification
+      await pushNotificationService.sendPushNotification(
+        [userId],
+        title,
+        body,
+        { taskId, type }
+      );
 
       console.log(`Notification sent to user ${userId}:`, title);
     } catch (error) {
