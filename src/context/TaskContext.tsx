@@ -69,9 +69,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const setupRealtimeSubscriptions = () => {
-    // Subscribe to tasks changes
+    console.log('Setting up real-time subscriptions...');
+    
+    // Subscribe to tasks changes with a unique channel name
     const tasksChannel = supabase
-      .channel('tasks-changes')
+      .channel(`tasks-changes-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -80,8 +82,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           table: 'tasks'
         },
         async (payload) => {
-          console.log('Real-time task insert:', payload);
-          await fetchData(); // Refetch to get complete task with relationships
+          console.log('Real-time task insert received:', payload);
+          // Refetch all data to get complete task with relationships
+          await fetchData();
         }
       )
       .on(
@@ -92,18 +95,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           table: 'tasks'
         },
         async (payload) => {
-          console.log('Real-time task update:', payload);
-          // Update the task in state immediately
-          const updatedTaskData = payload.new;
-          setTasks(prevTasks => 
-            prevTasks.map(task => 
-              task.id === updatedTaskData.id 
-                ? { ...task, ...updatedTaskData }
-                : task
-            )
-          );
-          // Also refetch to ensure we have complete relationships
-          setTimeout(() => fetchData(), 100);
+          console.log('Real-time task update received:', payload);
+          // Always refetch to ensure we have the latest data with all relationships
+          await fetchData();
         }
       )
       .on(
@@ -113,11 +107,19 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           schema: 'public',
           table: 'tasks'
         },
-        (payload) => {
-          console.log('Real-time task delete:', payload);
+        async (payload) => {
+          console.log('Real-time task delete received:', payload);
+          // Remove the deleted task from state immediately
           setTasks(prev => prev.filter(task => task.id !== payload.old.id));
         }
       )
+      .subscribe((status) => {
+        console.log('Tasks subscription status:', status);
+      });
+
+    // Subscribe to task assignments changes
+    const assignmentsChannel = supabase
+      .channel(`task-assignments-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -126,13 +128,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           table: 'task_assignments'
         },
         async (payload) => {
-          console.log('Real-time task assignment change:', payload);
-          await fetchData(); // Refetch to get updated assignments
+          console.log('Real-time task assignment change received:', payload);
+          // Refetch all data to get updated assignments
+          await fetchData();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Task assignments subscription status:', status);
+      });
 
-    console.log('Real-time subscriptions set up');
+    console.log('Real-time subscriptions configured');
   };
 
   const fetchData = async () => {
@@ -293,15 +298,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('Updating task in database:', taskId, updates);
 
-      // Optimistically update the UI immediately
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.id === taskId 
-            ? { ...task, ...updates }
-            : task
-        )
-      );
-
       // Only send the fields that can be updated in the database
       const updateData: any = {};
       
@@ -320,8 +316,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Supabase error:', error);
-        // Revert optimistic update on error
-        await fetchData();
         throw error;
       }
       
