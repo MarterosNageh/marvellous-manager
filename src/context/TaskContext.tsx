@@ -192,19 +192,28 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      console.log('Updating task in database:', taskId, updates);
+
+      // Only send the fields that can be updated in the database
+      const updateData: any = {};
+      
+      if (updates.title !== undefined) updateData.title = updates.title;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.priority !== undefined) updateData.priority = updates.priority;
+      if (updates.status !== undefined) updateData.status = updates.status;
+      if (updates.due_date !== undefined) updateData.due_date = updates.due_date;
+      if (updates.supervisor_comments !== undefined) updateData.supervisor_comments = updates.supervisor_comments;
+      if (updates.project_id !== undefined) updateData.project_id = updates.project_id;
+
       const { error } = await supabase
         .from('tasks')
-        .update({
-          title: updates.title,
-          description: updates.description,
-          priority: updates.priority,
-          status: updates.status,
-          due_date: updates.due_date,
-          supervisor_comments: updates.supervisor_comments,
-        })
+        .update(updateData)
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       await fetchData();
       

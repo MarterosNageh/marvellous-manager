@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useTask } from "@/context/TaskContext";
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -21,7 +20,6 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   open,
   onOpenChange,
 }) => {
-  const { addProject, loading } = useTask();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(colors[0]);
@@ -31,12 +29,8 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     
     if (!name.trim()) return;
 
-    await addProject({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      color,
-      created_by: '', // Will be set in context
-    });
+    // TODO: Implement project creation functionality
+    console.log('Project creation not implemented yet');
 
     // Reset form
     setName('');
@@ -104,10 +98,10 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !name.trim()}
+              disabled={!name.trim()}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              {loading ? 'Creating...' : 'Create Project'}
+              Create Project
             </Button>
           </div>
         </form>

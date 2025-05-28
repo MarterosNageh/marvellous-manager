@@ -20,6 +20,7 @@ export const DraggableTaskBoard = () => {
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTask(taskId);
     e.dataTransfer.effectAllowed = 'move';
+    console.log('Drag started for task:', taskId);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -30,22 +31,36 @@ export const DraggableTaskBoard = () => {
   const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault();
     
-    if (!draggedTask) return;
+    if (!draggedTask) {
+      console.log('No dragged task');
+      return;
+    }
     
     const task = tasks.find(t => t.id === draggedTask);
-    if (!task || task.status === newStatus) {
+    if (!task) {
+      console.log('Task not found:', draggedTask);
+      setDraggedTask(null);
+      return;
+    }
+
+    if (task.status === newStatus) {
+      console.log('Same status, no update needed');
       setDraggedTask(null);
       return;
     }
 
     // Check if trying to move to completed and user is not admin
     if (newStatus === 'completed' && currentUser && !currentUser.isAdmin) {
+      console.log('Non-admin user trying to move to completed status');
       setDraggedTask(null);
       return;
     }
 
+    console.log('Updating task status:', task.id, 'from', task.status, 'to', newStatus);
+
     try {
-      await updateTask(draggedTask, { ...task, status: newStatus });
+      await updateTask(draggedTask, { status: newStatus });
+      console.log('Task status updated successfully');
     } catch (error) {
       console.error('Error updating task status:', error);
     } finally {
