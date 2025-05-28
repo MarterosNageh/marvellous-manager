@@ -40,12 +40,51 @@ const FIREBASE_CONFIG = {
   measurementId: "G-YBBC3CXLEF"
 }
 
+// Helper function to convert base64 to base64url
+function base64ToBase64url(base64: string): string {
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+// Helper function to encode JWT payload
+function encodeJWT(header: any, payload: any, privateKey: string): Promise<string> {
+  const headerB64 = base64ToBase64url(btoa(JSON.stringify(header)));
+  const payloadB64 = base64ToBase64url(btoa(JSON.stringify(payload)));
+  const data = `${headerB64}.${payloadB64}`;
+  
+  // Convert private key to proper format for crypto.subtle
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = privateKey.replace(pemHeader, "").replace(pemFooter, "").replace(/\s/g, "");
+  
+  // Decode base64 to binary
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  
+  return crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"]
+  ).then(key => {
+    return crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      new TextEncoder().encode(data)
+    );
+  }).then(signature => {
+    const signatureB64 = base64ToBase64url(btoa(String.fromCharCode(...new Uint8Array(signature))));
+    return `${data}.${signatureB64}`;
+  });
+}
+
 // Get OAuth 2.0 access token using service account
 async function getAccessToken(): Promise<string> {
   console.log('🔐 Getting Firebase Admin SDK access token...');
   
   try {
-    // Create JWT assertion
     const now = Math.floor(Date.now() / 1000);
     const payload = {
       iss: SERVICE_ACCOUNT.client_email,
@@ -55,29 +94,10 @@ async function getAccessToken(): Promise<string> {
       iat: now
     };
 
-    // Import the private key for signing
-    const privateKeyData = SERVICE_ACCOUNT.private_key.replace(/\\n/g, '\n');
-    const keyData = await crypto.subtle.importKey(
-      'pkcs8',
-      new TextEncoder().encode(privateKeyData),
-      {
-        name: 'RSASSA-PKCS1-v1_5',
-        hash: 'SHA-256',
-      },
-      false,
-      ['sign']
-    );
-
-    // Create and sign JWT
     const header = { alg: 'RS256', typ: 'JWT' };
-    const encodedHeader = btoa(JSON.stringify(header)).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
-    const encodedPayload = btoa(JSON.stringify(payload)).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
-    const signatureInput = `${encodedHeader}.${encodedPayload}`;
     
-    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyData, new TextEncoder().encode(signatureInput));
-    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m as '+' | '/'] || m)).replace(/=/g, '');
-    
-    const jwt = `${signatureInput}.${encodedSignature}`;
+    // Create JWT using our custom function
+    const jwt = await encodeJWT(header, payload, SERVICE_ACCOUNT.private_key);
 
     // Exchange JWT for access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -90,7 +110,8 @@ async function getAccessToken(): Promise<string> {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error(`Token request failed: ${tokenResponse.status}`);
+      const errorText = await tokenResponse.text();
+      throw new Error(`Token request failed: ${tokenResponse.status} - ${errorText}`);
     }
 
     const tokenData = await tokenResponse.json();
