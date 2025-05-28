@@ -211,7 +211,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-      console.log('📝 === CREATING TASK WITH ENHANCED CROSS-DEVICE NOTIFICATIONS ===');
+      console.log('📝 Creating task with fast response...');
       console.log('📝 Task title:', data.title);
       console.log('👥 Assignees:', data.assignee_ids);
       
@@ -249,35 +249,23 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('✅ Task assignments created successfully');
 
-        // ENHANCED: Send cross-device push notifications with detailed tracking
-        console.log('📱 === SENDING ENHANCED CROSS-DEVICE NOTIFICATIONS ===');
-        console.log('🌐 This will attempt delivery to ALL registered devices for ALL assigned users');
-        console.log('📱 Target users for cross-device notifications:', data.assignee_ids);
+        // Send notifications in the background - don't wait for them
+        console.log('📱 Sending notifications in background...');
+        notificationService.sendTaskAssignmentNotifications(
+          data.assignee_ids,
+          data.title,
+          taskData.id,
+          currentUser?.id
+        ).catch(error => {
+          console.error('❌ Background notification error:', error);
+          // Don't show error to user since task was created successfully
+        });
         
-        try {
-          // Send notifications to assigned users with enhanced cross-device support
-          await notificationService.sendTaskAssignmentNotifications(
-            data.assignee_ids,
-            data.title,
-            taskData.id,
-            currentUser?.id
-          );
-          
-          console.log('📱 === CROSS-DEVICE NOTIFICATIONS PROCESSING COMPLETE ===');
-          
-          toast({
-            title: "✅ Task Created Successfully",
-            description: `Task created and cross-device notifications sent to ${data.assignee_ids?.length || 0} user(s). Check all devices for notifications!`,
-          });
+        toast({
+          title: "✅ Task Created Successfully",
+          description: `Task created and notifications are being sent to ${data.assignee_ids?.length || 0} user(s).`,
+        });
 
-        } catch (notificationError) {
-          console.error('❌ Error sending cross-device notifications:', notificationError);
-          
-          toast({
-            title: "✅ Task Created",
-            description: `Task created successfully. Cross-device notifications may have limited delivery - check device settings.`,
-          });
-        }
       } else {
         toast({
           title: "✅ Success",
@@ -408,14 +396,16 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         if (error) throw error;
 
-        // Send notifications to newly assigned users
+        // Send notifications in the background - don't wait for them
         if (currentTask) {
-          await notificationService.sendTaskAssignmentNotifications(
+          notificationService.sendTaskAssignmentNotifications(
             userIds,
             currentTask.title,
             taskId,
             currentUser?.id
-          );
+          ).catch(error => {
+            console.error('❌ Background notification error:', error);
+          });
         }
       }
 
