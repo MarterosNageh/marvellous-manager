@@ -26,6 +26,12 @@ class NotificationService {
         // Wait for service worker to be ready
         await navigator.serviceWorker.ready;
         console.log('✅ Service Worker is ready');
+        
+        // Auto-setup push notifications if permission is already granted
+        if (Notification.permission === 'granted') {
+          console.log('🔄 Auto-setting up push notifications...');
+          await this.setupPushNotifications();
+        }
       } catch (error) {
         console.error('❌ Service Worker registration failed:', error);
       }
@@ -225,12 +231,12 @@ class NotificationService {
       }
 
       // ALWAYS send external push notification to ALL users
-      console.log('📱 === SENDING EXTERNAL PUSH NOTIFICATION ===');
+      console.log('📱 === SENDING EXTERNAL PUSH NOTIFICATION TO ALL DEVICES ===');
       console.log('📱 Target user:', userId);
       console.log('📱 Notification title:', title);
       console.log('📱 Notification body:', body);
       
-      // Use the same successful configuration as test notifications
+      // Send to ALL devices for this user
       await pushNotificationService.sendPushNotification(
         [userId],
         title,
@@ -246,7 +252,7 @@ class NotificationService {
         }
       );
       
-      console.log('📱 External push notification sent to:', userId);
+      console.log('📱 External push notification sent to ALL devices for user:', userId);
       console.log(`✅ Notification processing completed for user ${userId}`);
     } catch (error) {
       console.error('❌ Error sending notification to user:', error);

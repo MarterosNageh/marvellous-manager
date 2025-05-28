@@ -1,4 +1,5 @@
 
+
 import { supabase } from "@/integrations/supabase/client";
 
 interface PushSubscriptionData {
@@ -29,19 +30,27 @@ class PushNotificationService {
       // Get service worker registration
       const registration = await navigator.serviceWorker.ready;
       
-      // Subscribe to push notifications
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
-      });
+      // Check if already subscribed
+      let subscription = await registration.pushManager.getSubscription();
+      
+      if (!subscription) {
+        // Subscribe to push notifications
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
+        });
+        console.log('📱 New push subscription created');
+      } else {
+        console.log('📱 Using existing push subscription');
+      }
 
       // Save subscription to your backend
       await this.saveSubscription(subscription as unknown as PushSubscriptionData);
       
-      console.log('Push notification subscription successful');
+      console.log('📱 Push notification subscription successful');
       return true;
     } catch (error) {
-      console.error('Error setting up push notifications:', error);
+      console.error('❌ Error setting up push notifications:', error);
       return false;
     }
   }
@@ -64,9 +73,13 @@ class PushNotificationService {
   private async saveSubscription(subscription: PushSubscriptionData): Promise<void> {
     try {
       const currentUser = localStorage.getItem('currentUser');
-      if (!currentUser) return;
+      if (!currentUser) {
+        console.log('❌ No current user found, cannot save push subscription');
+        return;
+      }
 
       const user = JSON.parse(currentUser);
+      console.log('💾 Saving push subscription for user:', user.id);
       
       // Use Supabase client to upsert push subscription
       const { error } = await supabase
@@ -81,10 +94,12 @@ class PushNotificationService {
         });
 
       if (error) {
-        console.error('Error saving push subscription:', error);
+        console.error('❌ Error saving push subscription:', error);
+      } else {
+        console.log('✅ Push subscription saved successfully');
       }
     } catch (error) {
-      console.error('Error saving subscription:', error);
+      console.error('❌ Error saving subscription:', error);
     }
   }
 
@@ -129,7 +144,10 @@ class PushNotificationService {
 
   async sendPushNotification(userIds: string[], title: string, body: string, data?: any): Promise<void> {
     try {
-      console.log('Sending push notification to users:', userIds);
+      console.log('📱 === SENDING PUSH TO ALL DEVICES ===');
+      console.log('📱 Target users:', userIds);
+      console.log('📱 Title:', title);
+      console.log('📱 Body:', body);
       
       const { error } = await supabase.functions.invoke('send-push-notification', {
         body: {
@@ -141,14 +159,15 @@ class PushNotificationService {
       });
 
       if (error) {
-        console.error('Error sending push notification:', error);
+        console.error('❌ Error sending push notification:', error);
       } else {
-        console.log('Push notification sent successfully');
+        console.log('✅ Push notification sent to all devices successfully');
       }
     } catch (error) {
-      console.error('Error invoking push notification function:', error);
+      console.error('❌ Error invoking push notification function:', error);
     }
   }
 }
 
 export const pushNotificationService = new PushNotificationService();
+
