@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -128,9 +129,13 @@ class NotificationService {
           badge: '/favicon.ico',
           data,
           requireInteraction: false,
-          silent: false,
-          vibrate: [200, 100, 200]
+          silent: false
         });
+        
+        // Handle vibration separately for mobile notifications
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
         
         console.log('Mobile notification sent successfully via service worker');
       } catch (error) {
