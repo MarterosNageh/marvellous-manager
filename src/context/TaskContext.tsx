@@ -211,7 +211,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-      console.log('📝 === CREATING TASK WITH CROSS-DEVICE NOTIFICATIONS ===');
+      console.log('📝 === CREATING TASK WITH ENHANCED CROSS-DEVICE NOTIFICATIONS ===');
       console.log('📝 Task title:', data.title);
       console.log('👥 Assignees:', data.assignee_ids);
       
@@ -249,40 +249,41 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('✅ Task assignments created successfully');
 
-        // CRITICAL: Send cross-device push notifications to ALL assigned users
-        console.log('📱 === SENDING CROSS-DEVICE PUSH NOTIFICATIONS ===');
-        console.log('🌐 This will notify ALL devices for ALL assigned users');
-        console.log('📱 Target users for notifications:', data.assignee_ids);
+        // ENHANCED: Send cross-device push notifications with detailed tracking
+        console.log('📱 === SENDING ENHANCED CROSS-DEVICE NOTIFICATIONS ===');
+        console.log('🌐 This will attempt delivery to ALL registered devices for ALL assigned users');
+        console.log('📱 Target users for cross-device notifications:', data.assignee_ids);
         
-        // Send notifications to assigned users with enhanced cross-device support
-        await notificationService.sendTaskAssignmentNotifications(
-          data.assignee_ids,
-          data.title,
-          taskData.id,
-          currentUser?.id
-        );
-        
-        console.log('📱 === CROSS-DEVICE NOTIFICATIONS SENT SUCCESSFULLY ===');
-        
-        // Also send browser notifications locally for immediate feedback
-        for (const userId of data.assignee_ids) {
-          const assignedUser = users.find(u => u.id === userId);
-          if (assignedUser) {
-            console.log(`🔔 Sending local browser notification for user: ${assignedUser.username}`);
-            await notificationService.showBrowserNotification({
-              title: '🎯 New Task Assigned (Local)',
-              body: `Task "${data.title}" has been assigned to ${assignedUser.username}`,
-              tag: `local-task-${taskData.id}`,
-              data: { taskId: taskData.id, type: 'local_assignment' }
-            });
-          }
+        try {
+          // Send notifications to assigned users with enhanced cross-device support
+          await notificationService.sendTaskAssignmentNotifications(
+            data.assignee_ids,
+            data.title,
+            taskData.id,
+            currentUser?.id
+          );
+          
+          console.log('📱 === CROSS-DEVICE NOTIFICATIONS PROCESSING COMPLETE ===');
+          
+          toast({
+            title: "✅ Task Created Successfully",
+            description: `Task created and cross-device notifications sent to ${data.assignee_ids?.length || 0} user(s). Check all devices for notifications!`,
+          });
+
+        } catch (notificationError) {
+          console.error('❌ Error sending cross-device notifications:', notificationError);
+          
+          toast({
+            title: "✅ Task Created",
+            description: `Task created successfully. Cross-device notifications may have limited delivery - check device settings.`,
+          });
         }
+      } else {
+        toast({
+          title: "✅ Success",
+          description: "Task created successfully",
+        });
       }
-      
-      toast({
-        title: "✅ Success",
-        description: `Task created and notifications sent to ${data.assignee_ids?.length || 0} user(s) across all their devices!`,
-      });
 
       // Force immediate refresh for real-time feel
       await fetchData();
@@ -290,7 +291,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       console.error('❌ Error creating task:', error);
       toast({
         title: "❌ Error",
-        description: "Failed to create task or send notifications",
+        description: "Failed to create task",
         variant: "destructive",
       });
       throw error;
