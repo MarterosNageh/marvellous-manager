@@ -1,5 +1,5 @@
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -14,10 +14,18 @@ interface MainLayoutProps {
 export const MainLayout = ({
   children
 }: MainLayoutProps) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    console.log('🏠 MainLayout rendered');
+    console.log('🏠 Is authenticated:', isAuthenticated);
+    console.log('🏠 Current user:', currentUser);
+    console.log('🏠 Current path:', window.location.pathname);
+  }, [isAuthenticated, currentUser]);
   
   if (!isAuthenticated) {
+    console.log('🚨 Not authenticated, redirecting to login');
     return <Navigate to="/login" />;
   }
   
