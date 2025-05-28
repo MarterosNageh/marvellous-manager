@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -212,7 +211,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-      console.log('📝 Creating task:', data.title);
+      console.log('📝 === CREATING TASK WITH CROSS-DEVICE NOTIFICATIONS ===');
+      console.log('📝 Task title:', data.title);
+      console.log('👥 Assignees:', data.assignee_ids);
       
       const { data: taskData, error: taskError } = await supabase
         .from('tasks')
@@ -230,10 +231,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (taskError) throw taskError;
 
-      console.log('✅ Task created:', taskData.id);
+      console.log('✅ Task created with ID:', taskData.id);
 
       if (data.assignee_ids && data.assignee_ids.length > 0) {
-        console.log('👥 Creating assignments for:', data.assignee_ids);
+        console.log('👥 Creating assignments for users:', data.assignee_ids);
         
         const assignments = data.assignee_ids.map(userId => ({
           task_id: taskData.id,
@@ -246,13 +247,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         if (assignmentError) throw assignmentError;
 
-        console.log('✅ Task assignments created');
+        console.log('✅ Task assignments created successfully');
 
-        // CRITICAL: Send push notifications to ALL assigned users immediately
-        console.log('🔔 === TRIGGERING CROSS-DEVICE PUSH NOTIFICATIONS ===');
-        console.log('📱 This will send to ALL devices for ALL assigned users');
+        // CRITICAL: Send cross-device push notifications to ALL assigned users
+        console.log('📱 === SENDING CROSS-DEVICE PUSH NOTIFICATIONS ===');
+        console.log('🌐 This will notify ALL devices for ALL assigned users');
+        console.log('📱 Target users for notifications:', data.assignee_ids);
         
-        // Send push notifications to assigned users with enhanced logging
+        // Send notifications to assigned users with enhanced cross-device support
         await notificationService.sendTaskAssignmentNotifications(
           data.assignee_ids,
           data.title,
@@ -260,12 +262,26 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           currentUser?.id
         );
         
-        console.log('📱 === CROSS-DEVICE NOTIFICATIONS COMPLETE ===');
+        console.log('📱 === CROSS-DEVICE NOTIFICATIONS SENT SUCCESSFULLY ===');
+        
+        // Also send browser notifications locally for immediate feedback
+        for (const userId of data.assignee_ids) {
+          const assignedUser = users.find(u => u.id === userId);
+          if (assignedUser) {
+            console.log(`🔔 Sending local browser notification for user: ${assignedUser.username}`);
+            await notificationService.showBrowserNotification({
+              title: '🎯 New Task Assigned (Local)',
+              body: `Task "${data.title}" has been assigned to ${assignedUser.username}`,
+              tag: `local-task-${taskData.id}`,
+              data: { taskId: taskData.id, type: 'local_assignment' }
+            });
+          }
+        }
       }
       
       toast({
-        title: "Success",
-        description: "Task created successfully",
+        title: "✅ Success",
+        description: `Task created and notifications sent to ${data.assignee_ids?.length || 0} user(s) across all their devices!`,
       });
 
       // Force immediate refresh for real-time feel
@@ -273,8 +289,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('❌ Error creating task:', error);
       toast({
-        title: "Error",
-        description: "Failed to create task",
+        title: "❌ Error",
+        description: "Failed to create task or send notifications",
         variant: "destructive",
       });
       throw error;

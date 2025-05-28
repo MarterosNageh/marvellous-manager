@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface PushSubscriptionData {
@@ -348,28 +347,71 @@ class PushNotificationService {
 
   async sendPushNotification(userIds: string[], title: string, body: string, data?: any): Promise<void> {
     try {
-      console.log('📱 === SENDING PUSH NOTIFICATIONS VIA ENHANCED SUPABASE ===');
+      console.log('📱 === SENDING CROSS-DEVICE PUSH NOTIFICATIONS ===');
       console.log('👥 Target users:', userIds);
       console.log('📢 Title:', title);
       console.log('💬 Body:', body);
+      console.log('📦 Data:', data);
       
+      // Step 1: Check how many devices we're targeting
+      console.log('🔍 Checking device count for all target users...');
+      const { data: allSubscriptions, error: checkError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .in('user_id', userIds);
+
+      if (checkError) {
+        console.error('❌ Error checking subscriptions:', checkError);
+      } else {
+        console.log(`📊 Found ${allSubscriptions?.length || 0} total devices across ${userIds.length} users`);
+        if (allSubscriptions && allSubscriptions.length > 0) {
+          const devicesByUser = allSubscriptions.reduce((acc, sub) => {
+            acc[sub.user_id] = (acc[sub.user_id] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          console.log('📱 Devices per user:');
+          Object.entries(devicesByUser).forEach(([userId, count]) => {
+            console.log(`  User ${userId}: ${count} device(s)`);
+          });
+        }
+      }
+      
+      // Step 2: Send the push notification via edge function
+      console.log('📤 Sending cross-device push notifications via Supabase Edge Function...');
       const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
           userIds,
           title,
           body,
-          data
+          data: {
+            ...data,
+            crossDevice: true,
+            targetUsers: userIds.length,
+            sentAt: new Date().toISOString()
+          }
         }
       });
 
       if (error) {
-        console.error('❌ Error invoking push notification function:', error);
+        console.error('❌ Error invoking cross-device push notification function:', error);
       } else {
-        console.log('✅ Push notification function response:', result);
-        console.log(`📊 Sent to ${result?.sentCount || 0}/${result?.totalSubscriptions || 0} subscriptions`);
+        console.log('✅ Cross-device push notification function response:', result);
+        console.log(`📊 Successfully sent to ${result?.sentCount || 0}/${result?.totalSubscriptions || 0} devices`);
+        console.log(`👥 Targeted ${result?.targetUsers || userIds.length} users across multiple devices`);
+        
+        if (result?.results) {
+          console.log('📱 Detailed delivery results:');
+          result.results.forEach((res: any, index: number) => {
+            console.log(`  ${index + 1}. User ${res.userId}: ${res.success ? '✅ Delivered' : '❌ Failed'}`);
+            if (!res.success) {
+              console.log(`     Error: ${res.error}`);
+            }
+          });
+        }
       }
     } catch (error) {
-      console.error('❌ Error sending push notification:', error);
+      console.error('❌ Error in cross-device push notification service:', error);
     }
   }
 

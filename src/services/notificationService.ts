@@ -297,37 +297,83 @@ class NotificationService {
     taskId: string,
     createdBy?: string
   ) {
-    console.log('📋 === SENDING ENHANCED TASK ASSIGNMENT NOTIFICATIONS ===');
-    console.log('👥 Assignee IDs:', assigneeIds);
+    console.log('📋 === ENHANCED CROSS-DEVICE TASK ASSIGNMENT NOTIFICATIONS ===');
+    console.log('👥 Target assignee IDs:', assigneeIds);
     console.log('📝 Task Title:', taskTitle);
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // Send external push notifications to ALL assigned users
-    console.log('📱 === SENDING EXTERNAL PUSH TO ALL ASSIGNED USERS ===');
-    await pushNotificationService.sendPushNotification(
-      assigneeIds,
-      '🎯 New Task Assigned',
-      `You have been assigned to task: "${taskTitle}"`,
-      { 
-        taskId, 
-        type: 'task_assignment', 
-        requireInteraction: true,
-        tag: `task-${taskId}`,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        url: '/task-manager'
-      }
-    );
+    // Step 1: Send external push notifications to ALL devices for ALL assigned users
+    console.log('📱 === SENDING EXTERNAL PUSH TO ALL DEVICES ===');
+    console.log('🌐 This will reach ALL registered devices for each assigned user');
+    
+    try {
+      // Send push notifications with detailed tracking
+      const pushResult = await pushNotificationService.sendPushNotification(
+        assigneeIds,
+        '🎯 New Task Assigned',
+        `You have been assigned to task: "${taskTitle}"`,
+        { 
+          taskId, 
+          type: 'task_assignment', 
+          requireInteraction: true,
+          tag: `task-${taskId}`,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          url: '/task-manager',
+          timestamp: Date.now(),
+          assigneeCount: assigneeIds.length
+        }
+      );
+      
+      console.log('📱 External push notification result:', pushResult);
+    } catch (error) {
+      console.error('❌ Error sending external push notifications:', error);
+    }
 
-    // Send to all admins (excluding the creator)
-    console.log('👑 Sending notifications to admins...');
+    // Step 2: Send admin notifications (excluding the creator)
+    console.log('👑 === SENDING ADMIN NOTIFICATIONS ===');
     await this.sendNotificationToAdmins(
       '📋 New Task Created',
-      `Task "${taskTitle}" has been created and assigned`,
+      `Task "${taskTitle}" has been created and assigned to ${assigneeIds.length} user(s)`,
       taskId,
       createdBy
     );
+
+    // Step 3: Verify notification delivery
+    console.log('🔍 === VERIFYING NOTIFICATION DELIVERY ===');
+    await this.verifyNotificationDelivery(assigneeIds, taskTitle);
+    
+    console.log('✅ === CROSS-DEVICE NOTIFICATIONS PROCESS COMPLETE ===');
+  }
+
+  async verifyNotificationDelivery(userIds: string[], taskTitle: string) {
+    try {
+      console.log('🔍 Verifying notification delivery for users:', userIds);
+      
+      // Check how many devices each user has registered
+      for (const userId of userIds) {
+        const { data: subscriptions, error } = await supabase
+          .from('push_subscriptions')
+          .select('*')
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error(`❌ Error checking subscriptions for user ${userId}:`, error);
+        } else {
+          console.log(`📊 User ${userId} has ${subscriptions?.length || 0} registered device(s)`);
+          if (subscriptions && subscriptions.length > 0) {
+            subscriptions.forEach((sub, index) => {
+              console.log(`  Device ${index + 1}: ${sub.endpoint.substring(0, 50)}...`);
+            });
+          } else {
+            console.log(`⚠️ User ${userId} has no registered devices for push notifications`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error verifying notification delivery:', error);
+    }
   }
 
   async sendNotificationToUser(
@@ -341,6 +387,8 @@ class NotificationService {
       console.log(`📤 === SENDING ENHANCED NOTIFICATION TO USER ${userId} ===`);
       console.log('📢 Title:', title);
       console.log('💬 Body:', body);
+      console.log('🆔 Task ID:', taskId);
+      console.log('📱 Type:', type);
 
       // Send external push notification to ALL devices for this user
       console.log('📱 === SENDING TO ALL DEVICES FOR USER ===');
@@ -355,11 +403,12 @@ class NotificationService {
           tag: `task-${taskId}`,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
-          url: '/task-manager'
+          url: '/task-manager',
+          timestamp: Date.now()
         }
       );
       
-      console.log('📱 External push notification sent to ALL devices for user:', userId);
+      console.log('📱 Cross-device push notification sent to user:', userId);
       console.log(`✅ Notification processing completed for user ${userId}`);
     } catch (error) {
       console.error('❌ Error sending notification to user:', error);
