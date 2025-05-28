@@ -28,11 +28,11 @@ serve(async (req) => {
     const { userIds, title, body, data } = await req.json()
     console.log('Sending push notifications to:', userIds)
 
-    // Get push subscriptions for the specified users using raw SQL
-    const { data: subscriptions, error } = await supabase.rpc('exec_sql', {
-      sql: 'SELECT * FROM push_subscriptions WHERE user_id = ANY($1)',
-      args: [userIds]
-    });
+    // Get push subscriptions for the specified users using Supabase client
+    const { data: subscriptions, error } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .in('user_id', userIds);
 
     if (error) {
       console.error('Error fetching subscriptions:', error)

@@ -68,20 +68,17 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       
-      // Use raw SQL query to insert into push_subscriptions table
-      const { error } = await supabase.rpc('exec_sql', {
-        sql: `
-          INSERT INTO push_subscriptions (user_id, endpoint, p256dh_key, auth_key, created_at)
-          VALUES ($1, $2, $3, $4, NOW())
-          ON CONFLICT (user_id) 
-          DO UPDATE SET 
-            endpoint = EXCLUDED.endpoint,
-            p256dh_key = EXCLUDED.p256dh_key,
-            auth_key = EXCLUDED.auth_key,
-            updated_at = NOW()
-        `,
-        args: [user.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
-      });
+      // Use Supabase client to upsert push subscription
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: subscription.endpoint,
+          p256dh_key: subscription.keys.p256dh,
+          auth_key: subscription.keys.auth
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (error) {
         console.error('Error saving push subscription:', error);
@@ -116,11 +113,11 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       
-      // Use raw SQL query to delete from push_subscriptions table
-      const { error } = await supabase.rpc('exec_sql', {
-        sql: 'DELETE FROM push_subscriptions WHERE user_id = $1',
-        args: [user.id]
-      });
+      // Use Supabase client to delete push subscription
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Error removing push subscription:', error);
