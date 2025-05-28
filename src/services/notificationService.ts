@@ -74,7 +74,7 @@ class NotificationService {
         requireInteraction: false
       });
 
-      // Add vibration for mobile devices
+      // Add vibration for mobile devices (handled separately)
       if ('vibrate' in navigator) {
         navigator.vibrate([200, 100, 200]);
       }
