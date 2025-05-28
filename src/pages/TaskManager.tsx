@@ -15,6 +15,7 @@ const TaskManager = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [pushSetupComplete, setPushSetupComplete] = useState(false);
   const [isSettingUpPush, setIsSettingUpPush] = useState(false);
+  const [subscriptionCount, setSubscriptionCount] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -31,11 +32,31 @@ const TaskManager = () => {
         const pushStatus = await pushNotificationService.getSubscriptionStatus();
         setPushSetupComplete(pushStatus);
         console.log('🔍 Push setup status:', pushStatus);
+        
+        // Check database subscription count
+        await checkDatabaseSubscriptions();
       }
     };
 
     initNotifications();
   }, []);
+
+  const checkDatabaseSubscriptions = async () => {
+    try {
+      await pushNotificationService.checkAllSubscriptions();
+      const currentUser = localStorage.getItem('currentUser');
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        const { data: subscriptions } = await supabase
+          .from('push_subscriptions')
+          .select('*')
+          .eq('user_id', user.id);
+        setSubscriptionCount(subscriptions?.length || 0);
+      }
+    } catch (error) {
+      console.error('Error checking database subscriptions:', error);
+    }
+  };
 
   const handleTestNotification = async () => {
     console.log('🧪 === ENHANCED TEST PUSH NOTIFICATION ===');
@@ -67,6 +88,7 @@ const TaskManager = () => {
           throw new Error('Failed to set up push notifications');
         }
         setPushSetupComplete(true);
+        await checkDatabaseSubscriptions();
       }
 
       // Get current user
@@ -131,6 +153,7 @@ const TaskManager = () => {
         
         // Verify the setup worked by checking database again
         await pushNotificationService.checkAllSubscriptions();
+        await checkDatabaseSubscriptions();
         
         toast({
           title: "✅ Enhanced Push Notifications Enabled!",
@@ -202,7 +225,7 @@ const TaskManager = () => {
                 <span className="font-medium">Enhanced Push Notifications Active</span>
               </div>
               <p className="text-sm text-green-600 mt-1">
-                ✅ Permission: {notificationPermission} • ✅ Database subscription active
+                ✅ Permission: {notificationPermission} • ✅ Database subscriptions: {subscriptionCount}
               </p>
               <p className="text-xs text-green-500 mt-1">
                 Enhanced notifications will reach all your devices, even when the browser is closed!

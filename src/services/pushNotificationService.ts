@@ -110,7 +110,7 @@ class PushNotificationService {
 
       // Save subscription to Supabase
       console.log('💾 Step 5: Saving subscription to database...');
-      const saved = await this.saveSubscription(subscription as unknown as PushSubscriptionData);
+      const saved = await this.saveSubscription(subscription);
       
       if (saved) {
         console.log('✅ Push notification subscription completed successfully');
@@ -209,7 +209,7 @@ class PushNotificationService {
     return outputArray;
   }
 
-  private async saveSubscription(subscription: PushSubscriptionData): Promise<boolean> {
+  private async saveSubscription(subscription: PushSubscription): Promise<boolean> {
     try {
       const currentUser = localStorage.getItem('currentUser');
       if (!currentUser) {
@@ -219,10 +219,21 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       console.log('💾 Saving push subscription for user:', user.id);
+      console.log('📱 Raw subscription object:', subscription);
+      
+      // Extract keys from the subscription object
+      const subscriptionJSON = subscription.toJSON();
+      console.log('📱 Subscription JSON:', subscriptionJSON);
+      
+      if (!subscriptionJSON.keys || !subscriptionJSON.keys.p256dh || !subscriptionJSON.keys.auth) {
+        console.error('❌ Subscription keys are missing or invalid:', subscriptionJSON.keys);
+        return false;
+      }
+      
       console.log('📱 Subscription details:');
-      console.log('  - Endpoint:', subscription.endpoint);
-      console.log('  - p256dh key length:', subscription.keys.p256dh.length);
-      console.log('  - auth key length:', subscription.keys.auth.length);
+      console.log('  - Endpoint:', subscriptionJSON.endpoint);
+      console.log('  - p256dh key length:', subscriptionJSON.keys.p256dh.length);
+      console.log('  - auth key length:', subscriptionJSON.keys.auth.length);
       
       // First, remove any existing subscriptions for this user to avoid duplicates
       console.log('🧹 Cleaning up existing subscriptions for user...');
@@ -242,9 +253,9 @@ class PushNotificationService {
         .from('push_subscriptions')
         .insert({
           user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh_key: subscription.keys.p256dh,
-          auth_key: subscription.keys.auth
+          endpoint: subscriptionJSON.endpoint,
+          p256dh_key: subscriptionJSON.keys.p256dh,
+          auth_key: subscriptionJSON.keys.auth
         })
         .select();
 
