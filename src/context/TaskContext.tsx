@@ -62,13 +62,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     
     initNotifications();
 
-    // Setup real-time subscriptions after initial data load
-    const timer = setTimeout(() => {
-      setupRealtimeSubscriptions();
-    }, 1000);
+    // Setup real-time subscriptions
+    setupRealtimeSubscriptions();
 
     return () => {
-      clearTimeout(timer);
       // Cleanup subscriptions on unmount
       supabase.removeAllChannels();
     };
@@ -80,9 +77,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     // Remove any existing channels first
     supabase.removeAllChannels();
 
-    // Subscribe to tasks table changes
-    const tasksChannel = supabase
-      .channel('public:tasks')
+    // Subscribe to tasks table changes with a simple channel name
+    const channel = supabase
+      .channel('tasks-changes')
       .on(
         'postgres_changes',
         {
@@ -92,36 +89,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         },
         async (payload) => {
           console.log('Real-time task change received:', payload.eventType, payload);
-          
-          if (payload.eventType === 'INSERT') {
-            // Refetch all data to get complete task with relationships
-            await fetchData();
-          } else if (payload.eventType === 'UPDATE') {
-            // Refetch all data to ensure we have the latest data with all relationships
-            await fetchData();
-          } else if (payload.eventType === 'DELETE') {
-            // Remove the deleted task from state immediately
-            setTasks(prev => prev.filter(task => task.id !== payload.old.id));
-          }
+          // Always refetch data to ensure consistency across all devices
+          await fetchData();
         }
       )
-      .subscribe((status) => {
-        console.log('Tasks subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to tasks changes');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to tasks changes');
-          // Retry subscription after a delay
-          setTimeout(() => {
-            console.log('Retrying tasks subscription...');
-            setupRealtimeSubscriptions();
-          }, 5000);
-        }
-      });
-
-    // Subscribe to task assignments changes
-    const assignmentsChannel = supabase
-      .channel('public:task_assignments')
       .on(
         'postgres_changes',
         {
@@ -131,20 +102,24 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         },
         async (payload) => {
           console.log('Real-time task assignment change received:', payload.eventType, payload);
-          // Refetch all data to get updated assignments
+          // Always refetch data to ensure consistency across all devices
           await fetchData();
         }
       )
       .subscribe((status) => {
-        console.log('Task assignments subscription status:', status);
+        console.log('Real-time subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to task assignments changes');
+          console.log('Successfully subscribed to real-time changes');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to task assignments changes');
+          console.error('Failed to subscribe to real-time changes, retrying...');
+          // Retry after a delay
+          setTimeout(() => {
+            setupRealtimeSubscriptions();
+          }, 3000);
         }
       });
 
-    console.log('Real-time subscriptions configured');
+    console.log('Real-time subscription configured');
   };
 
   const fetchData = async () => {
