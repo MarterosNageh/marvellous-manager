@@ -74,7 +74,7 @@ class NotificationService {
         requireInteraction: false
       });
 
-      // Add vibration for mobile devices (handled separately)
+      // Add vibration for mobile devices
       if ('vibrate' in navigator) {
         navigator.vibrate([200, 100, 200]);
       }
@@ -112,7 +112,7 @@ class NotificationService {
           silent: false
         });
         
-        // Add vibration for mobile devices (handled separately)
+        // Add vibration for mobile devices
         if ('vibrate' in navigator) {
           navigator.vibrate([200, 100, 200]);
         }
@@ -145,20 +145,20 @@ class NotificationService {
       }
     }
     
+    // Send notifications to all assigned users (not just current user)
     for (const userId of assigneeIds) {
       if (userId !== createdBy) {
-        // Check if this user is currently logged in
-        if (currentUserId === userId) {
-          console.log('Sending notification to current logged-in user:', userId);
-          await this.sendLocalNotification({
-            title: 'New Task Assigned',
-            body: `You have been assigned to task: "${taskTitle}"`,
-            tag: `task-${taskId}`,
-            data: { taskId, url: `/task-manager` }
-          });
-        }
+        console.log('Sending notification to user:', userId);
         
-        // Always send mobile notification for PWA
+        // Send local notification (will only show for current user)
+        await this.sendLocalNotification({
+          title: 'New Task Assigned',
+          body: `You have been assigned to task: "${taskTitle}"`,
+          tag: `task-${taskId}`,
+          data: { taskId, url: `/task-manager` }
+        });
+        
+        // Send mobile notification for PWA
         await this.sendMobileNotification(
           'New Task Assigned',
           `You have been assigned to task: "${taskTitle}"`,
@@ -167,7 +167,7 @@ class NotificationService {
       }
     }
 
-    // Send to all admins
+    // Send to all admins (excluding the creator)
     await this.sendNotificationToAdmins(
       'New Task Created',
       `Task "${taskTitle}" has been created and assigned`,
@@ -186,7 +186,7 @@ class NotificationService {
     try {
       console.log(`Sending notification to user ${userId}:`, title);
 
-      // Check if user is currently logged in
+      // Get current user to check if they're the target user
       const currentUser = localStorage.getItem('currentUser');
       if (currentUser) {
         const user = JSON.parse(currentUser);
