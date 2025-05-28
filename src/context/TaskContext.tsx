@@ -45,15 +45,61 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     fetchData();
+    setupRealtimeSubscriptions();
+    
     // Get current user from localStorage
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
 
-    // Initialize notification service
-    notificationService.init();
+    // Initialize notification service and request permission
+    const initNotifications = async () => {
+      await notificationService.init();
+      const hasPermission = await notificationService.requestPermission();
+      console.log('Notification permission:', hasPermission ? 'granted' : 'denied');
+    };
+    
+    initNotifications();
+
+    return () => {
+      // Cleanup subscriptions on unmount
+      supabase.removeAllChannels();
+    };
   }, []);
+
+  const setupRealtimeSubscriptions = () => {
+    // Subscribe to tasks changes
+    const tasksChannel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks'
+        },
+        async (payload) => {
+          console.log('Real-time task change:', payload);
+          await fetchData(); // Refetch all data to maintain consistency
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_assignments'
+        },
+        async (payload) => {
+          console.log('Real-time task assignment change:', payload);
+          await fetchData(); // Refetch all data to maintain consistency
+        }
+      )
+      .subscribe();
+
+    console.log('Real-time subscriptions set up');
+  };
 
   const fetchData = async () => {
     try {
@@ -183,8 +229,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           currentUser?.id
         );
       }
-
-      await fetchData();
       
       toast({
         title: "Success",
@@ -235,13 +279,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         console.error('Supabase error:', error);
         throw error;
       }
-
-      // Update tasks state immediately for better UX
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.id === taskId ? { ...task, ...updates } : task
-        )
-      );
       
       toast({
         title: "Success",
@@ -266,9 +303,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', taskId);
 
       if (error) throw error;
-
-      // Remove task from state immediately for better UX
-      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
       
       toast({
         title: "Success",
@@ -317,8 +351,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       }
-
-      await fetchData();
     } catch (error) {
       console.error('Error assigning task:', error);
       throw error;

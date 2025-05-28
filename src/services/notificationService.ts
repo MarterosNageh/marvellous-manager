@@ -12,12 +12,19 @@ interface NotificationPayload {
 
 class NotificationService {
   private registration: ServiceWorkerRegistration | null = null;
+  private permissionRequested = false;
 
   async init() {
     if ('serviceWorker' in navigator) {
       try {
         this.registration = await navigator.serviceWorker.register('/sw.js');
         console.log('Service Worker registered:', this.registration);
+        
+        // Request permission immediately after initialization
+        if (!this.permissionRequested) {
+          await this.requestPermission();
+          this.permissionRequested = true;
+        }
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -31,15 +38,23 @@ class NotificationService {
     }
 
     if (Notification.permission === 'granted') {
+      console.log('Notification permission already granted');
       return true;
     }
 
     if (Notification.permission === 'denied') {
+      console.log('Notification permission denied');
       return false;
     }
 
-    const permission = await Notification.requestPermission();
-    return permission === 'granted';
+    try {
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission result:', permission);
+      return permission === 'granted';
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      return false;
+    }
   }
 
   async sendLocalNotification(payload: NotificationPayload) {
@@ -77,6 +92,7 @@ class NotificationService {
         notification.close();
       }, 5000);
 
+      console.log('Local notification sent successfully');
       return notification;
     } catch (error) {
       console.error('Failed to show notification:', error);
@@ -93,8 +109,10 @@ class NotificationService {
           badge: '/favicon.ico',
           data,
           requireInteraction: false,
-          silent: false
+          silent: false,
+          vibrate: [200, 100, 200]
         });
+        console.log('Mobile notification sent successfully');
       } catch (error) {
         console.error('Failed to show mobile notification:', error);
       }
@@ -109,14 +127,37 @@ class NotificationService {
   ) {
     console.log('Sending task assignment notifications to:', assigneeIds);
     
+    // Get current logged-in user
+    const currentUser = localStorage.getItem('currentUser');
+    let currentUserId = null;
+    
+    if (currentUser) {
+      try {
+        const user = JSON.parse(currentUser);
+        currentUserId = user.id;
+      } catch (error) {
+        console.error('Error parsing current user:', error);
+      }
+    }
+    
     for (const userId of assigneeIds) {
       if (userId !== createdBy) {
-        await this.sendNotificationToUser(
-          userId,
+        // Check if this user is currently logged in
+        if (currentUserId === userId) {
+          console.log('Sending notification to current logged-in user:', userId);
+          await this.sendLocalNotification({
+            title: 'New Task Assigned',
+            body: `You have been assigned to task: "${taskTitle}"`,
+            tag: `task-${taskId}`,
+            data: { taskId, url: `/task-manager` }
+          });
+        }
+        
+        // Always send mobile notification for PWA
+        await this.sendMobileNotification(
           'New Task Assigned',
           `You have been assigned to task: "${taskTitle}"`,
-          taskId,
-          'assignment'
+          { taskId }
         );
       }
     }
@@ -140,7 +181,7 @@ class NotificationService {
     try {
       console.log(`Sending notification to user ${userId}:`, title);
 
-      // Check if user is currently logged in by checking localStorage
+      // Check if user is currently logged in
       const currentUser = localStorage.getItem('currentUser');
       if (currentUser) {
         const user = JSON.parse(currentUser);
