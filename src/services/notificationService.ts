@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -95,17 +96,7 @@ class NotificationService {
         tag: payload.tag,
         data: payload.data,
         requireInteraction: false,
-        silent: false,
-        actions: [
-          {
-            action: 'view',
-            title: 'View'
-          },
-          {
-            action: 'close',
-            title: 'Close'
-          }
-        ]
+        silent: false
       });
 
       // Add vibration for mobile devices
@@ -140,7 +131,11 @@ class NotificationService {
     taskId: string,
     createdBy?: string
   ) {
-    console.log('Sending task assignment notifications to:', assigneeIds);
+    console.log('=== SENDING TASK ASSIGNMENT NOTIFICATIONS ===');
+    console.log('Assignee IDs:', assigneeIds);
+    console.log('Task Title:', taskTitle);
+    console.log('Task ID:', taskId);
+    console.log('Created By:', createdBy);
     
     // Get current logged-in user
     const currentUser = localStorage.getItem('currentUser');
@@ -150,28 +145,35 @@ class NotificationService {
       try {
         const user = JSON.parse(currentUser);
         currentUserId = user.id;
+        console.log('Current user ID:', currentUserId);
       } catch (error) {
         console.error('Error parsing current user:', error);
       }
     }
     
-    // Send notifications to all assigned users (not just current user)
+    // Send notifications to all assigned users
     for (const userId of assigneeIds) {
+      console.log(`Processing notification for user: ${userId}`);
+      
+      // Don't send notification to the task creator
       if (userId !== createdBy) {
-        console.log('Sending notification to user:', userId);
+        console.log(`Sending notification to user: ${userId} (not the creator)`);
         await this.sendNotificationToUser(
           userId,
-          'New Task Assigned',
+          '🎯 New Task Assigned',
           `You have been assigned to task: "${taskTitle}"`,
           taskId,
           'task_assignment'
         );
+      } else {
+        console.log(`Skipping notification for creator: ${userId}`);
       }
     }
 
     // Send to all admins (excluding the creator)
+    console.log('Sending notifications to admins...');
     await this.sendNotificationToAdmins(
-      'New Task Created',
+      '📋 New Task Created',
       `Task "${taskTitle}" has been created and assigned`,
       taskId,
       createdBy
@@ -186,13 +188,18 @@ class NotificationService {
     type: string = 'general'
   ) {
     try {
-      console.log(`Sending notification to user ${userId}:`, title);
+      console.log(`=== SENDING NOTIFICATION TO USER ${userId} ===`);
+      console.log('Title:', title);
+      console.log('Body:', body);
 
       // Get current user to check if they're the target user
       const currentUser = localStorage.getItem('currentUser');
       if (currentUser) {
         const user = JSON.parse(currentUser);
+        console.log('Current user ID:', user.id, 'Target user ID:', userId);
+        
         if (user.id === userId) {
+          console.log('User is currently logged in, sending local notification');
           // User is currently logged in, send local notification
           await this.sendLocalNotification({
             title,
@@ -203,10 +210,13 @@ class NotificationService {
 
           // Also send mobile notification for PWA
           await this.sendMobileNotification(title, body, { taskId });
+        } else {
+          console.log('User is not currently logged in, sending external push only');
         }
       }
 
-      // Send external push notification
+      // Always send external push notification for all users
+      console.log('Sending external push notification...');
       await pushNotificationService.sendPushNotification(
         [userId],
         title,
@@ -214,9 +224,9 @@ class NotificationService {
         { taskId, type }
       );
 
-      console.log(`Notification sent to user ${userId}:`, title);
+      console.log(`✅ Notification sent to user ${userId}`);
     } catch (error) {
-      console.error('Error sending notification to user:', error);
+      console.error('❌ Error sending notification to user:', error);
     }
   }
 
@@ -227,15 +237,28 @@ class NotificationService {
     excludeUserId?: string
   ) {
     try {
-      const { data: admins } = await supabase
+      console.log('=== SENDING NOTIFICATIONS TO ADMINS ===');
+      console.log('Exclude user ID:', excludeUserId);
+      
+      const { data: admins, error } = await supabase
         .from('auth_users')
         .select('id')
         .eq('is_admin', true);
 
+      if (error) {
+        console.error('Error fetching admins:', error);
+        return;
+      }
+
+      console.log('Found admins:', admins);
+
       if (admins) {
         for (const admin of admins) {
           if (admin.id !== excludeUserId) {
+            console.log(`Sending admin notification to: ${admin.id}`);
             await this.sendNotificationToUser(admin.id, title, body, taskId, 'admin');
+          } else {
+            console.log(`Skipping admin notification for creator: ${admin.id}`);
           }
         }
       }

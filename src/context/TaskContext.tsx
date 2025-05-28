@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -239,6 +238,10 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
+      console.log('=== CREATING TASK ===');
+      console.log('Task data:', data);
+      console.log('Current user:', currentUser?.id);
+      
       const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .insert([{
@@ -255,7 +258,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (taskError) throw taskError;
 
+      console.log('Task created successfully:', taskData);
+
       if (data.assignee_ids && data.assignee_ids.length > 0) {
+        console.log('Creating task assignments for:', data.assignee_ids);
+        
         const assignments = data.assignee_ids.map(userId => ({
           task_id: taskData.id,
           user_id: userId,
@@ -267,13 +274,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         if (assignmentError) throw assignmentError;
 
+        console.log('Task assignments created successfully');
+
         // Send notifications to assigned users
+        console.log('Triggering task assignment notifications...');
         await notificationService.sendTaskAssignmentNotifications(
           data.assignee_ids,
           data.title,
           taskData.id,
           currentUser?.id
         );
+        console.log('Task assignment notifications triggered');
       }
       
       toast({
