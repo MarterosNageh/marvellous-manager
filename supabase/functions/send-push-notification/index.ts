@@ -45,64 +45,73 @@ function base64ToBase64url(base64: string): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-// Helper function to encode JWT payload with proper key formatting
-async function encodeJWT(header: any, payload: any, privateKey: string): Promise<string> {
-  console.log('🔧 Starting JWT creation...');
+// Fixed JWT creation function with proper key handling
+async function createJWT(payload: any, privateKey: string): Promise<string> {
+  console.log('🔧 Creating JWT with fixed implementation...');
   
-  const headerB64 = base64ToBase64url(btoa(JSON.stringify(header)));
-  const payloadB64 = base64ToBase64url(btoa(JSON.stringify(payload)));
-  const data = `${headerB64}.${payloadB64}`;
-  
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT'
+  };
+
+  // Encode header and payload
+  const encodedHeader = base64ToBase64url(btoa(JSON.stringify(header)));
+  const encodedPayload = base64ToBase64url(btoa(JSON.stringify(payload)));
+  const data = `${encodedHeader}.${encodedPayload}`;
+
   console.log('🔧 JWT data to sign:', data.substring(0, 100) + '...');
-  
+
   try {
-    // Clean and format the private key properly
-    const pemHeader = "-----BEGIN PRIVATE KEY-----";
-    const pemFooter = "-----END PRIVATE KEY-----";
+    // Clean the private key properly
+    let cleanKey = privateKey.trim();
     
-    // Remove headers, footers, and all whitespace/newlines
-    const cleanedKey = privateKey
-      .replace(pemHeader, "")
-      .replace(pemFooter, "")
-      .replace(/\s/g, "")
-      .replace(/\n/g, "")
-      .replace(/\r/g, "");
+    // Remove PEM headers and footers if present
+    cleanKey = cleanKey.replace(/-----BEGIN PRIVATE KEY-----/g, '');
+    cleanKey = cleanKey.replace(/-----END PRIVATE KEY-----/g, '');
     
-    console.log('🔧 Cleaned private key length:', cleanedKey.length);
+    // Remove all whitespace and newlines
+    cleanKey = cleanKey.replace(/\s+/g, '');
     
-    // Convert base64 to binary
-    const binaryDer = Uint8Array.from(atob(cleanedKey), c => c.charCodeAt(0));
+    console.log('🔧 Cleaned key length:', cleanKey.length);
+    
+    // Decode base64 to binary
+    const binaryDerString = atob(cleanKey);
+    const binaryDer = new Uint8Array(binaryDerString.length);
+    for (let i = 0; i < binaryDerString.length; i++) {
+      binaryDer[i] = binaryDerString.charCodeAt(i);
+    }
+    
     console.log('🔧 Binary DER length:', binaryDer.length);
-    
-    // Import the private key for RSA-SHA256 signing
+
+    // Import the private key
     const cryptoKey = await crypto.subtle.importKey(
-      "pkcs8",
+      'pkcs8',
       binaryDer,
       {
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256",
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
       },
       false,
-      ["sign"]
+      ['sign']
     );
-    
+
     console.log('✅ Private key imported successfully');
-    
-    // Sign the JWT data
+
+    // Sign the data
     const signature = await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
+      'RSASSA-PKCS1-v1_5',
       cryptoKey,
       new TextEncoder().encode(data)
     );
-    
-    console.log('✅ JWT signed successfully, signature length:', signature.byteLength);
-    
+
+    console.log('✅ Data signed successfully, signature length:', signature.byteLength);
+
     // Convert signature to base64url
-    const signatureB64 = base64ToBase64url(btoa(String.fromCharCode(...new Uint8Array(signature))));
-    const jwt = `${data}.${signatureB64}`;
+    const signatureArray = new Uint8Array(signature);
+    const signatureB64 = base64ToBase64url(btoa(String.fromCharCode(...signatureArray)));
     
-    console.log('✅ Final JWT length:', jwt.length);
-    console.log('✅ Final JWT header:', jwt.substring(0, 50) + '...');
+    const jwt = `${data}.${signatureB64}`;
+    console.log('✅ JWT created successfully, length:', jwt.length);
     
     return jwt;
   } catch (error) {
@@ -127,16 +136,8 @@ async function getAccessToken(): Promise<string> {
       iat: now
     };
 
-    const header = { 
-      alg: 'RS256', 
-      typ: 'JWT' 
-    };
-    
-    console.log('🔧 JWT payload:', JSON.stringify(payload, null, 2));
-    
-    // Create JWT using our fixed function
-    const jwt = await encodeJWT(header, payload, SERVICE_ACCOUNT.private_key);
-    console.log('✅ JWT created successfully');
+    console.log('🔧 Creating JWT assertion...');
+    const jwt = await createJWT(payload, SERVICE_ACCOUNT.private_key);
 
     // Exchange JWT for access token
     console.log('🔄 Exchanging JWT for access token...');
