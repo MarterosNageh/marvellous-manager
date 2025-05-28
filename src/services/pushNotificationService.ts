@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-interface PushSubscription {
+interface PushSubscriptionData {
   endpoint: string;
   keys: {
     p256dh: string;
@@ -10,7 +10,7 @@ interface PushSubscription {
 }
 
 class PushNotificationService {
-  private vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8'; // You'll need to replace this
+  private vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HycWqhiyzysOsqTFHBl4EKbtKWN5s8VawQGJw_ioFQsqZpUJhOsG-2Q-F8';
   
   async requestPermissionAndSubscribe(): Promise<boolean> {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -36,7 +36,7 @@ class PushNotificationService {
       });
 
       // Save subscription to your backend
-      await this.saveSubscription(subscription);
+      await this.saveSubscription(subscription as unknown as PushSubscriptionData);
       
       console.log('Push notification subscription successful');
       return true;
@@ -61,24 +61,27 @@ class PushNotificationService {
     return outputArray;
   }
 
-  private async saveSubscription(subscription: PushSubscription): Promise<void> {
+  private async saveSubscription(subscription: PushSubscriptionData): Promise<void> {
     try {
       const currentUser = localStorage.getItem('currentUser');
       if (!currentUser) return;
 
       const user = JSON.parse(currentUser);
       
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh_key: subscription.keys.p256dh,
-          auth_key: subscription.keys.auth,
-          created_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+      // Use raw SQL query to insert into push_subscriptions table
+      const { error } = await supabase.rpc('exec_sql', {
+        sql: `
+          INSERT INTO push_subscriptions (user_id, endpoint, p256dh_key, auth_key, created_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (user_id) 
+          DO UPDATE SET 
+            endpoint = EXCLUDED.endpoint,
+            p256dh_key = EXCLUDED.p256dh_key,
+            auth_key = EXCLUDED.auth_key,
+            updated_at = NOW()
+        `,
+        args: [user.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      });
 
       if (error) {
         console.error('Error saving push subscription:', error);
@@ -113,10 +116,11 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('user_id', user.id);
+      // Use raw SQL query to delete from push_subscriptions table
+      const { error } = await supabase.rpc('exec_sql', {
+        sql: 'DELETE FROM push_subscriptions WHERE user_id = $1',
+        args: [user.id]
+      });
 
       if (error) {
         console.error('Error removing push subscription:', error);

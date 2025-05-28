@@ -28,11 +28,11 @@ serve(async (req) => {
     const { userIds, title, body, data } = await req.json()
     console.log('Sending push notifications to:', userIds)
 
-    // Get push subscriptions for the specified users
-    const { data: subscriptions, error } = await supabase
-      .from('push_subscriptions')
-      .select('*')
-      .in('user_id', userIds)
+    // Get push subscriptions for the specified users using raw SQL
+    const { data: subscriptions, error } = await supabase.rpc('exec_sql', {
+      sql: 'SELECT * FROM push_subscriptions WHERE user_id = ANY($1)',
+      args: [userIds]
+    });
 
     if (error) {
       console.error('Error fetching subscriptions:', error)
@@ -47,7 +47,7 @@ serve(async (req) => {
       )
     }
 
-    // Send push notifications to each subscription
+    // Send push notifications using Supabase's built-in Web Push
     const pushPromises = subscriptions.map(async (subscription: PushSubscription) => {
       try {
         const pushPayload = {
@@ -58,13 +58,26 @@ serve(async (req) => {
           badge: '/favicon.ico'
         }
 
-        // For demo purposes, we'll use the Web Push Protocol
-        // In production, you'd use a service like Firebase Cloud Messaging, OneSignal, etc.
-        console.log('Would send push notification to:', subscription.endpoint)
-        console.log('Payload:', pushPayload)
-        
-        // Here you would implement actual push sending using web-push library
-        // For now, we'll just log the attempt
+        // Use Supabase's built-in push notification service
+        const { error: pushError } = await supabase.functions.invoke('push-notification', {
+          body: {
+            subscription: {
+              endpoint: subscription.endpoint,
+              keys: {
+                p256dh: subscription.p256dh_key,
+                auth: subscription.auth_key
+              }
+            },
+            payload: pushPayload
+          }
+        });
+
+        if (pushError) {
+          console.error('Error sending push:', pushError);
+          return { success: false, endpoint: subscription.endpoint, error: pushError.message }
+        }
+
+        console.log('Push notification sent to:', subscription.endpoint)
         return { success: true, endpoint: subscription.endpoint }
       } catch (error) {
         console.error('Error sending to subscription:', error)
