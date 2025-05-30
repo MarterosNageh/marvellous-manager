@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -15,6 +14,15 @@ export interface Note {
   updated_at: string;
 }
 
+interface NoteShare {
+  id: string;
+  note_id: string;
+  shared_with_user_id: string;
+  permission_level: 'read' | 'write' | 'admin';
+  created_at: string;
+  updated_at: string;
+}
+
 interface NotesContextType {
   notes: Note[];
   selectedNote: Note | null;
@@ -24,6 +32,9 @@ interface NotesContextType {
   deleteNote: (id: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   refreshNotes: () => Promise<void>;
+  shareNote: (noteId: string, userId: string, permissionLevel: 'read' | 'write' | 'admin') => Promise<boolean>;
+  unshareNote: (noteId: string, userId: string) => Promise<boolean>;
+  getNoteShares: (noteId: string) => Promise<NoteShare[]>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
@@ -177,6 +188,92 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSelectedNote(note);
   };
 
+  const shareNote = async (noteId: string, userId: string, permissionLevel: 'read' | 'write' | 'admin'): Promise<boolean> => {
+    try {
+      // First update the note's is_shared status
+      const { error: updateError } = await supabase
+        .from('notes')
+        .update({ is_shared: true })
+        .eq('id', noteId);
+
+      if (updateError) throw updateError;
+
+      // Then create the share record
+      const { error: shareError } = await supabase
+        .from('note_shares')
+        .insert({
+          note_id: noteId,
+          shared_with_user_id: userId,
+          permission_level: permissionLevel
+        });
+
+      if (shareError) throw shareError;
+
+      toast.success('Note shared successfully');
+      await refreshNotes();
+      return true;
+    } catch (error) {
+      console.error('Error sharing note:', error);
+      toast.error('Failed to share note');
+      return false;
+    }
+  };
+
+  const unshareNote = async (noteId: string, userId: string): Promise<boolean> => {
+    try {
+      // Delete the share record
+      const { error: deleteError } = await supabase
+        .from('note_shares')
+        .delete()
+        .eq('note_id', noteId)
+        .eq('shared_with_user_id', userId);
+
+      if (deleteError) throw deleteError;
+
+      // Check if there are any remaining shares
+      const { data: remainingShares, error: checkError } = await supabase
+        .from('note_shares')
+        .select('id')
+        .eq('note_id', noteId);
+
+      if (checkError) throw checkError;
+
+      // If no more shares, update is_shared to false
+      if (!remainingShares?.length) {
+        const { error: updateError } = await supabase
+          .from('notes')
+          .update({ is_shared: false })
+          .eq('id', noteId);
+
+        if (updateError) throw updateError;
+      }
+
+      toast.success('Note unshared successfully');
+      await refreshNotes();
+      return true;
+    } catch (error) {
+      console.error('Error unsharing note:', error);
+      toast.error('Failed to unshare note');
+      return false;
+    }
+  };
+
+  const getNoteShares = async (noteId: string): Promise<NoteShare[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('note_shares')
+        .select('*')
+        .eq('note_id', noteId);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching note shares:', error);
+      toast.error('Failed to load note shares');
+      return [];
+    }
+  };
+
   useEffect(() => {
     if (currentUser) {
       refreshNotes();
@@ -192,7 +289,10 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateNote,
       deleteNote,
       selectNote,
-      refreshNotes
+      refreshNotes,
+      shareNote,
+      unshareNote,
+      getNoteShares
     }}>
       {children}
     </NotesContext.Provider>

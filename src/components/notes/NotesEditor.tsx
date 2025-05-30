@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,10 +6,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
   Save,
-  FileText
+  FileText,
+  Share2
 } from 'lucide-react';
 import { useNotes } from '@/context/NotesContext';
 import { useAuth } from '@/context/AuthContext';
+import { ShareNoteDialog } from './ShareNoteDialog';
 
 export const NotesEditor = () => {
   const { selectedNote, updateNote } = useNotes();
@@ -18,6 +19,7 @@ export const NotesEditor = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isModified, setIsModified] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -117,15 +119,25 @@ export const NotesEditor = () => {
                 </Badge>
               )}
               {canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={!isModified}
-                >
-                  <Save className="h-4 w-4 mr-1" />
-                  Save
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowShareDialog(true)}
+                  >
+                    <Share2 className="h-4 w-4 mr-1" />
+                    Share
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={!isModified}
+                  >
+                    <Save className="h-4 w-4 mr-1" />
+                    Save
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -142,6 +154,13 @@ export const NotesEditor = () => {
           />
         </CardContent>
       </Card>
+
+      {/* Share Dialog */}
+      <ShareNoteDialog
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        note={selectedNote}
+      />
     </div>
   );
 };
