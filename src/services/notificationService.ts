@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -20,12 +19,24 @@ class NotificationService {
   async init() {
     if ('serviceWorker' in navigator) {
       try {
-        this.registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('🔧 Service Worker registered successfully');
-        
-        // Wait for service worker to be ready
-        await navigator.serviceWorker.ready;
-        console.log('✅ Service Worker is ready');
+        // Get the ready service worker registration (should be /firebase-messaging-sw.js from main.tsx)
+        this.registration = await navigator.serviceWorker.ready;
+        if (this.registration) {
+          console.log('🔧 Service Worker already registered and ready:', this.registration.scope);
+        } else {
+          console.error('❌ Service Worker not found or not ready. FCM might not work.');
+          // Attempt to re-register /firebase-messaging-sw.js if not found, though main.tsx should handle it.
+          // This is a fallback, ideally main.tsx handles the primary registration.
+          try {
+            this.registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            console.log('🔧 Fallback: Registered /firebase-messaging-sw.js');
+            await navigator.serviceWorker.ready; // wait for it to be ready
+            console.log('✅ Fallback: Service Worker is ready');
+          } catch (fbSwRegError) {
+            console.error('❌ Fallback: Failed to register /firebase-messaging-sw.js:', fbSwRegError);
+            return; // Exit if SW registration fails
+          }
+        }
         
         // Auto-setup push notifications if permission is already granted
         if (Notification.permission === 'granted') {
@@ -240,8 +251,8 @@ class NotificationService {
     }
   }
 
-  async sendPushNotification(payload: NotificationPayload) {
-    console.log('📱 Sending local push notification:', payload.title);
+  async showLocalNotificationViaServiceWorker(payload: NotificationPayload) {
+    console.log('📱 Sending local notification via Service Worker:', payload.title);
     
     if (Notification.permission !== 'granted') {
       console.log('❌ Cannot send notification: permission not granted');
@@ -255,6 +266,7 @@ class NotificationService {
 
     try {
       // Send notification via service worker for proper push notification behavior
+      // This displays a notification locally using the SW, it does not send a message to FCM server.
       await this.registration.showNotification(payload.title, {
         body: payload.body,
         icon: payload.icon || '/favicon.ico',
@@ -270,25 +282,47 @@ class NotificationService {
         navigator.vibrate([200, 100, 200]);
       }
 
-      console.log('✅ Local push notification sent successfully');
+      console.log('✅ Local notification sent successfully');
       return true;
     } catch (error) {
-      console.error('❌ Failed to show local push notification:', error);
+      console.error('❌ Failed to show local notification:', error);
       return null;
     }
   }
 
   async sendLocalNotification(payload: NotificationPayload) {
-    return this.sendPushNotification(payload);
+    return this.showLocalNotificationViaServiceWorker(payload);
   }
 
   async sendMobileNotification(title: string, body: string, data?: any) {
-    return this.sendPushNotification({
-      title,
-      body,
-      data,
-      requireInteraction: true
-    });
+    // This should use the actual push mechanism to send a notification via FCM server.
+    console.log('📱 sendMobileNotification: Triggering server-side push.');
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      if (!currentUser || !currentUser.id) {
+        console.error('❌ sendMobileNotification: Current user not found. Cannot determine target for mobile push.');
+        return false;
+      }
+      // Assuming the mobile notification is for the current user.
+      // Adjust userIds if it's for other users.
+      return await pushNotificationService.sendPushNotification(
+        [currentUser.id], 
+        title, 
+        body, 
+        {
+         ...data,
+         type: data?.type || 'mobile_notification', // Add a type for clarity
+         requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
+         icon: data?.icon || '/marvellous-logo-black.png',
+         badge: data?.badge || '/marvellous-logo-black.png',
+         url: data?.url || '/',
+         tag: data?.tag || `mobile-notif-${Date.now()}`
+        }
+      );
+    } catch (error) {
+      console.error('❌ Error in sendMobileNotification:', error);
+      return false;
+    }
   }
 
   async sendTaskAssignmentNotifications(
@@ -486,7 +520,7 @@ class NotificationService {
     });
 
     // Send push notification via service worker
-    const result = await this.sendPushNotification({
+    const result = await this.showLocalNotificationViaServiceWorker({
       title: '📱 Service Worker Test Notification',
       body: 'This is a service worker push notification test!',
       tag: 'sw-test-notification',

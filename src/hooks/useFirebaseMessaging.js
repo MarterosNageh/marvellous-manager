@@ -30,40 +30,6 @@ export const useFirebaseMessaging = () => {
     }
   }, []);
 
-  const saveTokenToSupabase = async (fcmToken) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.error('No authenticated user found');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
-          endpoint: `https://fcm.googleapis.com/fcm/${fcmToken}`,
-          p256dh: 'FCM',
-          auth: 'FCM',
-          created_at: new Date().toISOString()
-        }, {
-          onConflict: 'endpoint'
-        });
-
-      if (error) {
-        console.error('Error saving FCM token:', error);
-        throw error;
-      }
-
-      console.log('FCM token saved successfully');
-      return data;
-    } catch (error) {
-      console.error('Error in saveTokenToSupabase:', error);
-      throw error;
-    }
-  };
-
   const initializeMessaging = async () => {
     try {
       // Check if service worker is registered
@@ -83,11 +49,10 @@ export const useFirebaseMessaging = () => {
         });
         
         if (currentToken) {
-          console.log('FCM Token obtained:', currentToken);
+          console.log('FCM Token obtained by useFirebaseMessaging:', currentToken);
           setToken(currentToken);
-          await saveTokenToSupabase(currentToken);
         } else {
-          const error = 'No registration token available.';
+          const error = 'No registration token available. Firebase SDK could not get a token.';
           console.error(error);
           setError(error);
         }
