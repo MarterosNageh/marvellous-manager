@@ -146,6 +146,7 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
     console.error('FCM token is null or empty for sendFCMNotificationV1, cannot send notification.');
     return { success: false, error: 'FCM token was null or empty' };
   }
+
   try {
     const accessToken = await getAccessToken();
     const fcmV1Endpoint = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
@@ -154,33 +155,26 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
       message: {
         token: fcmToken,
         notification: {
-          title: title,
-          body: body,
-          // icon: data?.icon || '/favicon.ico', // Standard notification fields
+          title: title || 'Notification',
+          body: body || 'You have a new notification',
         },
-        data: data, // Custom data payload
+        data: data || {}, // Ensure data is never undefined
         webpush: {
-          // headers: { // Optional: TTL, Urgency, Topic
-          //   TTL: '86400', // 1 day in seconds
-          //   Urgency: 'high'
-          // },
-          notification: { // Webpush-specific notification fields (can override or extend general notification)
-              // title: title, // Can be repeated here if needed
-              // body: body,
-              icon: data?.icon || '/marvellous-logo-black.png', // Recommended: provide an icon
-              badge: data?.badge || '/marvellous-logo-black.png', // For Android
-              tag: data?.tag, // Allows replacing an existing notification with the same tag
-              // requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
-              // actions: data?.actions // e.g., [{ action: 'explore', title: 'Explore'}]
+          notification: {
+            icon: (data?.icon || '/marvellous-logo-black.png'),
+            badge: (data?.badge || '/marvellous-logo-black.png'),
+            tag: data?.tag,
+            requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
           },
           fcm_options: {
-            link: data?.url || `/` // The page to open when the notification is clicked
+            link: data?.url || '/'
           }
         }
       }
     };
 
     console.log(`Sending FCM v1 to token: ${fcmToken.substring(0,30)}... for user ${userId}, title: ${title}`);
+    console.log('Message payload:', JSON.stringify(messagePayload, null, 2));
 
     const fcmResponse = await fetch(fcmV1Endpoint, {
       method: 'POST',
@@ -191,7 +185,7 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
       body: JSON.stringify(messagePayload),
     });
 
-    const responseBodyText = await fcmResponse.text(); // Read body once
+    const responseBodyText = await fcmResponse.text();
 
     if (!fcmResponse.ok) {
       console.error(
@@ -200,37 +194,58 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
         fcmResponse.statusText, 
         responseBodyText
       );
-      // Standard error codes for token issues: 'UNREGISTERED', 'INVALID_ARGUMENT' (if token is malformed)
-      // Consider 404 or 400 for UNREGISTERED/INVALID_ARGUMENT for token cleanup
+
       if (fcmResponse.status === 404 || fcmResponse.status === 400) {
-         try {
-            const errorJson = JSON.parse(responseBodyText);
-            if (errorJson.error && (errorJson.error.details || []).some((detail: any) => detail.errorCode === 'UNREGISTERED' || detail.errorCode === 'INVALID_ARGUMENT' || detail.errorCode === 'SENDER_ID_MISMATCH')) {
-                console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} is ${errorJson.error.details[0].errorCode}. Scheduling cleanup.`);
-                await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
-            }
-         } catch (e) {
-            // If parsing fails, still log it, but might not be a structured FCM error
-            console.warn('Could not parse FCM error response as JSON for cleanup decision:', e);
-            if (responseBodyText.toLowerCase().includes('unregistered') || responseBodyText.toLowerCase().includes('invalid registration token') || responseBodyText.toLowerCase().includes('mismatched sender id')) {
-                 console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} seems invalid (text match). Scheduling cleanup.`);
-                 await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
-            }
-         }
+        try {
+          const errorJson = JSON.parse(responseBodyText);
+          if (errorJson.error && (errorJson.error.details || []).some((detail: any) => 
+            detail.errorCode === 'UNREGISTERED' || 
+            detail.errorCode === 'INVALID_ARGUMENT' || 
+            detail.errorCode === 'SENDER_ID_MISMATCH'
+          )) {
+            console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} is ${errorJson.error.details[0].errorCode}. Scheduling cleanup.`);
+            await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
+          }
+        } catch (e) {
+          console.warn('Could not parse FCM error response as JSON for cleanup decision:', e);
+          if (responseBodyText.toLowerCase().includes('unregistered') || 
+              responseBodyText.toLowerCase().includes('invalid registration token') || 
+              responseBodyText.toLowerCase().includes('mismatched sender id')
+          ) {
+            console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} seems invalid (text match). Scheduling cleanup.`);
+            await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
+          }
+        }
       }
-      return { success: false, status: fcmResponse.status, body: responseBodyText, error: `FCM HTTP Error: ${fcmResponse.status} - ${responseBodyText.substring(0,100)}` };
-    } else {
-      console.log(`Successfully sent FCM v1 notification to user ${userId}, token ${fcmToken.substring(0,30)}... Body: ${responseBodyText.substring(0,100)}`);
-      try {
-        return { success: true, status: fcmResponse.status, body: JSON.parse(responseBodyText) };
-      } catch (parseError) {
-        console.warn('FCM success response was not JSON:', parseError, responseBodyText);
-        return { success: true, status: fcmResponse.status, body: responseBodyText }; // Return raw body if JSON parse fails
-      }
+      return { 
+        success: false, 
+        status: fcmResponse.status, 
+        body: responseBodyText, 
+        error: `FCM HTTP Error: ${fcmResponse.status} - ${responseBodyText.substring(0,100)}` 
+      };
+    }
+
+    console.log(`Successfully sent FCM v1 notification to user ${userId}, token ${fcmToken.substring(0,30)}... Body: ${responseBodyText.substring(0,100)}`);
+    try {
+      return { 
+        success: true, 
+        status: fcmResponse.status, 
+        body: JSON.parse(responseBodyText) 
+      };
+    } catch (parseError) {
+      console.warn('FCM success response was not JSON:', parseError, responseBodyText);
+      return { 
+        success: true, 
+        status: fcmResponse.status, 
+        body: responseBodyText 
+      };
     }
   } catch (error) {
     console.error(`Exception during FCM v1 send for user ${userId}, token ${fcmToken.substring(0,30)}...:`, error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || 'Unknown error during FCM send' 
+    };
   }
 }
 
@@ -330,44 +345,63 @@ serve(async (req: Request) => {
   let failed = 0;
   let cleanedUp = 0;
 
-  for (const sub of subscriptions) {
-    const rawFcmToken = extractFcmToken(sub.endpoint);
-    if (rawFcmToken) {
-      console.log('📱 Processing subscription endpoint:', sub.endpoint.substring(0, 50) + '...');
-      console.log('📱 Extracted FCM token:', rawFcmToken.substring(0, 20) + '...');
-      
-      const result = await sendFCMNotificationV1(rawFcmToken, title, body, data, supabaseAdmin, sub.user_id, sub.endpoint);
-      results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0, 50) + '...', ...result });
-      
-      if (result.success) successful++;
-      else {
+  try {
+    for (const sub of subscriptions) {
+      try {
+        const rawFcmToken = extractFcmToken(sub.endpoint);
+        if (rawFcmToken) {
+          console.log('📱 Processing subscription endpoint:', sub.endpoint.substring(0, 50) + '...');
+          console.log('📱 Extracted FCM token:', rawFcmToken.substring(0, 20) + '...');
+          
+          const result = await sendFCMNotificationV1(rawFcmToken, title, body, data, supabaseAdmin, sub.user_id, sub.endpoint);
+          results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0, 50) + '...', ...result });
+          
+          if (result.success) successful++;
+          else {
+            failed++;
+            if (result.status === 404 || result.status === 400) cleanedUp++;
+          }
+        } else {
+          console.warn(`Could not extract FCM token from endpoint: ${sub.endpoint} for user ${sub.user_id}. Skipping.`);
+          results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: 'Could not extract token' });
+          failed++;
+        }
+      } catch (subError) {
+        console.error('❌ Error processing subscription for user', sub.user_id, ':', subError);
+        results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: subError.message });
         failed++;
-        if (result.status === 404 || result.status === 400) cleanedUp++;
       }
-    } else {
-      console.warn(`Could not extract FCM token from endpoint: ${sub.endpoint} for user ${sub.user_id}. Skipping.`);
-      results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: 'Could not extract token' });
-      failed++;
     }
-  }
 
-  console.log('📱 FCM v1 Notification Summary:', { total: subscriptions.length, successful, failed, cleanedUp });
-  
-  if (failed > 0) {
-    console.log('❌ Failed notifications:');
-    results.filter(r => !r.success).forEach((result, index) => {
-      console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+    console.log('📱 FCM v1 Notification Summary:', { total: subscriptions.length, successful, failed, cleanedUp });
+    
+    if (failed > 0) {
+      console.log('❌ Failed notifications:');
+      results.filter(r => !r.success).forEach((result, index) => {
+        console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+      });
+    }
+
+    return new Response(JSON.stringify({ 
+      message: 'Notifications processed', 
+      summary: { total: subscriptions.length, successful, failed, cleanedUp },
+      results 
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('❌ Fatal error processing notifications:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to process notifications',
+      message: error.message,
+      summary: { total: subscriptions.length, successful, failed, cleanedUp },
+      results 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-
-  return new Response(JSON.stringify({ 
-    message: 'Notifications processed', 
-    summary: { total: subscriptions.length, successful, failed, cleanedUp },
-    results 
-  }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
 });
 
 /* 
