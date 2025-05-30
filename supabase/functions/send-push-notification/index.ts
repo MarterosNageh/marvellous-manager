@@ -163,8 +163,28 @@ async function getAccessToken() {
   }
 }
 
+// Clean up invalid tokens from database
+async function cleanupInvalidToken(supabase: any, endpoint: string, userId: string) {
+  console.log('🧹 Cleaning up invalid token for user:', userId);
+  try {
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('endpoint', endpoint)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('❌ Error cleaning up invalid token:', error);
+    } else {
+      console.log('✅ Invalid token cleaned up successfully');
+    }
+  } catch (error) {
+    console.error('❌ Error in token cleanup:', error);
+  }
+}
+
 // Send FCM notification using HTTP v1 API
-async function sendFCMNotificationV1(token: string, payload: any) {
+async function sendFCMNotificationV1(token: string, payload: any, supabase: any, userId: string, endpoint: string) {
   console.log('📱 Sending FCM v1 notification to token:', token.substring(0, 20) + '...');
   
   try {
@@ -244,6 +264,21 @@ async function sendFCMNotificationV1(token: string, payload: any) {
     if (!response.ok) {
       console.error('❌ FCM v1 failed with status:', response.status);
       console.error('❌ FCM v1 error response:', responseText);
+      
+      // Check if token is invalid and clean it up
+      if (response.status === 404) {
+        try {
+          const errorData = JSON.parse(responseText);
+          if (errorData.error?.details?.[0]?.['@type']?.includes('FcmError') && 
+              errorData.error?.details?.[0]?.errorCode === 'UNREGISTERED') {
+            console.log('🧹 Token is UNREGISTERED, cleaning up from database...');
+            await cleanupInvalidToken(supabase, endpoint, userId);
+          }
+        } catch (parseError) {
+          console.log('Could not parse error response for cleanup');
+        }
+      }
+      
       return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` };
     }
     
@@ -336,7 +371,7 @@ serve(async (req) => {
           sentCount: 0,
           targetUsers: userIds.length,
           testMode: true,
-          apiVersion: 'HTTP v1 (OAuth2)'
+          apiVersion: 'HTTP v1 (OAuth2) with Auto-Cleanup'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -375,10 +410,11 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No push subscriptions found',
+          message: 'No push subscriptions found - users need to enable notifications',
           sentCount: 0,
           targetUsers: userIds.length,
-          apiVersion: 'HTTP v1 (OAuth2)'
+          apiVersion: 'HTTP v1 (OAuth2) with Auto-Cleanup',
+          suggestion: 'Users should go to FCM Setup tab and click "Enable Notifications"'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -409,7 +445,7 @@ serve(async (req) => {
             data: data || {},
             icon: '/favicon.ico',
             badge: '/favicon.ico'
-          });
+          }, supabase, subscription.user_id, endpoint);
 
           return {
             userId: subscription.user_id,
@@ -442,11 +478,13 @@ serve(async (req) => {
     const results = await Promise.all(pushPromises);
     const successCount = results.filter(r => r.success).length;
     const failedResults = results.filter(r => !r.success);
+    const cleanedUpCount = results.filter(r => r.error && r.error.includes('UNREGISTERED')).length;
 
     console.log('📱 FCM v1 Notification Summary:', {
       total: results.length,
       successful: successCount,
-      failed: results.length - successCount
+      failed: results.length - successCount,
+      cleanedUp: cleanedUpCount
     });
 
     if (failedResults.length > 0) {
@@ -470,8 +508,10 @@ serve(async (req) => {
         sentCount: successCount,
         totalSubscriptions: results.length,
         targetUsers: userIds.length,
+        cleanedUpTokens: cleanedUpCount,
         results: results,
-        apiVersion: 'HTTP v1 (OAuth2)',
+        apiVersion: 'HTTP v1 (OAuth2) with Auto-Cleanup',
+        message: cleanedUpCount > 0 ? `${cleanedUpCount} invalid token(s) were automatically cleaned up` : undefined,
         debugInfo: {
           firebaseProjectId: FIREBASE_PROJECT_ID,
           availableSecrets: availableSecrets,
@@ -488,7 +528,7 @@ serve(async (req) => {
         error: error.message,
         success: false,
         stack: error.stack,
-        apiVersion: 'HTTP v1 (OAuth2)'
+        apiVersion: 'HTTP v1 (OAuth2) with Auto-Cleanup'
       }),
       {
         status: 500,
