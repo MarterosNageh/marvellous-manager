@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -12,6 +13,7 @@ interface User {
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
+  isAuthenticated: boolean | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (username: string, password: string, isAdmin?: boolean) => Promise<boolean>;
@@ -34,6 +36,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isAuthenticated = currentUser !== null;
+
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
@@ -52,9 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser({
         id: data.id,
         username: data.username,
-        isAdmin: data.isAdmin,
-        role: data.role,
-        title: data.title
+        isAdmin: data.is_admin,
+        role: data.role || undefined,
+        title: data.title || undefined
       });
       return true;
     } catch (error) {
@@ -74,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       const { data, error } = await supabase
         .from('auth_users')
-        .insert([{ username, password, isAdmin }]);
+        .insert([{ username, password, is_admin: isAdmin }]);
 
       if (error) {
         console.error('Registration error:', error);
@@ -93,9 +97,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUser = async (userId: string, updates: Partial<User>) => {
     try {
+      // Convert frontend field names to database field names
+      const dbUpdates: any = {};
+      if (updates.isAdmin !== undefined) dbUpdates.is_admin = updates.isAdmin;
+      if (updates.username !== undefined) dbUpdates.username = updates.username;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+
       const { error } = await supabase
         .from('auth_users')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', userId);
 
       if (error) throw error;
@@ -123,7 +134,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
-      setUsers(data || []);
+      // Convert database field names to frontend field names
+      const mappedUsers: User[] = (data || []).map(user => ({
+        id: user.id,
+        username: user.username,
+        isAdmin: user.is_admin,
+        role: user.role || undefined,
+        title: user.title || undefined
+      }));
+
+      setUsers(mappedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -134,21 +154,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    if (currentUser) {
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('currentUser');
+    }
   }, [currentUser]);
 
   useEffect(() => {
     fetchUsers();
-    setLoading(false);
   }, []);
 
   return (
     <AuthContext.Provider value={{
       currentUser,
       users,
+      isAuthenticated,
       login,
       logout,
       register,

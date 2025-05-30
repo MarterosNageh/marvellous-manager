@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { 
   Calendar, 
   CheckCircle, 
@@ -18,7 +20,8 @@ import {
   TrendingUp, 
   Users,
   Activity,
-  User
+  User,
+  Plus
 } from "lucide-react";
 import { ShiftsProvider } from '@/context/ShiftsContext';
 import { format } from 'date-fns';
@@ -71,7 +74,7 @@ const DashboardContent = () => {
     }).slice(0, 5);
   }, [shifts]);
 
-  const completionPercentage = (completedTasks / tasks.length) * 100;
+  const completionPercentage = tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0;
 
   return (
     <MainLayout>
@@ -94,8 +97,8 @@ const DashboardContent = () => {
             <CardContent>
               <div className="text-2xl font-bold">{tasks.length}</div>
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <span>{completedTasks} completed</span>
-                <Badge variant="secondary">{completionPercentage}%</Badge>
+                <span>{completedTasks.length} completed</span>
+                <Badge variant="secondary">{Math.round(completionPercentage)}%</Badge>
               </div>
             </CardContent>
           </Card>
@@ -167,21 +170,21 @@ const DashboardContent = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Overall Progress</span>
-                      <span>{completionPercentage}%</span>
+                      <span>{Math.round(completionPercentage)}%</span>
                     </div>
                     <Progress value={completionPercentage} className="h-2" />
                   </div>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div className="text-center">
-                      <div className="font-bold text-green-600">{completedTasks}</div>
+                      <div className="font-bold text-green-600">{completedTasks.length}</div>
                       <div className="text-muted-foreground">Completed</div>
                     </div>
                     <div className="text-center">
-                      <div className="font-bold text-blue-600">{inProgressTasks}</div>
+                      <div className="font-bold text-blue-600">{inProgressTasks.length}</div>
                       <div className="text-muted-foreground">In Progress</div>
                     </div>
                     <div className="text-center">
-                      <div className="font-bold text-gray-600">{todoTasks}</div>
+                      <div className="font-bold text-gray-600">{todoTasks.length}</div>
                       <div className="text-muted-foreground">To Do</div>
                     </div>
                   </div>
