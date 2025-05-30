@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { messaging, getToken, onMessage } from '../config/firebase';
-import supabase from '../config/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 // VAPID key from Firebase Console
 const VAPID_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
