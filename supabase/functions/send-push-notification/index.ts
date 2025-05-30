@@ -7,56 +7,182 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Firebase config for marvellous-manager project
-const FIREBASE_CONFIG = {
-  projectId: "marvellous-manager",
-  // Using the correct Firebase Messaging Server Key format
-  serverKey: "AAAAwKvN8Ks:APA91bEQZJ4xJYoB8wQsE_0j6wK5FqYrDqVu3k5J-YQu8ZIoMZG2YwjJbV4yMPgNsF1eDj6Q7kZvJ4wR8sL9aE5mN3qP2oT6yU9iH7cB1fK0gX5vN8dR2sE4wQ1aZ3bM7nL0jF"
-};
+// Firebase project configuration
+const FIREBASE_PROJECT_ID = "marvellous-manager";
 
-async function sendFCMNotification(token: string, payload: any) {
-  console.log('📱 Sending FCM notification to token:', token.substring(0, 20) + '...');
+// Get Firebase service account from Supabase secrets
+async function getFirebaseServiceAccount() {
+  const serviceAccount = Deno.env.get('FCM_PRIVATE_KEY');
+  if (!serviceAccount) {
+    throw new Error('FCM_PRIVATE_KEY environment variable not found');
+  }
   
   try {
-    // Use the correct FCM Legacy API endpoint
-    const fcmUrl = 'https://fcm.googleapis.com/fcm/send';
+    return JSON.parse(serviceAccount);
+  } catch (error) {
+    throw new Error('Invalid FCM_PRIVATE_KEY JSON format');
+  }
+}
+
+// Generate OAuth2 access token using service account
+async function getAccessToken() {
+  console.log('🔐 Generating OAuth2 access token...');
+  
+  try {
+    const serviceAccount = await getFirebaseServiceAccount();
+    
+    // Create JWT for OAuth2
+    const now = Math.floor(Date.now() / 1000);
+    const iat = now;
+    const exp = now + 3600; // 1 hour expiration
+    
+    const header = {
+      alg: 'RS256',
+      typ: 'JWT'
+    };
+    
+    const payload = {
+      iss: serviceAccount.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: iat,
+      exp: exp
+    };
+    
+    // Base64URL encode header and payload
+    const encodedHeader = btoa(JSON.stringify(header)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const encodedPayload = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    
+    // Import private key for signing
+    const privateKeyPem = serviceAccount.private_key;
+    const privateKey = await crypto.subtle.importKey(
+      'pkcs8',
+      new TextEncoder().encode(privateKeyPem.replace(/\\n/g, '\n')),
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
+      },
+      false,
+      ['sign']
+    );
+    
+    // Sign the JWT
+    const signature = await crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5',
+      privateKey,
+      new TextEncoder().encode(signingInput)
+    );
+    
+    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    
+    const jwt = `${signingInput}.${encodedSignature}`;
+    
+    // Exchange JWT for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt
+      })
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('❌ OAuth2 token request failed:', errorText);
+      throw new Error(`OAuth2 token request failed: ${tokenResponse.status}`);
+    }
+    
+    const tokenData = await tokenResponse.json();
+    console.log('✅ OAuth2 access token generated successfully');
+    
+    return tokenData.access_token;
+  } catch (error) {
+    console.error('❌ Error generating access token:', error);
+    throw error;
+  }
+}
+
+// Send FCM notification using HTTP v1 API
+async function sendFCMNotificationV1(token: string, payload: any) {
+  console.log('📱 Sending FCM v1 notification to token:', token.substring(0, 20) + '...');
+  
+  try {
+    const accessToken = await getAccessToken();
+    
+    const fcmUrl = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
     
     const message = {
-      to: token,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        icon: payload.icon || '/favicon.ico',
-        click_action: payload.data?.url || '/task-manager'
-      },
-      data: {
-        ...payload.data,
-        click_action: payload.data?.url || '/task-manager'
-      },
-      priority: 'high',
-      content_available: true
+      message: {
+        token: token,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          image: payload.icon || '/favicon.ico'
+        },
+        data: {
+          ...payload.data,
+          click_action: payload.data?.url || '/task-manager'
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            click_action: payload.data?.url || '/task-manager'
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              category: payload.data?.url || '/task-manager'
+            }
+          }
+        },
+        webpush: {
+          headers: {
+            Urgency: 'high'
+          },
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            icon: payload.icon || '/favicon.ico',
+            badge: '/favicon.ico',
+            requireInteraction: true,
+            data: payload.data
+          },
+          fcm_options: {
+            link: payload.data?.url || '/task-manager'
+          }
+        }
+      }
     };
 
-    console.log('📤 Sending FCM message with payload:', JSON.stringify(message, null, 2));
+    console.log('📤 Sending FCM v1 message with payload:', JSON.stringify(message, null, 2));
 
     const response = await fetch(fcmUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `key=${FIREBASE_CONFIG.serverKey}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(message)
     });
     
-    console.log('📤 FCM Response status:', response.status);
-    console.log('📤 FCM Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('📤 FCM v1 Response status:', response.status);
+    console.log('📤 FCM v1 Response headers:', Object.fromEntries(response.headers.entries()));
     
     const responseText = await response.text();
-    console.log('📤 FCM Response body:', responseText);
+    console.log('📤 FCM v1 Response body:', responseText);
     
     if (!response.ok) {
-      console.error('❌ FCM failed with status:', response.status);
-      console.error('❌ FCM error response:', responseText);
+      console.error('❌ FCM v1 failed with status:', response.status);
+      console.error('❌ FCM v1 error response:', responseText);
       return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` };
     }
     
@@ -67,18 +193,18 @@ async function sendFCMNotification(token: string, payload: any) {
       result = { raw: responseText };
     }
     
-    console.log('✅ FCM Response parsed:', result);
+    console.log('✅ FCM v1 Response parsed:', result);
     
     return { success: true, fcmResponse: result };
     
   } catch (error) {
-    console.error('❌ Error sending FCM notification:', error);
+    console.error('❌ Error sending FCM v1 notification:', error);
     return { success: false, error: error.message };
   }
 }
 
 serve(async (req) => {
-  console.log('📱 === FCM PUSH NOTIFICATION FUNCTION START ===');
+  console.log('📱 === FCM PUSH NOTIFICATION FUNCTION START (HTTP v1) ===');
   console.log('🔗 Request URL:', req.url);
   console.log('🔗 Request method:', req.method);
   
@@ -111,7 +237,7 @@ serve(async (req) => {
     const parsedBody = JSON.parse(requestBody);
     const { userIds, title, body, data } = parsedBody;
     
-    console.log('📱 FCM Notification Request:', { userIds, title, body, data });
+    console.log('📱 FCM v1 Notification Request:', { userIds, title, body, data });
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return new Response(
@@ -148,7 +274,8 @@ serve(async (req) => {
           message: 'Test authentication successful',
           sentCount: 0,
           targetUsers: userIds.length,
-          testMode: true
+          testMode: true,
+          apiVersion: 'HTTP v1 (OAuth2)'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -189,13 +316,14 @@ serve(async (req) => {
           success: true, 
           message: 'No push subscriptions found',
           sentCount: 0,
-          targetUsers: userIds.length
+          targetUsers: userIds.length,
+          apiVersion: 'HTTP v1 (OAuth2)'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Send notifications using FCM
+    // Send notifications using FCM HTTP v1 API
     const pushPromises = pushSubscriptions.map(async (subscription) => {
       try {
         let endpoint = subscription.endpoint;
@@ -213,8 +341,8 @@ serve(async (req) => {
         }
 
         if (token) {
-          // Use FCM API for Firebase endpoints
-          const result = await sendFCMNotification(token, {
+          // Use FCM HTTP v1 API for Firebase endpoints
+          const result = await sendFCMNotificationV1(token, {
             title,
             body,
             data: data || {},
@@ -225,7 +353,7 @@ serve(async (req) => {
           return {
             userId: subscription.user_id,
             endpoint: endpoint.substring(0, 50) + '...',
-            method: 'fcm',
+            method: 'fcm-v1',
             ...result
           };
         } else {
@@ -235,7 +363,7 @@ serve(async (req) => {
             endpoint: endpoint.substring(0, 50) + '...',
             method: 'web-push',
             success: false,
-            error: 'Web Push not implemented - only FCM supported'
+            error: 'Web Push not implemented - only FCM HTTP v1 supported'
           };
         }
       } catch (sendError) {
@@ -254,7 +382,7 @@ serve(async (req) => {
     const successCount = results.filter(r => r.success).length;
     const failedResults = results.filter(r => !r.success);
 
-    console.log('📱 FCM Notification Summary:', {
+    console.log('📱 FCM v1 Notification Summary:', {
       total: results.length,
       successful: successCount,
       failed: results.length - successCount
@@ -274,10 +402,11 @@ serve(async (req) => {
         totalSubscriptions: results.length,
         targetUsers: userIds.length,
         results: results,
+        apiVersion: 'HTTP v1 (OAuth2)',
         debugInfo: {
-          firebaseProjectId: FIREBASE_CONFIG.projectId,
-          hasServerKey: !!FIREBASE_CONFIG.serverKey,
-          serverKeyPreview: FIREBASE_CONFIG.serverKey ? FIREBASE_CONFIG.serverKey.substring(0, 20) + '...' : 'none'
+          firebaseProjectId: FIREBASE_PROJECT_ID,
+          hasServiceAccount: !!Deno.env.get('FCM_PRIVATE_KEY'),
+          serviceAccountPreview: Deno.env.get('FCM_PRIVATE_KEY') ? 'Configured' : 'Missing'
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -289,7 +418,8 @@ serve(async (req) => {
       JSON.stringify({ 
         error: error.message,
         success: false,
-        stack: error.stack
+        stack: error.stack,
+        apiVersion: 'HTTP v1 (OAuth2)'
       }),
       {
         status: 500,
