@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
-import { useTasks } from "@/context/TaskContext";
+import { useTask } from "@/context/TaskContext";
 import { useShifts } from "@/context/ShiftsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,19 @@ import { ShiftsProvider } from "@/context/ShiftsContext";
 
 const DashboardContent = () => {
   const { currentUser } = useAuth();
-  const { tasks, getTasksByStatus } = useTasks();
+  const { tasks } = useTask();
   const { getCurrentShifts, getTodayShifts, loading: shiftsLoading } = useShifts();
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+
+  // Helper function to get tasks by status
+  const getTasksByStatus = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      "To Do": "pending",
+      "In Progress": "in_progress", 
+      "Done": "completed"
+    };
+    return tasks.filter(task => task.status === statusMap[status]);
+  };
 
   const todoTasks = getTasksByStatus("To Do");
   const inProgressTasks = getTasksByStatus("In Progress");

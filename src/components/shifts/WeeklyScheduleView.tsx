@@ -6,7 +6,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, MoreHorizontal, User, Clock } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from 'date-fns';
+import { 
+  format, 
+  startOfWeek, 
+  endOfWeek, 
+  eachDayOfInterval, 
+  addWeeks, 
+  subWeeks, 
+  isSameDay 
+} from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ShiftWithUser } from '@/types/shiftTypes';
 

@@ -48,8 +48,10 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (error) throw error;
 
-      const shiftsWithUsers = data.map(shift => ({
+      const shiftsWithUsers: ShiftWithUser[] = data.map(shift => ({
         ...shift,
+        shift_type: shift.shift_type as 'morning' | 'evening' | 'night' | 'custom',
+        status: shift.status as 'scheduled' | 'completed' | 'cancelled',
         user: users.find(user => user.id === shift.user_id)
       }));
 
@@ -71,8 +73,10 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (error) throw error;
 
-      const requestsWithUsers = data.map(request => ({
+      const requestsWithUsers: ShiftRequestWithUser[] = data.map(request => ({
         ...request,
+        request_type: request.request_type as 'time_off' | 'extra_work' | 'shift_change',
+        status: request.status as 'pending' | 'approved' | 'rejected',
         user: users.find(user => user.id === request.user_id)
       }));
 

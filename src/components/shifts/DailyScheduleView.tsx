@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { User, Clock, MapPin, MoreHorizontal } from 'lucide-react';
+import { User, Clock, MapPin, MoreHorizontal, Calendar } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ShiftWithUser } from '@/types/shiftTypes';
