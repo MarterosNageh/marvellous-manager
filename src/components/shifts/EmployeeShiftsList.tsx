@@ -96,7 +96,7 @@ export const EmployeeShiftsList = () => {
              filter === 'week' ? 'This Week\'s Shifts' : 'Upcoming Shifts'}
             <Badge variant="secondary">{sortedShifts.length}</Badge>
           </CardTitle>
-        </CardContent>
+        </CardHeader>
         <CardContent>
           {sortedShifts.length === 0 ? (
             <div className="text-center py-8 text-gray-500">

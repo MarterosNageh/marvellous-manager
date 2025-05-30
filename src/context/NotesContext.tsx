@@ -63,23 +63,49 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Get notes owned by the user
+      const { data: ownedNotes, error: ownedError } = await supabase
         .from('notes')
         .select(`
           *,
           user:auth_users(username)
         `)
+        .eq('user_id', currentUser.id)
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (ownedError) throw ownedError;
+
+      // Get notes shared with the user
+      const { data: sharedNotes, error: sharedError } = await supabase
+        .from('note_shares')
+        .select(`
+          notes (
+            *,
+            user:auth_users(username)
+          )
+        `)
+        .eq('shared_with_user_id', currentUser.id);
+
+      if (sharedError) throw sharedError;
+
+      // Combine owned and shared notes
+      const allNotes = [
+        ...(ownedNotes || []),
+        ...(sharedNotes || []).map(share => share.notes).filter(Boolean).flat()
+      ];
 
       // Type cast the data to match our Note interface
-      const typedNotes = (data || []).map(note => ({
+      const typedNotes = allNotes.map(note => ({
         ...note,
         note_type: note.note_type as 'note' | 'folder'
       })) as Note[];
 
-      setNotes(typedNotes);
+      // Remove duplicates based on id
+      const uniqueNotes = typedNotes.filter((note, index, self) => 
+        index === self.findIndex(n => n.id === note.id)
+      );
+
+      setNotes(uniqueNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
       toast.error('Failed to fetch notes');

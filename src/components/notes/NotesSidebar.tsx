@@ -53,7 +53,10 @@ export const NotesSidebar = () => {
   };
 
   const handleCreateNote = async () => {
-    await createNote('New Note', '');
+    const newNote = await createNote('New Note', '');
+    if (newNote) {
+      selectNote(newNote);
+    }
   };
 
   const handleCreateFolder = async () => {
@@ -89,7 +92,13 @@ export const NotesSidebar = () => {
       className={`group cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${
         selectedNote?.id === note.id ? 'bg-blue-100 dark:bg-blue-900' : ''
       } ${isChild ? 'ml-4' : ''}`}
-      onClick={() => note.note_type === 'note' ? selectNote(note) : toggleFolder(note.id)}
+      onClick={() => {
+        if (note.note_type === 'folder') {
+          toggleFolder(note.id);
+        } else {
+          selectNote(note);
+        }
+      }}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 flex-1 min-w-0">
