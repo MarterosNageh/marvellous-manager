@@ -60,7 +60,7 @@ export const DailyScheduleView = () => {
             <Card key={shift.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{shift.title}</CardTitle>
+                  <CardTitle className="text-lg">{shift.title || 'Shift'}</CardTitle>
                   <Badge variant={shift.shift_type === 'morning' ? 'default' : shift.shift_type === 'evening' ? 'secondary' : 'outline'}>
                     {shift.shift_type}
                   </Badge>
@@ -69,9 +69,9 @@ export const DailyScheduleView = () => {
                   {shift.user?.username} • {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
                 </CardDescription>
               </CardHeader>
-              {shift.description && (
+              {shift.notes && (
                 <CardContent>
-                  <p className="text-sm text-gray-600">{shift.description}</p>
+                  <p className="text-sm text-gray-600">{shift.notes}</p>
                 </CardContent>
               )}
             </Card>

@@ -108,8 +108,8 @@ const DashboardContent = () => {
     const projectMap = new Map();
     
     hardDrives.forEach(drive => {
-      if (drive.project_id) {
-        const project = projects.find(p => p.id === drive.project_id);
+      if (drive.projectId) {
+        const project = projects.find(p => p.id === drive.projectId);
         const projectName = project?.name || 'Unknown Project';
         
         if (!projectMap.has(projectName)) {
@@ -126,16 +126,16 @@ const DashboardContent = () => {
     }));
   }, [hardDrives, projects]);
 
-  // Low space indicator
+  // Low space indicator - check backup drives with ≤15% free space
   const lowSpaceHardDrives = useMemo(() => {
     return hardDrives.filter(drive => {
       // Check if it's a backup drive
-      const isBackupDrive = drive.name.includes('BK') || drive.name.includes('Backup');
+      const isBackupDrive = drive.name && (drive.name.includes('BK') || drive.name.includes('Backup'));
       if (!isBackupDrive) return false;
 
       // Parse capacity and free space
-      const capacity = parseFloat(drive.capacity?.replace(/[^\d.]/g, '') || '0');
-      const freeSpace = parseFloat(drive.free_space?.replace(/[^\d.]/g, '') || '0');
+      const capacity = parseFloat((drive.capacity || '0').replace(/[^\d.]/g, ''));
+      const freeSpace = parseFloat((drive.freeSpace || '0').replace(/[^\d.]/g, ''));
       
       if (capacity === 0) return false;
       
@@ -343,7 +343,7 @@ const DashboardContent = () => {
                         <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div>
                             <div className="font-medium">{shift.user?.username}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium">
@@ -455,17 +455,15 @@ const DashboardContent = () => {
                   <div className="space-y-3">
                     {projects.slice(0, 5).map((project) => (
                       <div key={project.id} className="flex items-center space-x-3">
-                        <div className={`w-2 h-2 rounded-full ${
-                          project.status === 'active' ? 'bg-green-500' : 'bg-gray-300'
-                        }`} />
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{project.name}</p>
                           <p className="text-xs text-muted-foreground">
                             {project.description || 'No description'}
                           </p>
                         </div>
-                        <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
-                          {project.status || 'active'}
+                        <Badge variant="default">
+                          Active
                         </Badge>
                       </div>
                     ))}
@@ -486,7 +484,7 @@ const DashboardContent = () => {
                         <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div>
                             <div className="font-medium">{shift.user?.username}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium">
@@ -538,14 +536,11 @@ const DashboardContent = () => {
                         <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div>
                             <div className="font-medium">{project.name}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{project.description}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{project.description || 'No description'}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-medium">
-                              {project.status}
-                            </div>
-                            <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
-                              {project.status.replace('_', ' ')}
+                            <Badge variant="default">
+                              Active
                             </Badge>
                           </div>
                         </div>
@@ -557,61 +552,29 @@ const DashboardContent = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Project Status</CardTitle>
+                  <CardTitle>Project Statistics</CardTitle>
                   <CardDescription>Track project progress</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-medium">Project Status</h3>
-                        <p className="text-sm text-muted-foreground">View project statuses</p>
+                        <h3 className="font-medium">Project Statistics</h3>
+                        <p className="text-sm text-muted-foreground">View project metrics</p>
                       </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Status
-                      </Button>
                     </div>
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <div>
-                          <div className="font-medium">Active</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects in progress</div>
+                          <div className="font-medium">Active Projects</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Currently running</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium">
-                            3
+                            {projects.length}
                           </div>
                           <Badge variant="default">
                             Active
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Completed</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects completed</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            2
-                          </div>
-                          <Badge variant="default">
-                            Completed
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Pending</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects pending</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            1
-                          </div>
-                          <Badge variant="default">
-                            Pending
                           </Badge>
                         </div>
                       </div>
@@ -642,11 +605,11 @@ const DashboardContent = () => {
                       </Button>
                     </div>
                     <div className="grid gap-4">
-                      {shifts.map((shift) => (
+                      {shifts.slice(0, 5).map((shift) => (
                         <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div>
-                            <div className="font-medium">{shift.title}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.description}</div>
+                            <div className="font-medium">{shift.title || 'Shift'}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.user?.username}</div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium">
@@ -665,61 +628,29 @@ const DashboardContent = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Shift Status</CardTitle>
-                  <CardDescription>Track shift progress</CardDescription>
+                  <CardTitle>Shift Statistics</CardTitle>
+                  <CardDescription>Track shift metrics</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-medium">Shift Status</h3>
-                        <p className="text-sm text-muted-foreground">View shift statuses</p>
+                        <h3 className="font-medium">Shift Statistics</h3>
+                        <p className="text-sm text-muted-foreground">View shift metrics</p>
                       </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Status
-                      </Button>
                     </div>
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <div>
                           <div className="font-medium">Scheduled</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts scheduled</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Total scheduled shifts</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium">
-                            3
+                            {currentShifts.length}
                           </div>
                           <Badge variant="default">
                             Scheduled
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Completed</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts completed</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            2
-                          </div>
-                          <Badge variant="default">
-                            Completed
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Pending</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts pending</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            1
-                          </div>
-                          <Badge variant="default">
-                            Pending
                           </Badge>
                         </div>
                       </div>
@@ -750,18 +681,18 @@ const DashboardContent = () => {
                       </Button>
                     </div>
                     <div className="grid gap-4">
-                      {hardDrives.map((device) => (
+                      {hardDrives.slice(0, 5).map((device) => (
                         <div key={device.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div>
                             <div className="font-medium">{device.name}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{device.description}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{device.serialNumber}</div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium">
-                              {device.status}
+                              Available
                             </div>
-                            <Badge variant={device.status === 'available' ? 'default' : 'secondary'}>
-                              {device.status.replace('_', ' ')}
+                            <Badge variant="default">
+                              Available
                             </Badge>
                           </div>
                         </div>
@@ -773,20 +704,16 @@ const DashboardContent = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Device Status</CardTitle>
-                  <CardDescription>Track device progress</CardDescription>
+                  <CardTitle>Device Statistics</CardTitle>
+                  <CardDescription>Track device metrics</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-medium">Device Status</h3>
-                        <p className="text-sm text-muted-foreground">View device statuses</p>
+                        <h3 className="font-medium">Device Statistics</h3>
+                        <p className="text-sm text-muted-foreground">View device metrics</p>
                       </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Status
-                      </Button>
                     </div>
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -796,38 +723,10 @@ const DashboardContent = () => {
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium">
-                            3
+                            {hardDrives.length}
                           </div>
                           <Badge variant="default">
                             Available
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">In Use</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices in use</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            2
-                          </div>
-                          <Badge variant="default">
-                            In Use
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Pending</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices pending</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            1
-                          </div>
-                          <Badge variant="default">
-                            Pending
                           </Badge>
                         </div>
                       </div>

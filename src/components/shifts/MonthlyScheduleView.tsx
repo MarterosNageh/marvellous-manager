@@ -14,8 +14,8 @@ import {
   eachDayOfInterval, 
   isSameDay, 
   subMonths, 
-  addMonths,
-  isSameMonth
+  addMonths, 
+  isSameMonth 
 } from 'date-fns';
 
 export const MonthlyScheduleView = () => {
@@ -53,8 +53,6 @@ export const MonthlyScheduleView = () => {
     setSelectedMonth(new Date());
   };
 
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -76,8 +74,8 @@ export const MonthlyScheduleView = () => {
       </div>
 
       <div className="grid grid-cols-7 gap-1">
-        {weekDays.map((day) => (
-          <div key={day} className="p-2 text-center font-medium text-sm text-gray-600">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+          <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
             {day}
           </div>
         ))}
@@ -88,7 +86,7 @@ export const MonthlyScheduleView = () => {
           const isToday = isSameDay(day, new Date());
           
           return (
-            <Card key={day.toISOString()} className={`min-h-24 ${!isCurrentMonth ? 'opacity-50' : ''} ${isToday ? 'ring-2 ring-blue-500' : ''}`}>
+            <Card key={day.toISOString()} className={`min-h-[100px] ${!isCurrentMonth ? 'opacity-50' : ''} ${isToday ? 'border-blue-500' : ''}`}>
               <CardContent className="p-2">
                 <div className="text-sm font-medium mb-1">
                   {format(day, 'd')}

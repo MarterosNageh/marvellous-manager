@@ -8,19 +8,17 @@ interface User {
   isAdmin: boolean;
   role?: string;
   title?: string;
+  created_at: string;
 }
 
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
-  isAuthenticated: boolean | null;
+  isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
-  register: (username: string, password: string, isAdmin?: boolean) => Promise<boolean>;
-  updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
-  addUser: (username: string, password: string, isAdmin?: boolean, role?: string, title?: string) => Promise<boolean>;
-  removeUser: (userId: string) => Promise<boolean>;
-  loading: boolean;
+  refreshUsers: () => Promise<void>;
+  updateUser: (userId: string, userData: Partial<User>) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,38 +34,38 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const isAuthenticated = currentUser !== null;
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase.from('auth_users').select('*').eq('username', username).single();
+      console.log('Attempting login for user:', username);
+      
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
 
-      if (error) {
-        console.error('Login error:', error);
+      if (error || !data) {
+        console.error('Login failed:', error);
         return false;
       }
 
-      if (!data || data.password !== password) {
-        console.log('Invalid credentials');
-        return false;
-      }
-
-      setCurrentUser({
+      const user: User = {
         id: data.id,
         username: data.username,
         isAdmin: data.is_admin,
-        role: data.role || undefined,
-        title: data.title || undefined
-      });
+        role: data.role,
+        title: data.title,
+        created_at: data.created_at
+      };
+
+      setCurrentUser(user);
+      console.log('Login successful:', user);
       return true;
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -75,146 +73,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
   };
 
-  const register = async (username: string, password: string, isAdmin = false): Promise<boolean> => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('auth_users')
-        .insert([{ username, password, is_admin: isAdmin }]);
-
-      if (error) {
-        console.error('Registration error:', error);
-        return false;
-      }
-
-      console.log('Registration successful:', data);
-      return true;
-    } catch (error) {
-      console.error('Registration failed:', error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addUser = async (username: string, password: string, isAdmin = false, role?: string, title?: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('auth_users')
-        .insert([{ 
-          username, 
-          password, 
-          is_admin: isAdmin,
-          role: role || null,
-          title: title || null
-        }]);
-
-      if (error) {
-        console.error('Add user error:', error);
-        return false;
-      }
-
-      await fetchUsers();
-      return true;
-    } catch (error) {
-      console.error('Add user failed:', error);
-      return false;
-    }
-  };
-
-  const removeUser = async (userId: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('auth_users')
-        .delete()
-        .eq('id', userId);
-
-      if (error) {
-        console.error('Remove user error:', error);
-        return false;
-      }
-
-      await fetchUsers();
-      return true;
-    } catch (error) {
-      console.error('Remove user failed:', error);
-      return false;
-    }
-  };
-
-  const updateUser = async (userId: string, updates: Partial<User>) => {
-    try {
-      // Convert frontend field names to database field names
-      const dbUpdates: any = {};
-      if (updates.isAdmin !== undefined) dbUpdates.is_admin = updates.isAdmin;
-      if (updates.username !== undefined) dbUpdates.username = updates.username;
-      if (updates.role !== undefined) dbUpdates.role = updates.role;
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-
-      const { error } = await supabase
-        .from('auth_users')
-        .update(dbUpdates)
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      // Update local state
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, ...updates } : user
-      ));
-      
-      if (currentUser?.id === userId) {
-        setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
-      }
-    } catch (error) {
-      console.error('Error updating user:', error);
-      throw error;
-    }
-  };
-
-  const fetchUsers = async () => {
+  const refreshUsers = async () => {
     try {
       const { data, error } = await supabase
         .from('auth_users')
         .select('*')
         .order('username');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching users:', error);
+        return;
+      }
 
-      // Convert database field names to frontend field names
-      const mappedUsers: User[] = (data || []).map(user => ({
+      const mappedUsers: User[] = data.map(user => ({
         id: user.id,
         username: user.username,
         isAdmin: user.is_admin,
-        role: user.role || undefined,
-        title: user.title || undefined
+        role: user.role,
+        title: user.title,
+        created_at: user.created_at
       }));
 
       setUsers(mappedUsers);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error refreshing users:', error);
+    }
+  };
+
+  const updateUser = async (userId: string, userData: Partial<User>): Promise<boolean> => {
+    try {
+      const updateData: any = {};
+      
+      if (userData.username) updateData.username = userData.username;
+      if (userData.isAdmin !== undefined) updateData.is_admin = userData.isAdmin;
+      if (userData.role) updateData.role = userData.role;
+      if (userData.title) updateData.title = userData.title;
+
+      const { error } = await supabase
+        .from('auth_users')
+        .update(updateData)
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error updating user:', error);
+        return false;
+      }
+
+      await refreshUsers();
+      
+      // Update current user if it's the same user
+      if (currentUser && currentUser.id === userId) {
+        setCurrentUser(prev => prev ? { ...prev, ...userData } : null);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return false;
     }
   };
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    refreshUsers();
   }, []);
 
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('currentUser');
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const isAuthenticated = currentUser !== null;
 
   return (
     <AuthContext.Provider value={{
@@ -223,11 +146,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated,
       login,
       logout,
-      register,
-      updateUser,
-      addUser,
-      removeUser,
-      loading
+      refreshUsers,
+      updateUser
     }}>
       {children}
     </AuthContext.Provider>
