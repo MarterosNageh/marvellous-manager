@@ -21,15 +21,17 @@ import {
   Users,
   Activity,
   User,
-  Plus
+  Plus,
+  AlertTriangle
 } from "lucide-react";
 import { ShiftsProvider } from '@/context/ShiftsContext';
 import { format } from 'date-fns';
+import { TaskBoard } from '@/components/tasks/TaskBoard';
 
 const DashboardContent = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, users } = useAuth();
   const { tasks, projects } = useTask();
-  const { shifts } = useShifts();
+  const { shifts, shiftRequests } = useShifts();
   const { hardDrives } = useData();
 
   // Helper function to get tasks by status
@@ -66,6 +68,31 @@ const DashboardContent = () => {
     });
   }, [shifts]);
 
+  // Time off requests for today
+  const todayTimeOffRequests = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    return shiftRequests.filter(request => {
+      if (request.request_type !== 'time_off' || request.status !== 'approved') return false;
+      const startDate = new Date(request.start_date).toISOString().split('T')[0];
+      const endDate = request.end_date ? new Date(request.end_date).toISOString().split('T')[0] : startDate;
+      return todayStr >= startDate && todayStr <= endDate;
+    });
+  }, [shiftRequests]);
+
+  // Extra work requests for today
+  const todayExtraWorkRequests = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    return shiftRequests.filter(request => {
+      if (request.request_type !== 'extra_work' || request.status !== 'approved') return false;
+      const startDate = new Date(request.start_date).toISOString().split('T')[0];
+      return todayStr === startDate;
+    });
+  }, [shiftRequests]);
+
   const upcomingShifts = useMemo(() => {
     const now = new Date();
     return shifts.filter(shift => {
@@ -75,6 +102,81 @@ const DashboardContent = () => {
   }, [shifts]);
 
   const completionPercentage = tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0;
+
+  // Hard drives by project
+  const hardDrivesByProject = useMemo(() => {
+    const projectMap = new Map();
+    
+    hardDrives.forEach(drive => {
+      if (drive.project_id) {
+        const project = projects.find(p => p.id === drive.project_id);
+        const projectName = project?.name || 'Unknown Project';
+        
+        if (!projectMap.has(projectName)) {
+          projectMap.set(projectName, []);
+        }
+        projectMap.get(projectName).push(drive);
+      }
+    });
+    
+    return Array.from(projectMap.entries()).map(([name, drives]) => ({
+      projectName: name,
+      drives: drives as typeof hardDrives,
+      count: drives.length
+    }));
+  }, [hardDrives, projects]);
+
+  // Low space indicator
+  const lowSpaceHardDrives = useMemo(() => {
+    return hardDrives.filter(drive => {
+      // Check if it's a backup drive
+      const isBackupDrive = drive.name.includes('BK') || drive.name.includes('Backup');
+      if (!isBackupDrive) return false;
+
+      // Parse capacity and free space
+      const capacity = parseFloat(drive.capacity?.replace(/[^\d.]/g, '') || '0');
+      const freeSpace = parseFloat(drive.free_space?.replace(/[^\d.]/g, '') || '0');
+      
+      if (capacity === 0) return false;
+      
+      const freePercentage = (freeSpace / capacity) * 100;
+      return freePercentage <= 15;
+    });
+  }, [hardDrives]);
+
+  // Project utilization
+  const projectUtilization = useMemo(() => {
+    return projects.map(project => {
+      const projectTasks = tasks.filter(task => task.project_id === project.id);
+      const completedProjectTasks = projectTasks.filter(task => task.status === 'completed');
+      const utilization = projectTasks.length > 0 ? (completedProjectTasks.length / projectTasks.length) * 100 : 0;
+      
+      return {
+        ...project,
+        totalTasks: projectTasks.length,
+        completedTasks: completedProjectTasks.length,
+        utilization: Math.round(utilization)
+      };
+    });
+  }, [projects, tasks]);
+
+  // Tasks per user
+  const tasksPerUser = useMemo(() => {
+    return users.map(user => {
+      const userTasks = tasks.filter(task => task.created_by === user.id);
+      const userCompletedTasks = userTasks.filter(task => task.status === 'completed');
+      const userInProgressTasks = userTasks.filter(task => task.status === 'in_progress');
+      const userPendingTasks = userTasks.filter(task => task.status === 'pending');
+      
+      return {
+        user,
+        totalTasks: userTasks.length,
+        completedTasks: userCompletedTasks.length,
+        inProgressTasks: userInProgressTasks.length,
+        pendingTasks: userPendingTasks.length
+      };
+    }).filter(item => item.totalTasks > 0);
+  }, [users, tasks]);
 
   return (
     <MainLayout>
@@ -105,21 +207,21 @@ const DashboardContent = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{projects.length}</div>
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <TrendingUp className="h-3 w-3" />
-                <span>Projects in progress</span>
+                <span>Active projects</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hard Drives</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Hard Drives</CardTitle>
               <HardDrive className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -127,6 +229,9 @@ const DashboardContent = () => {
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <Activity className="h-3 w-3" />
                 <span>Devices tracked</span>
+                {lowSpaceHardDrives.length > 0 && (
+                  <Badge variant="destructive">{lowSpaceHardDrives.length} low space</Badge>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -145,6 +250,35 @@ const DashboardContent = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Alerts Section */}
+        {(lowSpaceHardDrives.length > 0 || todayTimeOffRequests.length > 0 || todayExtraWorkRequests.length > 0) && (
+          <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
+            <CardHeader>
+              <CardTitle className="flex items-center text-orange-800 dark:text-orange-200">
+                <AlertTriangle className="mr-2 h-5 w-5" />
+                Today's Alerts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {lowSpaceHardDrives.length > 0 && (
+                <div className="text-sm text-orange-700 dark:text-orange-300">
+                  ⚠️ {lowSpaceHardDrives.length} hard drive(s) have low space (≤15%): {lowSpaceHardDrives.map(d => d.name).join(', ')}
+                </div>
+              )}
+              {todayTimeOffRequests.length > 0 && (
+                <div className="text-sm text-orange-700 dark:text-orange-300">
+                  🏖️ {todayTimeOffRequests.length} employee(s) on time off today: {todayTimeOffRequests.map(r => r.user?.username).join(', ')}
+                </div>
+              )}
+              {todayExtraWorkRequests.length > 0 && (
+                <div className="text-sm text-orange-700 dark:text-orange-300">
+                  💼 {todayExtraWorkRequests.length} employee(s) working extra today: {todayExtraWorkRequests.map(r => r.user?.username).join(', ')}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Content */}
         <Tabs defaultValue="overview" className="space-y-4">
@@ -232,30 +366,106 @@ const DashboardContent = () => {
               </Card>
             </div>
 
+            {/* Hard Drives by Project */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Hard Drives by Project</CardTitle>
+                <CardDescription>Distribution of hard drives across projects</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {hardDrivesByProject.map((item) => (
+                    <div key={item.projectName} className="p-4 border rounded-lg">
+                      <div className="font-medium">{item.projectName}</div>
+                      <div className="text-2xl font-bold mt-2">{item.count}</div>
+                      <div className="text-sm text-gray-600">Hard Drives</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Project Utilization */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Utilization</CardTitle>
+                <CardDescription>Task completion rate by project</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {projectUtilization.map((project) => (
+                    <div key={project.id} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{project.name}</span>
+                        <span className="text-sm text-gray-600">{project.utilization}%</span>
+                      </div>
+                      <Progress value={project.utilization} className="h-2" />
+                      <div className="text-xs text-gray-500">
+                        {project.completedTasks} of {project.totalTasks} tasks completed
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tasks per User */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Tasks per User</CardTitle>
+                <CardDescription>Task distribution and progress by team member</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {tasksPerUser.map((item) => (
+                    <div key={item.user.id} className="p-4 border rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium">{item.user.username}</span>
+                        <span className="text-sm text-gray-600">{item.totalTasks} total tasks</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="text-center">
+                          <div className="font-bold text-green-600">{item.completedTasks}</div>
+                          <div className="text-gray-600">Completed</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-blue-600">{item.inProgressTasks}</div>
+                          <div className="text-gray-600">In Progress</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-gray-600">{item.pendingTasks}</div>
+                          <div className="text-gray-600">Pending</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Upcoming Activities */}
             <div className="grid gap-4 md:grid-cols-2">
-              {/* Recent Tasks */}
+              {/* Recent Projects */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Tasks</CardTitle>
-                  <CardDescription>Latest task activities</CardDescription>
+                  <CardTitle>Recent Projects</CardTitle>
+                  <CardDescription>Latest project activities</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {tasks.slice(0, 5).map((task) => (
-                      <div key={task.id} className="flex items-center space-x-3">
+                    {projects.slice(0, 5).map((project) => (
+                      <div key={project.id} className="flex items-center space-x-3">
                         <div className={`w-2 h-2 rounded-full ${
-                          task.status === 'completed' ? 'bg-green-500' : 
-                          task.status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300'
+                          project.status === 'active' ? 'bg-green-500' : 'bg-gray-300'
                         }`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{task.title}</p>
+                          <p className="text-sm font-medium truncate">{project.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Priority: {task.priority}
+                            {project.description || 'No description'}
                           </p>
                         </div>
-                        <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
-                          {task.status.replace('_', ' ')}
+                        <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                          {project.status || 'active'}
                         </Badge>
                       </div>
                     ))}

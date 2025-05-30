@@ -15,6 +15,8 @@ export type Database = {
           id: string
           is_admin: boolean
           password: string
+          role: string | null
+          title: string | null
           username: string
         }
         Insert: {
@@ -22,6 +24,8 @@ export type Database = {
           id?: string
           is_admin?: boolean
           password: string
+          role?: string | null
+          title?: string | null
           username: string
         }
         Update: {
@@ -29,6 +33,8 @@ export type Database = {
           id?: string
           is_admin?: boolean
           password?: string
+          role?: string | null
+          title?: string | null
           username?: string
         }
         Relationships: []
@@ -44,6 +50,7 @@ export type Database = {
           name: string
           project_id: string | null
           serial_number: string
+          status: string | null
           updated_at: string
         }
         Insert: {
@@ -56,6 +63,7 @@ export type Database = {
           name: string
           project_id?: string | null
           serial_number: string
+          status?: string | null
           updated_at?: string
         }
         Update: {
@@ -68,6 +76,7 @@ export type Database = {
           name?: string
           project_id?: string | null
           serial_number?: string
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -128,6 +137,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          status: string | null
           type: string | null
         }
         Insert: {
@@ -135,6 +145,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          status?: string | null
           type?: string | null
         }
         Update: {
@@ -142,6 +153,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          status?: string | null
           type?: string | null
         }
         Relationships: []
@@ -255,6 +267,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          description: string | null
           end_time: string
           id: string
           notes: string | null
@@ -269,6 +282,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          description?: string | null
           end_time: string
           id?: string
           notes?: string | null
@@ -283,6 +297,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          description?: string | null
           end_time?: string
           id?: string
           notes?: string | null

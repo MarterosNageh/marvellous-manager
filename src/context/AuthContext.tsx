@@ -18,6 +18,8 @@ interface AuthContextType {
   logout: () => void;
   register: (username: string, password: string, isAdmin?: boolean) => Promise<boolean>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
+  addUser: (username: string, password: string, isAdmin?: boolean, role?: string, title?: string) => Promise<boolean>;
+  removeUser: (userId: string) => Promise<boolean>;
   loading: boolean;
 }
 
@@ -92,6 +94,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addUser = async (username: string, password: string, isAdmin = false, role?: string, title?: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('auth_users')
+        .insert([{ 
+          username, 
+          password, 
+          is_admin: isAdmin,
+          role: role || null,
+          title: title || null
+        }]);
+
+      if (error) {
+        console.error('Add user error:', error);
+        return false;
+      }
+
+      await fetchUsers();
+      return true;
+    } catch (error) {
+      console.error('Add user failed:', error);
+      return false;
+    }
+  };
+
+  const removeUser = async (userId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('auth_users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Remove user error:', error);
+        return false;
+      }
+
+      await fetchUsers();
+      return true;
+    } catch (error) {
+      console.error('Remove user failed:', error);
+      return false;
     }
   };
 
@@ -178,6 +225,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       register,
       updateUser,
+      addUser,
+      removeUser,
       loading
     }}>
       {children}
