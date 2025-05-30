@@ -12,20 +12,47 @@ const FIREBASE_PROJECT_ID = "marvellous-manager";
 
 // Get Firebase service account from Supabase secrets
 async function getFirebaseServiceAccount() {
-  // Try both possible secret names
+  // Check for the exact secret name as stored in Supabase
   let serviceAccount = Deno.env.get('FCM_PRIVATE_KEY_JSON');
   if (!serviceAccount) {
+    // Also try the alternative name format
+    serviceAccount = Deno.env.get('FCM Private Key JSON');
+  }
+  if (!serviceAccount) {
+    // Try without spaces (in case Supabase converts the name)
+    serviceAccount = Deno.env.get('FCMPrivateKeyJSON');
+  }
+  if (!serviceAccount) {
+    // Try the other secret name
     serviceAccount = Deno.env.get('FCM_PRIVATE_KEY');
+  }
+  if (!serviceAccount) {
+    serviceAccount = Deno.env.get('FCM Private Key');
+  }
+  
+  console.log('🔍 Available environment variables:');
+  for (const [key, value] of Object.entries(Deno.env.toObject())) {
+    if (key.includes('FCM') || key.includes('FIREBASE')) {
+      console.log(`  ${key}: ${value ? 'Available' : 'Missing'}`);
+    }
   }
   
   if (!serviceAccount) {
+    console.error('❌ FCM service account not found. Checked variables:');
+    console.error('  - FCM_PRIVATE_KEY_JSON');
+    console.error('  - FCM Private Key JSON');
+    console.error('  - FCMPrivateKeyJSON');
+    console.error('  - FCM_PRIVATE_KEY');
+    console.error('  - FCM Private Key');
     throw new Error('FCM service account not found in environment variables');
   }
   
   try {
+    console.log('✅ Found service account, parsing JSON...');
     return JSON.parse(serviceAccount);
   } catch (error) {
     console.error('❌ Error parsing service account JSON:', error);
+    console.error('❌ Service account content preview:', serviceAccount.substring(0, 100) + '...');
     throw new Error('Invalid service account JSON format');
   }
 }
@@ -421,6 +448,14 @@ serve(async (req) => {
       });
     }
 
+    // Check available environment variables for debugging
+    const availableSecrets = [];
+    for (const [key, value] of Object.entries(Deno.env.toObject())) {
+      if (key.includes('FCM') || key.includes('FIREBASE')) {
+        availableSecrets.push(key);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -431,8 +466,8 @@ serve(async (req) => {
         apiVersion: 'HTTP v1 (OAuth2)',
         debugInfo: {
           firebaseProjectId: FIREBASE_PROJECT_ID,
-          hasServiceAccount: !!(Deno.env.get('FCM_PRIVATE_KEY_JSON') || Deno.env.get('FCM_PRIVATE_KEY')),
-          serviceAccountPreview: (Deno.env.get('FCM_PRIVATE_KEY_JSON') || Deno.env.get('FCM_PRIVATE_KEY')) ? 'Configured' : 'Missing'
+          availableSecrets: availableSecrets,
+          secretsFound: availableSecrets.length > 0
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
