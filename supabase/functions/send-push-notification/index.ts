@@ -7,16 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Use Firebase Legacy API with Server Key
+// Firebase config for marvellous-manager project
 const FIREBASE_CONFIG = {
   projectId: "marvellous-manager",
+  // Using the correct Firebase Messaging Server Key format
   serverKey: "AAAAwKvN8Ks:APA91bEQZJ4xJYoB8wQsE_0j6wK5FqYrDqVu3k5J-YQu8ZIoMZG2YwjJbV4yMPgNsF1eDj6Q7kZvJ4wR8sL9aE5mN3qP2oT6yU9iH7cB1fK0gX5vN8dR2sE4wQ1aZ3bM7nL0jF"
 };
 
-async function sendFCMNotificationLegacy(token: string, payload: any) {
-  console.log('📱 Sending FCM notification (Legacy) to token:', token.substring(0, 20) + '...');
+async function sendFCMNotification(token: string, payload: any) {
+  console.log('📱 Sending FCM notification to token:', token.substring(0, 20) + '...');
   
   try {
+    // Use the correct FCM Legacy API endpoint
     const fcmUrl = 'https://fcm.googleapis.com/fcm/send';
     
     const message = {
@@ -31,26 +33,11 @@ async function sendFCMNotificationLegacy(token: string, payload: any) {
         ...payload.data,
         click_action: payload.data?.url || '/task-manager'
       },
-      webpush: {
-        headers: {
-          'Urgency': 'high'
-        },
-        notification: {
-          title: payload.title,
-          body: payload.body,
-          icon: payload.icon || '/favicon.ico',
-          badge: payload.badge || '/favicon.ico',
-          requireInteraction: true,
-          vibrate: [200, 100, 200],
-          tag: payload.tag || 'fcm-notification'
-        },
-        fcm_options: {
-          link: payload.data?.url || '/task-manager'
-        }
-      }
+      priority: 'high',
+      content_available: true
     };
 
-    console.log('📤 Sending FCM message (Legacy API)...');
+    console.log('📤 Sending FCM message with payload:', JSON.stringify(message, null, 2));
 
     const response = await fetch(fcmUrl, {
       method: 'POST',
@@ -62,11 +49,14 @@ async function sendFCMNotificationLegacy(token: string, payload: any) {
     });
     
     console.log('📤 FCM Response status:', response.status);
+    console.log('📤 FCM Response headers:', Object.fromEntries(response.headers.entries()));
     
     const responseText = await response.text();
+    console.log('📤 FCM Response body:', responseText);
     
     if (!response.ok) {
-      console.error('❌ FCM failed:', responseText);
+      console.error('❌ FCM failed with status:', response.status);
+      console.error('❌ FCM error response:', responseText);
       return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` };
     }
     
@@ -77,7 +67,7 @@ async function sendFCMNotificationLegacy(token: string, payload: any) {
       result = { raw: responseText };
     }
     
-    console.log('✅ FCM Response:', result);
+    console.log('✅ FCM Response parsed:', result);
     
     return { success: true, fcmResponse: result };
     
@@ -89,6 +79,8 @@ async function sendFCMNotificationLegacy(token: string, payload: any) {
 
 serve(async (req) => {
   console.log('📱 === FCM PUSH NOTIFICATION FUNCTION START ===');
+  console.log('🔗 Request URL:', req.url);
+  console.log('🔗 Request method:', req.method);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -114,9 +106,11 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const requestBody = await req.text();
-    const parsedBody = JSON.parse(requestBody);
+    console.log('📱 Raw request body:', requestBody);
     
+    const parsedBody = JSON.parse(requestBody);
     const { userIds, title, body, data } = parsedBody;
+    
     console.log('📱 FCM Notification Request:', { userIds, title, body, data });
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
@@ -161,6 +155,7 @@ serve(async (req) => {
     }
 
     // Get push subscriptions from database
+    console.log('🔍 Fetching push subscriptions for users:', userIds);
     const { data: pushSubscriptions, error: pushError } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -181,6 +176,12 @@ serve(async (req) => {
     }
 
     console.log('📱 Push subscriptions found:', pushSubscriptions?.length || 0);
+    if (pushSubscriptions && pushSubscriptions.length > 0) {
+      console.log('📱 Subscription details:');
+      pushSubscriptions.forEach((sub, index) => {
+        console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+      });
+    }
 
     if (!pushSubscriptions || pushSubscriptions.length === 0) {
       return new Response(
@@ -194,48 +195,51 @@ serve(async (req) => {
       );
     }
 
-    // Send notifications using FCM Legacy API
+    // Send notifications using FCM
     const pushPromises = pushSubscriptions.map(async (subscription) => {
       try {
         let endpoint = subscription.endpoint;
         let token = null;
+        
+        console.log('📱 Processing subscription endpoint:', endpoint.substring(0, 80) + '...');
         
         // Extract FCM token from endpoint if it's a Firebase endpoint
         if (endpoint.includes('fcm.googleapis.com')) {
           const urlParts = endpoint.split('/');
           token = urlParts[urlParts.length - 1];
           console.log('📱 Extracted FCM token:', token.substring(0, 20) + '...');
+        } else {
+          console.log('⚠️ Non-FCM endpoint detected:', endpoint.substring(0, 50) + '...');
         }
 
         if (token) {
-          // Use FCM Legacy API for Firebase endpoints
-          const result = await sendFCMNotificationLegacy(token, {
+          // Use FCM API for Firebase endpoints
+          const result = await sendFCMNotification(token, {
             title,
             body,
             data: data || {},
             icon: '/favicon.ico',
-            badge: '/favicon.ico',
-            tag: data?.tag || 'fcm-notification'
+            badge: '/favicon.ico'
           });
 
           return {
             userId: subscription.user_id,
             endpoint: endpoint.substring(0, 50) + '...',
-            method: 'fcm-legacy',
+            method: 'fcm',
             ...result
           };
         } else {
           // For non-Firebase endpoints, we would use Web Push protocol
-          // But for now, we'll skip these
           return {
             userId: subscription.user_id,
             endpoint: endpoint.substring(0, 50) + '...',
             method: 'web-push',
             success: false,
-            error: 'Web Push not implemented yet'
+            error: 'Web Push not implemented - only FCM supported'
           };
         }
       } catch (sendError) {
+        console.error('❌ Error processing subscription:', sendError);
         return {
           userId: subscription.user_id,
           endpoint: subscription.endpoint.substring(0, 50) + '...',
@@ -248,6 +252,7 @@ serve(async (req) => {
 
     const results = await Promise.all(pushPromises);
     const successCount = results.filter(r => r.success).length;
+    const failedResults = results.filter(r => !r.success);
 
     console.log('📱 FCM Notification Summary:', {
       total: results.length,
@@ -255,13 +260,25 @@ serve(async (req) => {
       failed: results.length - successCount
     });
 
+    if (failedResults.length > 0) {
+      console.log('❌ Failed notifications:');
+      failedResults.forEach((result, index) => {
+        console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+      });
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         sentCount: successCount,
         totalSubscriptions: results.length,
         targetUsers: userIds.length,
-        results: results
+        results: results,
+        debugInfo: {
+          firebaseProjectId: FIREBASE_CONFIG.projectId,
+          hasServerKey: !!FIREBASE_CONFIG.serverKey,
+          serverKeyPreview: FIREBASE_CONFIG.serverKey ? FIREBASE_CONFIG.serverKey.substring(0, 20) + '...' : 'none'
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -271,7 +288,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        success: false
+        success: false,
+        stack: error.stack
       }),
       {
         status: 500,
