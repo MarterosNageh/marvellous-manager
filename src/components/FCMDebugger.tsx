@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,7 +75,7 @@ export const FCMDebugger = () => {
         scope: registration.scope,
         state: registration.active?.state,
         scriptURL: registration.active?.scriptURL,
-        updatefound: !!registration.updatefound,
+        onupdatefound: !!registration.onupdatefound,
         installing: !!registration.installing,
         waiting: !!registration.waiting,
         active: !!registration.active
