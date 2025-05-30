@@ -41,19 +41,14 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       
-      // Check both tables for subscriptions
+      // Check push_subscriptions table for subscriptions
       const { data: pushSubs } = await supabase
         .from('push_subscriptions')
         .select('*')
         .eq('user_id', user.id)
         .eq('endpoint', browserSubscription.endpoint);
 
-      const { data: fcmTokens } = await supabase
-        .from('push_tokens')
-        .select('*')
-        .eq('user_id', user.id);
-
-      const hasDbSubscription = (pushSubs && pushSubs.length > 0) || (fcmTokens && fcmTokens.length > 0);
+      const hasDbSubscription = pushSubs && pushSubs.length > 0;
       console.log('🔍 Database subscription match:', hasDbSubscription ? 'Found' : 'None');
       
       // Both browser and database must have matching subscription
