@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -8,6 +8,11 @@ export const usePushNotifications = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  
+  // Use refs to prevent multiple concurrent setups
+  const isSetupInProgress = useRef(false);
+  const lastCheckTime = useRef(0);
+  const CHECK_COOLDOWN = 5000; // 5 seconds cooldown between checks
 
   useEffect(() => {
     // Check if push notifications are supported
@@ -21,6 +26,14 @@ export const usePushNotifications = () => {
   }, []);
 
   const checkSubscriptionStatus = async () => {
+    // Prevent excessive checking
+    const now = Date.now();
+    if (now - lastCheckTime.current < CHECK_COOLDOWN) {
+      console.log('🔍 Skipping subscription check (cooldown active)');
+      return;
+    }
+    lastCheckTime.current = now;
+
     try {
       console.log('🔍 Checking subscription status...');
       
@@ -44,7 +57,14 @@ export const usePushNotifications = () => {
   };
 
   const subscribeToPush = async () => {
+    // Prevent multiple concurrent setups
+    if (isSetupInProgress.current) {
+      console.log('🔍 Setup already in progress, skipping...');
+      return false;
+    }
+
     setIsLoading(true);
+    isSetupInProgress.current = true;
     console.log('🔔 Starting push subscription process...');
     
     try {
@@ -57,7 +77,7 @@ export const usePushNotifications = () => {
         });
         
         // Verify the subscription is working
-        await checkSubscriptionStatus();
+        setTimeout(() => checkSubscriptionStatus(), 1000);
       } else {
         toast({
           title: "Error",
@@ -65,6 +85,7 @@ export const usePushNotifications = () => {
           variant: "destructive",
         });
       }
+      return success;
     } catch (error) {
       console.error('Error subscribing to push:', error);
       toast({
@@ -72,8 +93,10 @@ export const usePushNotifications = () => {
         description: "Failed to enable push notifications",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsLoading(false);
+      isSetupInProgress.current = false;
     }
   };
 

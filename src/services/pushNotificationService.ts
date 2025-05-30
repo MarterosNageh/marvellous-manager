@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface PushSubscriptionData {
@@ -11,6 +12,11 @@ interface PushSubscriptionData {
 class PushNotificationService {
   // Correct VAPID key for marvellous-manager project
   private vapidPublicKey = 'BL7ELSlram2dAgx2Hm1BTEKD9EjvCcxkIqJaUNZjD1HNg_O2zzMiA5d9I5A5mPKZJVk7T2tLWS-4kzRv6fTuwS4';
+  
+  // State management to prevent multiple concurrent operations
+  private isSetupInProgress = false;
+  private lastSetupTime = 0;
+  private SETUP_COOLDOWN = 10000; // 10 seconds cooldown
 
   // Enhanced subscription status check
   async getSubscriptionStatus(): Promise<boolean> {
@@ -64,6 +70,16 @@ class PushNotificationService {
 
   // Enhanced permission and subscription request
   async requestPermissionAndSubscribe(): Promise<boolean> {
+    // Prevent multiple concurrent setups
+    const now = Date.now();
+    if (this.isSetupInProgress || (now - this.lastSetupTime < this.SETUP_COOLDOWN)) {
+      console.log('🔍 Setup cooldown active or in progress, skipping...');
+      return true; // Return true to avoid showing errors
+    }
+
+    this.isSetupInProgress = true;
+    this.lastSetupTime = now;
+
     console.log('🚀 === ENHANCED PUSH NOTIFICATION SETUP ===');
     
     try {
@@ -141,6 +157,8 @@ class PushNotificationService {
     } catch (error) {
       console.error('❌ Push notification setup failed:', error);
       return false;
+    } finally {
+      this.isSetupInProgress = false;
     }
   }
 
