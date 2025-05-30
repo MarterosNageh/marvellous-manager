@@ -1,109 +1,75 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/context/AuthContext";
-import { DataProvider } from "@/context/DataContext";
-import { TaskProvider } from "@/context/TaskContext";
-import { ShiftsProvider } from "@/context/ShiftsContext";
-import { useNotifications } from "@/hooks/useNotifications";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from '@/context/AuthContext';
+import { DataProvider } from '@/context/DataContext';
+import { TaskProvider } from '@/context/TaskContext';
 
-// Page imports
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Projects from "./pages/Projects";
-import ProjectDetail from "./pages/ProjectDetail";
-import ProjectForm from "./pages/ProjectForm";
-import HardDrives from "./pages/HardDrives";
-import HardDriveDetail from "./pages/HardDriveDetail";
-import HardDriveForm from "./pages/HardDriveForm";
-import QRCodePage from "./pages/QRCodePage";
-import PrintPage from "./pages/PrintPage";
-import PublicHardDriveView from "./pages/PublicHardDriveView";
-import UserManagement from "./pages/UserManagement";
-import TaskManager from "./pages/TaskManager";
-import NotFound from "./pages/NotFound";
-import Settings from "./pages/Settings";
-import ShiftsSchedule from "./pages/ShiftsSchedule";
-import KnowledgeBase from "./pages/KnowledgeBase";
-import FCMDebug from "./pages/FCMDebug";
+// Pages
+import Index from '@/pages/Index';
+import Login from '@/pages/Login';
+import Dashboard from '@/pages/Dashboard';
+import HardDrives from '@/pages/HardDrives';
+import HardDriveForm from '@/pages/HardDriveForm';
+import HardDriveDetail from '@/pages/HardDriveDetail';
+import PublicHardDriveView from '@/pages/PublicHardDriveView';
+import Projects from '@/pages/Projects';
+import ProjectForm from '@/pages/ProjectForm';
+import ProjectDetail from '@/pages/ProjectDetail';
+import TaskManager from '@/pages/TaskManager';
+import ShiftsSchedule from '@/pages/ShiftsSchedule';
+import UserManagement from '@/pages/UserManagement';
+import PrintPage from '@/pages/PrintPage';
+import QRCodePage from '@/pages/QRCodePage';
+import Settings from '@/pages/Settings';
+import KnowledgeBase from '@/pages/KnowledgeBase';
+import FCMDebug from '@/pages/FCMDebug';
+import Notes from '@/pages/Notes';
+import NotFound from '@/pages/NotFound';
+
+import './App.css';
 
 const queryClient = new QueryClient();
 
-const AppContent = () => {
-  useNotifications(); // Initialize notifications
-  
+function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/hard-drives/:id/view" element={<PublicHardDriveView />} />
-
-        {/* Protected routes */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <DataProvider>
           <TaskProvider>
-            <ShiftsProvider>
-              <Dashboard />
-            </ShiftsProvider>
+            <Router>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/hard-drives" element={<HardDrives />} />
+                <Route path="/hard-drives/new" element={<HardDriveForm />} />
+                <Route path="/hard-drives/:id" element={<HardDriveDetail />} />
+                <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
+                <Route path="/public/hard-drive/:id" element={<PublicHardDriveView />} />
+                <Route path="/projects" element={<Projects />} />
+                <Route path="/projects/new" element={<ProjectForm />} />
+                <Route path="/projects/:id" element={<ProjectDetail />} />
+                <Route path="/projects/:id/edit" element={<ProjectForm />} />
+                <Route path="/task-manager" element={<TaskManager />} />
+                <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
+                <Route path="/user-management" element={<UserManagement />} />
+                <Route path="/print" element={<PrintPage />} />
+                <Route path="/qr-code/:id" element={<QRCodePage />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/knowledge-base" element={<KnowledgeBase />} />
+                <Route path="/fcm-debug" element={<FCMDebug />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Router>
+            <Toaster />
           </TaskProvider>
-        } />
-
-        {/* Project routes */}
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/projects/new" element={<ProjectForm />} />
-        <Route path="/projects/:id" element={<ProjectDetail />} />
-        <Route path="/projects/:id/edit" element={<ProjectForm />} />
-        <Route path="/projects/:id/print" element={<PrintPage />} />
-
-        {/* Hard drive routes */}
-        <Route path="/hard-drives" element={<HardDrives />} />
-        <Route path="/hard-drives/new" element={<HardDriveForm />} />
-        <Route path="/hard-drives/:id" element={<HardDriveDetail />} />
-        <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
-        <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
-        <Route path="/hard-drives/:id/print" element={<PrintPage />} />
-
-        {/* Admin routes */}
-        <Route path="/settings" element={<Settings />} />
-
-        {/* User Management */}
-        <Route path="/users" element={<UserManagement />} />
-
-        {/* Task Manager */}
-        <Route path="/task-manager" element={<TaskManager />} />
-
-        {/* Shifts schedule */}
-        <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
-        
-        {/* Knowledge Base */}
-        <Route path="/knowledge-base" element={<KnowledgeBase />} />
-
-        {/* FCM Debug */}
-        <Route path="/fcm-debug" element={<FCMDebug />} />
-
-        {/* Catch-all */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+        </DataProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
-};
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <DataProvider>
-        <TooltipProvider>
-          <AppContent />
-          <Toaster />
-          <Sonner />
-        </TooltipProvider>
-      </DataProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+}
 
 export default App;

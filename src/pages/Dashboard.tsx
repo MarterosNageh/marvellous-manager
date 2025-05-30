@@ -1,65 +1,75 @@
-
 import React, { useMemo } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useAuth } from "@/context/AuthContext";
-import { useTask } from "@/context/TaskContext";
-import { useShifts } from "@/context/ShiftsContext";
-import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
-  Calendar, 
-  CheckCircle, 
-  AlertCircle, 
-  Clock, 
-  HardDrive, 
-  BarChart3, 
   TrendingUp, 
-  Users,
-  Activity,
-  User,
-  Plus,
-  AlertTriangle
+  Users, 
+  HardDrive, 
+  FolderOpen, 
+  Clock, 
+  AlertTriangle,
+  Calendar,
+  CheckCircle2,
+  Zap
 } from "lucide-react";
-import { ShiftsProvider } from '@/context/ShiftsContext';
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useShifts } from "@/context/ShiftsContext";
+import { ShiftsProvider } from "@/context/ShiftsContext";
 import { format } from 'date-fns';
-import { TaskBoard } from '@/components/tasks/TaskBoard';
 
 const DashboardContent = () => {
   const { currentUser, users } = useAuth();
-  const { tasks, projects } = useTask();
   const { shifts, shiftRequests } = useShifts();
-  const { hardDrives } = useData();
 
-  // Helper function to get tasks by status
-  const getTasksByStatus = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      "To Do": "pending",
-      "In Progress": "in_progress", 
-      "Done": "completed"
-    };
-    return tasks.filter(task => task.status === statusMap[status]);
-  };
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
 
-  const todoTasks = getTasksByStatus("To Do");
-  const inProgressTasks = getTasksByStatus("In Progress");
-  const completedTasks = getTasksByStatus("Done");
-  
-  const currentShifts = shifts.filter(shift => shift.status === 'scheduled');
-  const todayShifts = useMemo(() => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    return shifts.filter(shift => {
-      const shiftDate = new Date(shift.start_time).toISOString().split('T')[0];
-      return shiftDate === todayStr && shift.status === 'scheduled';
-    });
-  }, [shifts]);
+  const { data: hardDrives = [] } = useQuery({
+    queryKey: ['hard_drives'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('hard_drives')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
 
-  const currentlyWorking = useMemo(() => {
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          task_assignments(user_id)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // Current and today's shifts
+  const currentShifts = useMemo(() => {
     const now = new Date();
     return shifts.filter(shift => {
       const shiftStart = new Date(shift.start_time);
@@ -68,127 +78,104 @@ const DashboardContent = () => {
     });
   }, [shifts]);
 
-  // Time off requests for today
-  const todayTimeOffRequests = useMemo(() => {
+  const todayShifts = useMemo(() => {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     
-    return shiftRequests.filter(request => {
-      if (request.request_type !== 'time_off' || request.status !== 'approved') return false;
-      const startDate = new Date(request.start_date).toISOString().split('T')[0];
-      const endDate = request.end_date ? new Date(request.end_date).toISOString().split('T')[0] : startDate;
-      return todayStr >= startDate && todayStr <= endDate;
-    });
-  }, [shiftRequests]);
-
-  // Extra work requests for today
-  const todayExtraWorkRequests = useMemo(() => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    return shiftRequests.filter(request => {
-      if (request.request_type !== 'extra_work' || request.status !== 'approved') return false;
-      const startDate = new Date(request.start_date).toISOString().split('T')[0];
-      return todayStr === startDate;
-    });
-  }, [shiftRequests]);
-
-  const upcomingShifts = useMemo(() => {
-    const now = new Date();
     return shifts.filter(shift => {
-      const shiftStart = new Date(shift.start_time);
-      return shiftStart > now && shift.status === 'scheduled';
-    }).slice(0, 5);
+      const shiftDate = new Date(shift.start_time);
+      return shiftDate >= today && shiftDate < tomorrow && shift.status === 'scheduled';
+    });
   }, [shifts]);
 
-  const completionPercentage = tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0;
+  // Time off and extra shift requests
+  const timeOffRequests = useMemo(() => {
+    return shiftRequests.filter(req => req.request_type === 'time_off' && req.status === 'pending');
+  }, [shiftRequests]);
 
-  // Enhanced Hard drives by project with latest backup detection
-  const hardDrivesByProject = useMemo(() => {
-    const projectMap = new Map();
+  const extraShiftRequests = useMemo(() => {
+    return shiftRequests.filter(req => req.request_type === 'extra_shift' && req.status === 'pending');
+  }, [shiftRequests]);
+
+  // Project statistics
+  const projectStats = useMemo(() => {
+    const total = projects.length;
+    const active = projects.filter(p => p.status === 'active').length;
+    const completed = projects.filter(p => p.status === 'completed').length;
+    return { total, active, completed };
+  }, [projects]);
+
+  // Hard drive statistics
+  const hardDriveStats = useMemo(() => {
+    const total = hardDrives.length;
+    const available = hardDrives.filter(hd => hd.status === 'available').length;
+    const inUse = hardDrives.filter(hd => hd.status === 'in_use').length;
+    const backup = hardDrives.filter(hd => hd.status === 'backup').length;
+    return { total, available, inUse, backup };
+  }, [hardDrives]);
+
+  // Low space alerts by project
+  const lowSpaceAlerts = useMemo(() => {
+    const projectAlerts = [];
     
-    hardDrives.forEach(drive => {
-      if (drive.projectId) {
-        const project = projects.find(p => p.id === drive.projectId);
-        const projectName = project?.name || 'Unknown Project';
+    projects.forEach(project => {
+      const projectHardDrives = hardDrives.filter(hd => hd.project_id === project.id);
+      
+      if (projectHardDrives.length > 0) {
+        // Get the latest hard drive (most recent backup)
+        const latestHardDrive = projectHardDrives
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
         
-        if (!projectMap.has(projectName)) {
-          projectMap.set(projectName, {
-            project,
-            drives: [],
-            backupDrives: [],
-            latestBackup: null,
-            lowSpaceAlert: false
-          });
-        }
-        
-        const projectData = projectMap.get(projectName);
-        projectData.drives.push(drive);
-        
-        // Check if it's a backup drive
-        const isBackupDrive = drive.name && (drive.name.includes('BK') || drive.name.includes('Backup'));
-        if (isBackupDrive) {
-          projectData.backupDrives.push(drive);
-        }
-      }
-    });
-    
-    // Find latest backup and check for low space for each project
-    projectMap.forEach((projectData, projectName) => {
-      if (projectData.backupDrives.length > 0) {
-        // Sort backup drives by created date (latest first) and then by name number
-        const sortedBackups = projectData.backupDrives.sort((a, b) => {
-          // First sort by creation date
-          const dateCompare = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-          if (dateCompare !== 0) return dateCompare;
+        // Check if the latest hard drive has low space (less than 20% free)
+        if (latestHardDrive.free_space && latestHardDrive.capacity) {
+          const freeSpaceNum = parseFloat(latestHardDrive.free_space.replace(/[^\d.]/g, ''));
+          const capacityNum = parseFloat(latestHardDrive.capacity.replace(/[^\d.]/g, ''));
+          const freeSpacePercent = (freeSpaceNum / capacityNum) * 100;
           
-          // If dates are same, sort by number in name
-          const aMatch = a.name?.match(/(\d+)$/);
-          const bMatch = b.name?.match(/(\d+)$/);
-          const aNum = aMatch ? parseInt(aMatch[1]) : 0;
-          const bNum = bMatch ? parseInt(bMatch[1]) : 0;
-          return bNum - aNum;
-        });
-        
-        projectData.latestBackup = sortedBackups[0];
-        
-        // Check if latest backup has low space
-        const latestBackup = projectData.latestBackup;
-        if (latestBackup && latestBackup.capacity && latestBackup.freeSpace) {
-          const capacity = parseFloat((latestBackup.capacity || '0').replace(/[^\d.]/g, ''));
-          const freeSpace = parseFloat((latestBackup.freeSpace || '0').replace(/[^\d.]/g, ''));
-          
-          if (capacity > 0) {
-            const freePercentage = (freeSpace / capacity) * 100;
-            projectData.lowSpaceAlert = freePercentage <= 15;
+          if (freeSpacePercent < 20) {
+            projectAlerts.push({
+              project: project.name,
+              hardDrive: latestHardDrive.name,
+              freeSpace: latestHardDrive.free_space,
+              capacity: latestHardDrive.capacity,
+              freeSpacePercent
+            });
           }
         }
       }
     });
     
-    return Array.from(projectMap.entries()).map(([name, data]) => ({
-      projectName: name,
-      project: data.project,
-      drives: data.drives,
-      backupDrives: data.backupDrives,
-      latestBackup: data.latestBackup,
-      lowSpaceAlert: data.lowSpaceAlert,
-      count: data.drives.length
-    }));
-  }, [hardDrives, projects]);
+    return projectAlerts;
+  }, [projects, hardDrives]);
 
-  // Project utilization
+  // Hard drives by project
+  const hardDrivesByProject = useMemo(() => {
+    return projects.map(project => {
+      const projectHardDrives = hardDrives.filter(hd => hd.project_id === project.id);
+      return {
+        projectName: project.name,
+        count: projectHardDrives.length,
+        available: projectHardDrives.filter(hd => hd.status === 'available').length,
+        inUse: projectHardDrives.filter(hd => hd.status === 'in_use').length,
+        backup: projectHardDrives.filter(hd => hd.status === 'backup').length
+      };
+    }).filter(item => item.count > 0);
+  }, [projects, hardDrives]);
+
+  // Project and task utilization
   const projectUtilization = useMemo(() => {
     return projects.map(project => {
       const projectTasks = tasks.filter(task => task.project_id === project.id);
-      const completedProjectTasks = projectTasks.filter(task => task.status === 'completed');
-      const utilization = projectTasks.length > 0 ? (completedProjectTasks.length / projectTasks.length) * 100 : 0;
+      const completedTasks = projectTasks.filter(task => task.status === 'completed');
+      const progress = projectTasks.length > 0 ? (completedTasks.length / projectTasks.length) * 100 : 0;
       
       return {
-        ...project,
+        name: project.name,
         totalTasks: projectTasks.length,
-        completedTasks: completedProjectTasks.length,
-        utilization: Math.round(utilization)
+        completedTasks: completedTasks.length,
+        progress
       };
     });
   }, [projects, tasks]);
@@ -196,272 +183,297 @@ const DashboardContent = () => {
   // Tasks per user
   const tasksPerUser = useMemo(() => {
     return users.map(user => {
-      const userTasks = tasks.filter(task => task.created_by === user.id);
-      const userCompletedTasks = userTasks.filter(task => task.status === 'completed');
-      const userInProgressTasks = userTasks.filter(task => task.status === 'in_progress');
-      const userPendingTasks = userTasks.filter(task => task.status === 'pending');
+      const userTasks = tasks.filter(task => 
+        task.task_assignments?.some(assignment => assignment.user_id === user.id)
+      );
+      const completedTasks = userTasks.filter(task => task.status === 'completed');
       
       return {
-        user,
+        username: user.username,
         totalTasks: userTasks.length,
-        completedTasks: userCompletedTasks.length,
-        inProgressTasks: userInProgressTasks.length,
-        pendingTasks: userPendingTasks.length
+        completedTasks: completedTasks.length,
+        pendingTasks: userTasks.filter(task => task.status === 'pending').length,
+        inProgressTasks: userTasks.filter(task => task.status === 'in_progress').length
       };
-    }).filter(item => item.totalTasks > 0);
+    }).filter(user => user.totalTasks > 0);
   }, [users, tasks]);
-
-  // Count projects with low space alerts
-  const projectsWithLowSpace = hardDrivesByProject.filter(item => item.lowSpaceAlert);
 
   return (
     <MainLayout>
-      <div className="space-y-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here's what's happening in your workspace.
-          </p>
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-lg">
+                <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Dashboard
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Welcome back, {currentUser?.username}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Overview Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tasks.length}</div>
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <span>{completedTasks.length} completed</span>
-                <Badge variant="secondary">{Math.round(completionPercentage)}%</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{projects.length}</div>
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <TrendingUp className="h-3 w-3" />
-                <span>Active projects</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Hard Drives</CardTitle>
-              <HardDrive className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hardDrives.length}</div>
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <Activity className="h-3 w-3" />
-                <span>Devices tracked</span>
-                {projectsWithLowSpace.length > 0 && (
-                  <Badge variant="destructive">{projectsWithLowSpace.length} low space</Badge>
+        <div className="p-6 space-y-6">
+          {/* Current Activity Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Currently Working */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-green-700 dark:text-green-300">
+                  <Clock className="mr-2 h-5 w-5" />
+                  Currently Working ({currentShifts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {currentShifts.length > 0 ? (
+                  <div className="space-y-2">
+                    {currentShifts.map((shift) => (
+                      <div key={shift.id} className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-950 rounded">
+                        <div className="flex items-center space-x-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {shift.user?.username?.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{shift.user?.username}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {shift.shift_type}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No one is currently working</p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todayShifts.length}</div>
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <Users className="h-3 w-3" />
-                <span>{currentlyWorking.length} currently working</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Today's Shifts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-blue-700 dark:text-blue-300">
+                  <Calendar className="mr-2 h-5 w-5" />
+                  Today's Shifts ({todayShifts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {todayShifts.length > 0 ? (
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {todayShifts.map((shift) => (
+                      <div key={shift.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950 rounded">
+                        <div className="flex items-center space-x-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {shift.user?.username?.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{shift.user?.username}</span>
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No shifts scheduled for today</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Enhanced Alerts Section */}
-        {(projectsWithLowSpace.length > 0 || todayTimeOffRequests.length > 0 || todayExtraWorkRequests.length > 0) && (
-          <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
-            <CardHeader>
-              <CardTitle className="flex items-center text-orange-800 dark:text-orange-200">
-                <AlertTriangle className="mr-2 h-5 w-5" />
-                Today's Alerts
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Low Space Alerts by Project */}
-              {projectsWithLowSpace.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
-                    ⚠️ Projects with Low Space Backup Drives:
-                  </h4>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {projectsWithLowSpace.map((projectData) => {
-                      const latestBackup = projectData.latestBackup;
-                      const capacity = parseFloat((latestBackup?.capacity || '0').replace(/[^\d.]/g, ''));
-                      const freeSpace = parseFloat((latestBackup?.freeSpace || '0').replace(/[^\d.]/g, ''));
-                      const freePercentage = capacity > 0 ? ((freeSpace / capacity) * 100).toFixed(1) : '0';
-                      
+          {/* Alerts Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Time Off Requests */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-orange-700 dark:text-orange-300">
+                  <AlertTriangle className="mr-2 h-5 w-5" />
+                  Time Off Requests ({timeOffRequests.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {timeOffRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {timeOffRequests.slice(0, 3).map((request) => {
+                      const user = users.find(u => u.id === request.user_id);
                       return (
-                        <div key={projectData.projectName} className="bg-white dark:bg-orange-900 p-3 rounded-lg border border-orange-200 dark:border-orange-700">
-                          <div className="font-medium text-orange-900 dark:text-orange-100">{projectData.projectName}</div>
-                          <div className="text-sm text-orange-700 dark:text-orange-300">
-                            Latest Backup: {latestBackup?.name}
-                          </div>
-                          <div className="text-sm text-orange-700 dark:text-orange-300">
-                            Free Space: {freePercentage}% ({latestBackup?.freeSpace} of {latestBackup?.capacity})
-                          </div>
+                        <div key={request.id} className="flex items-center justify-between p-2 bg-orange-50 dark:bg-orange-950 rounded">
+                          <span className="text-sm font-medium">{user?.username}</span>
+                          <Badge variant="outline" className="text-xs">Pending</Badge>
                         </div>
                       );
                     })}
+                    {timeOffRequests.length > 3 && (
+                      <p className="text-xs text-gray-500">+{timeOffRequests.length - 3} more requests</p>
+                    )}
                   </div>
-                </div>
-              )}
-              
-              {todayTimeOffRequests.length > 0 && (
-                <div className="text-sm text-orange-700 dark:text-orange-300">
-                  🏖️ {todayTimeOffRequests.length} employee(s) on time off today: {todayTimeOffRequests.map(r => r.user?.username).join(', ')}
-                </div>
-              )}
-              {todayExtraWorkRequests.length > 0 && (
-                <div className="text-sm text-orange-700 dark:text-orange-300">
-                  💼 {todayExtraWorkRequests.length} employee(s) working extra today: {todayExtraWorkRequests.map(r => r.user?.username).join(', ')}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                ) : (
+                  <p className="text-gray-500 text-sm">No pending time off requests</p>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* Main Content */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="shifts">Shifts</TabsTrigger>
-            <TabsTrigger value="devices">Devices</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Task Progress */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Task Progress</CardTitle>
-                  <CardDescription>
-                    Overall completion rate across all projects
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Overall Progress</span>
-                      <span>{Math.round(completionPercentage)}%</span>
-                    </div>
-                    <Progress value={completionPercentage} className="h-2" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="font-bold text-green-600">{completedTasks.length}</div>
-                      <div className="text-muted-foreground">Completed</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-bold text-blue-600">{inProgressTasks.length}</div>
-                      <div className="text-muted-foreground">In Progress</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-bold text-gray-600">{todoTasks.length}</div>
-                      <div className="text-muted-foreground">To Do</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Currently Working */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Currently Working
-                  </CardTitle>
-                  <CardDescription>
-                    Employees currently on shift
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {currentlyWorking.length > 0 ? (
-                    <div className="space-y-3">
-                      {currentlyWorking.map((shift) => (
-                        <div key={shift.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900 rounded-lg border border-green-200 dark:border-green-700">
-                          <div>
-                            <div className="font-medium text-green-900 dark:text-green-100">{shift.user?.username}</div>
-                            <div className="text-sm text-green-700 dark:text-green-300">{shift.title || 'Shift'}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-green-800 dark:text-green-200">
-                              {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                            </div>
-                            <Badge variant="secondary" className="mt-1">
-                              {shift.shift_type}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No one is currently working</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Enhanced Hard Drives by Project */}
+            {/* Extra Shift Requests */}
             <Card>
               <CardHeader>
-                <CardTitle>Hard Drives by Project</CardTitle>
-                <CardDescription>Distribution and status of hard drives across projects</CardDescription>
+                <CardTitle className="flex items-center text-purple-700 dark:text-purple-300">
+                  <Zap className="mr-2 h-5 w-5" />
+                  Extra Shift Requests ({extraShiftRequests.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {extraShiftRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {extraShiftRequests.slice(0, 3).map((request) => {
+                      const user = users.find(u => u.id === request.user_id);
+                      return (
+                        <div key={request.id} className="flex items-center justify-between p-2 bg-purple-50 dark:bg-purple-950 rounded">
+                          <span className="text-sm font-medium">{user?.username}</span>
+                          <Badge variant="outline" className="text-xs">Pending</Badge>
+                        </div>
+                      );
+                    })}
+                    {extraShiftRequests.length > 3 && (
+                      <p className="text-xs text-gray-500">+{extraShiftRequests.length - 3} more requests</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No pending extra shift requests</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center">
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  Total Projects
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{projectStats.total}</div>
+                <p className="text-xs text-gray-600">
+                  {projectStats.active} active, {projectStats.completed} completed
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center">
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Hard Drives
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hardDriveStats.total}</div>
+                <p className="text-xs text-gray-600">
+                  {hardDriveStats.available} available, {hardDriveStats.inUse} in use
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center">
+                  <Users className="mr-2 h-4 w-4" />
+                  Team Members
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{users.length}</div>
+                <p className="text-xs text-gray-600">
+                  {currentShifts.length} currently working
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center">
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{tasks.length}</div>
+                <p className="text-xs text-gray-600">
+                  {tasks.filter(t => t.status === 'completed').length} completed
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Low Space Alerts */}
+          {lowSpaceAlerts.length > 0 && (
+            <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+              <CardHeader>
+                <CardTitle className="flex items-center text-red-800 dark:text-red-200">
+                  <AlertTriangle className="mr-2 h-5 w-5" />
+                  Low Backup Space Alerts
+                </CardTitle>
+                <CardDescription className="text-red-700 dark:text-red-300">
+                  Latest backup drives with low space by project
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {hardDrivesByProject.map((item) => (
-                    <div 
-                      key={item.projectName} 
-                      className={`p-4 border rounded-lg ${item.lowSpaceAlert ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950' : 'border-gray-200 dark:border-gray-700'}`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="font-medium">{item.projectName}</div>
-                        {item.lowSpaceAlert && (
-                          <Badge variant="destructive" className="ml-2">Low Space</Badge>
-                        )}
+                  {lowSpaceAlerts.map((alert, index) => (
+                    <div key={index} className="p-3 bg-white dark:bg-red-900 rounded border">
+                      <div className="font-medium text-red-800 dark:text-red-200">
+                        {alert.project}
                       </div>
-                      <div className="text-2xl font-bold mt-2">{item.count}</div>
-                      <div className="text-sm text-gray-600 mb-2">Total Hard Drives</div>
-                      {item.backupDrives.length > 0 && (
+                      <div className="text-sm text-red-600 dark:text-red-400">
+                        Drive: {alert.hardDrive}
+                      </div>
+                      <div className="text-sm text-red-600 dark:text-red-400">
+                        Free: {alert.freeSpace} / {alert.capacity}
+                      </div>
+                      <Progress 
+                        value={100 - alert.freeSpacePercent} 
+                        className="mt-2 h-2"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Analytics Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Hard Drives by Project */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Hard Drives by Project</CardTitle>
+                <CardDescription>Storage allocation across projects</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {hardDrivesByProject.slice(0, 5).map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium">{item.projectName}</div>
                         <div className="text-sm text-gray-600">
-                          <div>Backup Drives: {item.backupDrives.length}</div>
-                          {item.latestBackup && (
-                            <div className="mt-1">
-                              <div className="font-medium">Latest: {item.latestBackup.name}</div>
-                              {item.latestBackup.freeSpace && item.latestBackup.capacity && (
-                                <div className={`text-xs ${item.lowSpaceAlert ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
-                                  {item.latestBackup.freeSpace} free of {item.latestBackup.capacity}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {item.available} available, {item.inUse} in use, {item.backup} backup
                         </div>
-                      )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">{item.count}</div>
+                        <div className="text-xs text-gray-500">drives</div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -471,355 +483,67 @@ const DashboardContent = () => {
             {/* Project Utilization */}
             <Card>
               <CardHeader>
-                <CardTitle>Project Utilization</CardTitle>
-                <CardDescription>Task completion rate by project</CardDescription>
+                <CardTitle>Project Progress</CardTitle>
+                <CardDescription>Task completion by project</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {projectUtilization.map((project) => (
-                    <div key={project.id} className="space-y-2">
+                  {projectUtilization.slice(0, 5).map((project, index) => (
+                    <div key={index} className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="font-medium">{project.name}</span>
-                        <span className="text-sm text-gray-600">{project.utilization}%</span>
+                        <span className="text-sm text-gray-600">
+                          {project.completedTasks}/{project.totalTasks} tasks
+                        </span>
                       </div>
-                      <Progress value={project.utilization} className="h-2" />
-                      <div className="text-xs text-gray-500">
-                        {project.completedTasks} of {project.totalTasks} tasks completed
-                      </div>
+                      <Progress value={project.progress} className="h-2" />
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
+          </div>
 
-            {/* Tasks per User */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Tasks per User</CardTitle>
-                <CardDescription>Task distribution and progress by team member</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {tasksPerUser.map((item) => (
-                    <div key={item.user.id} className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">{item.user.username}</span>
-                        <span className="text-sm text-gray-600">{item.totalTasks} total tasks</span>
+          {/* Tasks per User */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tasks per User</CardTitle>
+              <CardDescription>Workload distribution across team members</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {tasksPerUser.slice(0, 6).map((user, index) => (
+                  <div key={index} className="p-4 border rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{user.username}</span>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>Total:</span>
+                        <span className="font-medium">{user.totalTasks}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div className="text-center">
-                          <div className="font-bold text-green-600">{item.completedTasks}</div>
-                          <div className="text-gray-600">Completed</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-bold text-blue-600">{item.inProgressTasks}</div>
-                          <div className="text-gray-600">In Progress</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-bold text-gray-600">{item.pendingTasks}</div>
-                          <div className="text-gray-600">Pending</div>
-                        </div>
+                      <div className="flex justify-between text-green-600">
+                        <span>Completed:</span>
+                        <span>{user.completedTasks}</span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Upcoming Activities */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Recent Projects */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Projects</CardTitle>
-                  <CardDescription>Latest project activities</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {projects.slice(0, 5).map((project) => (
-                      <div key={project.id} className="flex items-center space-x-3">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{project.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {project.description || 'No description'}
-                          </p>
-                        </div>
-                        <Badge variant="default">
-                          Active
-                        </Badge>
+                      <div className="flex justify-between text-blue-600">
+                        <span>In Progress:</span>
+                        <span>{user.inProgressTasks}</span>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Upcoming Shifts */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Shifts</CardTitle>
-                  <CardDescription>Next scheduled shifts</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {upcomingShifts.length > 0 ? (
-                    <div className="space-y-3">
-                      {upcomingShifts.map((shift) => (
-                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div>
-                            <div className="font-medium">{shift.user?.username}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium">
-                              {format(new Date(shift.start_time), 'MMM d, HH:mm')}
-                            </div>
-                            <Badge variant="outline" className="mt-1">
-                              {shift.shift_type}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No upcoming shifts</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="tasks" className="space-y-4">
-            <TaskBoard />
-          </TabsContent>
-
-          <TabsContent value="projects" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Projects</CardTitle>
-                  <CardDescription>Manage your projects</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Project List</h3>
-                        <p className="text-sm text-muted-foreground">View all projects</p>
-                      </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Project
-                      </Button>
-                    </div>
-                    <div className="grid gap-4">
-                      {projects.map((project) => (
-                        <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div>
-                            <div className="font-medium">{project.name}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{project.description || 'No description'}</div>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant="default">
-                              Active
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Project Statistics</CardTitle>
-                  <CardDescription>Track project progress</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Project Statistics</h3>
-                        <p className="text-sm text-muted-foreground">View project metrics</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Active Projects</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Currently running</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            {projects.length}
-                          </div>
-                          <Badge variant="default">
-                            Active
-                          </Badge>
-                        </div>
+                      <div className="flex justify-between text-orange-600">
+                        <span>Pending:</span>
+                        <span>{user.pendingTasks}</span>
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="shifts" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Shifts</CardTitle>
-                  <CardDescription>Manage your shifts</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Shift List</h3>
-                        <p className="text-sm text-muted-foreground">View all shifts</p>
-                      </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Shift
-                      </Button>
-                    </div>
-                    <div className="grid gap-4">
-                      {shifts.slice(0, 5).map((shift) => (
-                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div>
-                            <div className="font-medium">{shift.title || 'Shift'}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.user?.username}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium">
-                              {shift.status}
-                            </div>
-                            <Badge variant={shift.status === 'scheduled' ? 'default' : 'secondary'}>
-                              {shift.status.replace('_', ' ')}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Shift Statistics</CardTitle>
-                  <CardDescription>Track shift metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Shift Statistics</h3>
-                        <p className="text-sm text-muted-foreground">View shift metrics</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Scheduled</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Total scheduled shifts</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            {currentShifts.length}
-                          </div>
-                          <Badge variant="default">
-                            Scheduled
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="devices" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Devices</CardTitle>
-                  <CardDescription>Manage your devices</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Device List</h3>
-                        <p className="text-sm text-muted-foreground">View all devices</p>
-                      </div>
-                      <Button variant="outline">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Device
-                      </Button>
-                    </div>
-                    <div className="grid gap-4">
-                      {hardDrives.slice(0, 5).map((device) => (
-                        <div key={device.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div>
-                            <div className="font-medium">{device.name}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{device.serialNumber}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium">
-                              Available
-                            </div>
-                            <Badge variant="default">
-                              Available
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Device Statistics</CardTitle>
-                  <CardDescription>Track device metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Device Statistics</h3>
-                        <p className="text-sm text-muted-foreground">View device metrics</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <div className="font-medium">Available</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices available</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            {hardDrives.length}
-                          </div>
-                          <Badge variant="default">
-                            Available
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </MainLayout>
   );
