@@ -92,7 +92,13 @@ const Dashboard = () => {
           .gte('end_time', now)
           .eq('status', 'scheduled');
 
-        setCurrentShifts(currentShiftsData || []);
+        if (currentShiftsData) {
+          const shiftsWithUsers = currentShiftsData.map(shift => ({
+            ...shift,
+            user: { username: shift.user?.username || 'Unknown' }
+          }));
+          setCurrentShifts(shiftsWithUsers);
+        }
 
         // Fetch today's time-off requests only
         const todayStart = new Date();
@@ -110,7 +116,13 @@ const Dashboard = () => {
           .gte('start_date', todayStart.toISOString())
           .lte('start_date', todayEnd.toISOString());
 
-        setTodayTimeOffRequests(requestsData || []);
+        if (requestsData) {
+          const requestsWithUsers = requestsData.map(request => ({
+            ...request,
+            user: { username: request.user?.username || 'Unknown' }
+          }));
+          setTodayTimeOffRequests(requestsWithUsers);
+        }
 
         // Fetch projects with their hard drives and tasks
         const { data: projectsWithData } = await supabase

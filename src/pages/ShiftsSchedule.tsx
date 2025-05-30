@@ -5,7 +5,7 @@ import { ShiftsProvider } from '@/context/ShiftsContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Users, Clock, Plus, Filter, Search, BarChart3, TrendingUp } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, Filter, Search, BarChart3, TrendingUp, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WeeklyScheduleView } from '@/components/shifts/WeeklyScheduleView';
@@ -127,7 +127,7 @@ const ShiftsScheduleContent = () => {
         {/* Main Content */}
         <div className="p-6">
           <Tabs defaultValue="schedule" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="schedule" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 Schedule
@@ -140,6 +140,13 @@ const ShiftsScheduleContent = () => {
                 <Clock className="h-4 w-4" />
                 Requests
               </TabsTrigger>
+              {/* Approvals tab only for admins */}
+              {isAdmin && (
+                <TabsTrigger value="approvals" className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Approvals
+                </TabsTrigger>
+              )}
               {/* Analytics tab only for managers and admins */}
               {isManager && (
                 <TabsTrigger value="analytics" className="flex items-center gap-2">
@@ -167,6 +174,27 @@ const ShiftsScheduleContent = () => {
             <TabsContent value="requests" className="space-y-6">
               <ShiftRequestsPanel />
             </TabsContent>
+
+            {/* Approvals View - Admin Only */}
+            {isAdmin && (
+              <TabsContent value="approvals" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5" />
+                      Pending Approvals
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8 text-gray-500">
+                      <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Approval system for shift changes and requests</p>
+                      <p className="text-sm mt-2">This section will contain admin-only approval workflows</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
 
             {/* Analytics View - Manager/Admin Only */}
             {isManager && (

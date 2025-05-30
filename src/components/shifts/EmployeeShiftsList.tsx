@@ -11,7 +11,15 @@ import { isToday, isThisWeek, format } from 'date-fns';
 
 type FilterType = 'all' | 'today' | 'week' | 'upcoming';
 
-export const EmployeeShiftsList = () => {
+interface EmployeeShiftsListProps {
+  searchTerm?: string;
+  filterRole?: string;
+}
+
+export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({ 
+  searchTerm = '', 
+  filterRole = 'all' 
+}) => {
   const { shifts, users } = useShifts();
   const { currentUser } = useAuth();
   const [filter, setFilter] = useState<FilterType>('all');
@@ -41,7 +49,12 @@ export const EmployeeShiftsList = () => {
     }
   };
 
-  const filteredShifts = getFilteredShifts();
+  const filteredShifts = getFilteredShifts().filter(shift => {
+    const user = users.find(u => u.id === shift.user_id);
+    const matchesSearch = !searchTerm || user?.username.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || user?.role === filterRole;
+    return matchesSearch && matchesRole;
+  });
 
   // Sort shifts by start time
   const sortedShifts = filteredShifts.sort((a, b) => 
@@ -142,7 +155,7 @@ export const EmployeeShiftsList = () => {
                                 {format(new Date(shift.start_time), 'MMM d, HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
                               </span>
                             </div>
-                            <Badge variant="outline" size="sm">
+                            <Badge variant="outline">
                               {shift.shift_type}
                             </Badge>
                           </div>
