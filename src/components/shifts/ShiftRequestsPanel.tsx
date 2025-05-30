@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Clock, CheckCircle, X, Filter } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import * as dateFns from 'date-fns';
+import { format } from 'date-fns';
 
 type RequestFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -121,8 +121,8 @@ export const ShiftRequestsPanel = () => {
                           <p className="text-sm text-gray-600 capitalize">{request.request_type.replace('_', ' ')}</p>
                           <div className="flex items-center space-x-4 mt-1">
                             <div className="text-xs text-gray-500">
-                              {dateFns.format(new Date(request.start_date), 'MMM d, yyyy')}
-                              {request.end_date && ` - ${dateFns.format(new Date(request.end_date), 'MMM d, yyyy')}`}
+                              {format(new Date(request.start_date), 'MMM d, yyyy')}
+                              {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
                             </div>
                             <Badge className={getStatusColor(request.status)}>
                               {request.status}
@@ -161,7 +161,7 @@ export const ShiftRequestsPanel = () => {
                       {/* Show approval info for processed requests */}
                       {request.status !== 'pending' && request.approved_at && (
                         <div className="text-right text-xs text-gray-500">
-                          <p>Processed: {dateFns.format(new Date(request.approved_at), 'MMM d, yyyy')}</p>
+                          <p>Processed: {format(new Date(request.approved_at), 'MMM d, yyyy')}</p>
                         </div>
                       )}
                     </div>

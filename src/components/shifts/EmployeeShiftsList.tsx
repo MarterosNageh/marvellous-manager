@@ -7,7 +7,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Clock, Calendar, User, Filter } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import * as dateFns from 'date-fns';
+import { 
+  isToday, 
+  isThisWeek, 
+  format 
+} from 'date-fns';
 
 type FilterType = 'all' | 'today' | 'week' | 'upcoming';
 
@@ -32,12 +36,12 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
       case 'today':
         return shifts.filter(shift => {
           const shiftDate = new Date(shift.start_time);
-          return dateFns.isToday(shiftDate) && shift.status === 'scheduled';
+          return isToday(shiftDate) && shift.status === 'scheduled';
         });
       case 'week':
         return shifts.filter(shift => {
           const shiftDate = new Date(shift.start_time);
-          return dateFns.isThisWeek(shiftDate) && shift.status === 'scheduled';
+          return isThisWeek(shiftDate) && shift.status === 'scheduled';
         });
       case 'upcoming':
         return shifts.filter(shift => {
@@ -63,8 +67,8 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
 
   const filterButtons = [
     { key: 'all' as FilterType, label: 'All Shifts', count: shifts.filter(s => s.status === 'scheduled').length },
-    { key: 'today' as FilterType, label: 'Today', count: shifts.filter(s => dateFns.isToday(new Date(s.start_time)) && s.status === 'scheduled').length },
-    { key: 'week' as FilterType, label: 'This Week', count: shifts.filter(s => dateFns.isThisWeek(new Date(s.start_time)) && s.status === 'scheduled').length },
+    { key: 'today' as FilterType, label: 'Today', count: shifts.filter(s => isToday(new Date(s.start_time)) && s.status === 'scheduled').length },
+    { key: 'week' as FilterType, label: 'This Week', count: shifts.filter(s => isThisWeek(new Date(s.start_time)) && s.status === 'scheduled').length },
     { key: 'upcoming' as FilterType, label: 'Upcoming', count: shifts.filter(s => new Date(s.start_time) > new Date() && s.status === 'scheduled').length },
   ];
 
@@ -152,7 +156,7 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
                             <div className="flex items-center space-x-1 text-xs text-gray-500">
                               <Clock className="h-3 w-3" />
                               <span>
-                                {dateFns.format(new Date(shift.start_time), 'MMM d, HH:mm')} - {dateFns.format(new Date(shift.end_time), 'HH:mm')}
+                                {format(new Date(shift.start_time), 'MMM d, HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
                               </span>
                             </div>
                             <Badge variant="outline">
@@ -168,8 +172,8 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
                           </Badge>
                         )}
                         <div className="text-xs text-gray-500">
-                          {dateFns.isToday(new Date(shift.start_time)) ? 'Today' : 
-                           dateFns.format(new Date(shift.start_time), 'MMM d, yyyy')}
+                          {isToday(new Date(shift.start_time)) ? 'Today' : 
+                           format(new Date(shift.start_time), 'MMM d, yyyy')}
                         </div>
                       </div>
                     </div>

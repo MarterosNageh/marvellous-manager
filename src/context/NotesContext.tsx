@@ -1,45 +1,29 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
-interface Note {
+export interface Note {
   id: string;
-  user_id: string;
   title: string;
   content: string;
+  user_id: string;
+  note_type: 'note';
+  is_shared: boolean;
   created_at: string;
   updated_at: string;
-  is_shared: boolean;
-  parent_id?: string;
-  note_type: 'note' | 'folder';
-  user?: {
-    username: string;
-  };
-}
-
-interface NoteShare {
-  id: string;
-  note_id: string;
-  shared_with_user_id: string;
-  permission_level: 'read' | 'write' | 'admin';
-  shared_by_user_id: string;
-  created_at: string;
 }
 
 interface NotesContextType {
   notes: Note[];
   selectedNote: Note | null;
   loading: boolean;
-  fetchNotes: () => Promise<void>;
-  createNote: (title: string, content?: string, parentId?: string, noteType?: 'note' | 'folder') => Promise<Note | null>;
-  updateNote: (id: string, updates: Partial<Note>) => Promise<boolean>;
-  deleteNote: (id: string) => Promise<boolean>;
+  createNote: (title: string, content?: string) => Promise<void>;
+  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
-  shareNote: (noteId: string, userId: string, permissionLevel: 'read' | 'write' | 'admin') => Promise<boolean>;
-  unshareNote: (noteId: string, userId: string) => Promise<boolean>;
-  getNoteShares: (noteId: string) => Promise<NoteShare[]>;
+  refreshNotes: () => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
@@ -53,69 +37,67 @@ export const useNotes = () => {
 };
 
 export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(false);
-  const { currentUser } = useAuth();
 
-  const fetchNotes = async () => {
+  const refreshNotes = async () => {
     if (!currentUser) return;
     
     setLoading(true);
     try {
-      // Get notes owned by the user
+      // Get notes owned by user
       const { data: ownedNotes, error: ownedError } = await supabase
         .from('notes')
-        .select(`
-          *,
-          user:auth_users(username)
-        `)
+        .select('*')
         .eq('user_id', currentUser.id)
+        .eq('note_type', 'note')
         .order('updated_at', { ascending: false });
 
       if (ownedError) throw ownedError;
 
-      // Get notes shared with the user
+      // Get notes shared with user
       const { data: sharedNotes, error: sharedError } = await supabase
         .from('note_shares')
         .select(`
           notes (
-            *,
-            user:auth_users(username)
+            id,
+            title,
+            content,
+            user_id,
+            note_type,
+            is_shared,
+            created_at,
+            updated_at
           )
         `)
         .eq('shared_with_user_id', currentUser.id);
 
       if (sharedError) throw sharedError;
 
-      // Combine owned and shared notes
+      // Combine and deduplicate notes
       const allNotes = [
         ...(ownedNotes || []),
-        ...(sharedNotes || []).map(share => share.notes).filter(Boolean).flat()
+        ...(sharedNotes?.map(s => s.notes).filter(Boolean) || [])
       ];
 
-      // Type cast the data to match our Note interface
-      const typedNotes = allNotes.map(note => ({
-        ...note,
-        note_type: note.note_type as 'note' | 'folder'
-      })) as Note[];
-
-      // Remove duplicates based on id
-      const uniqueNotes = typedNotes.filter((note, index, self) => 
+      // Remove duplicates based on ID
+      const uniqueNotes = allNotes.filter((note, index, self) => 
         index === self.findIndex(n => n.id === note.id)
       );
 
       setNotes(uniqueNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
-      toast.error('Failed to fetch notes');
+      toast.error('Failed to load notes');
     } finally {
       setLoading(false);
     }
   };
 
-  const createNote = async (title: string, content = '', parentId?: string, noteType: 'note' | 'folder' = 'note'): Promise<Note | null> => {
-    if (!currentUser) return null;
+  const createNote = async (title: string, content: string = '') => {
+    if (!currentUser) return;
 
     try {
       const { data, error } = await supabase
@@ -124,57 +106,48 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           title,
           content,
           user_id: currentUser.id,
-          parent_id: parentId,
-          note_type: noteType
+          note_type: 'note'
         })
-        .select(`
-          *,
-          user:auth_users(username)
-        `)
+        .select()
         .single();
 
       if (error) throw error;
 
-      const newNote = {
-        ...data,
-        note_type: data.note_type as 'note' | 'folder'
-      } as Note;
-      setNotes(prev => [newNote, ...prev]);
-      toast.success(`${noteType === 'folder' ? 'Folder' : 'Note'} created successfully`);
-      return newNote;
+      setNotes(prev => [data, ...prev]);
+      setSelectedNote(data);
+      toast.success('Note created successfully');
     } catch (error) {
       console.error('Error creating note:', error);
-      toast.error(`Failed to create ${noteType}`);
-      return null;
+      toast.error('Failed to create note');
     }
   };
 
-  const updateNote = async (id: string, updates: Partial<Note>): Promise<boolean> => {
+  const updateNote = async (id: string, updates: Partial<Note>) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('notes')
-        .update(updates)
-        .eq('id', id);
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) throw error;
 
-      setNotes(prev => prev.map(note => 
-        note.id === id ? { ...note, ...updates } : note
-      ));
-
-      if (selectedNote && selectedNote.id === id) {
-        setSelectedNote(prev => prev ? { ...prev, ...updates } : null);
+      setNotes(prev => prev.map(note => note.id === id ? data : note));
+      
+      if (selectedNote?.id === id) {
+        setSelectedNote(data);
       }
-
-      return true;
     } catch (error) {
       console.error('Error updating note:', error);
       toast.error('Failed to update note');
-      return false;
     }
   };
 
-  const deleteNote = async (id: string): Promise<boolean> => {
+  const deleteNote = async (id: string) => {
     try {
       const { error } = await supabase
         .from('notes')
@@ -185,16 +158,14 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setNotes(prev => prev.filter(note => note.id !== id));
       
-      if (selectedNote && selectedNote.id === id) {
+      if (selectedNote?.id === id) {
         setSelectedNote(null);
       }
-
+      
       toast.success('Note deleted successfully');
-      return true;
     } catch (error) {
       console.error('Error deleting note:', error);
       toast.error('Failed to delete note');
-      return false;
     }
   };
 
@@ -202,85 +173,9 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSelectedNote(note);
   };
 
-  const shareNote = async (noteId: string, userId: string, permissionLevel: 'read' | 'write' | 'admin'): Promise<boolean> => {
-    if (!currentUser) return false;
-
-    try {
-      const { error } = await supabase
-        .from('note_shares')
-        .insert({
-          note_id: noteId,
-          shared_with_user_id: userId,
-          permission_level: permissionLevel,
-          shared_by_user_id: currentUser.id
-        });
-
-      if (error) throw error;
-
-      // Update the note to mark it as shared
-      await updateNote(noteId, { is_shared: true });
-
-      toast.success('Note shared successfully');
-      return true;
-    } catch (error) {
-      console.error('Error sharing note:', error);
-      toast.error('Failed to share note');
-      return false;
-    }
-  };
-
-  const unshareNote = async (noteId: string, userId: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('note_shares')
-        .delete()
-        .eq('note_id', noteId)
-        .eq('shared_with_user_id', userId);
-
-      if (error) throw error;
-
-      // Check if there are any remaining shares
-      const { data: remainingShares } = await supabase
-        .from('note_shares')
-        .select('id')
-        .eq('note_id', noteId);
-
-      if (!remainingShares || remainingShares.length === 0) {
-        await updateNote(noteId, { is_shared: false });
-      }
-
-      toast.success('Note unshared successfully');
-      return true;
-    } catch (error) {
-      console.error('Error unsharing note:', error);
-      toast.error('Failed to unshare note');
-      return false;
-    }
-  };
-
-  const getNoteShares = async (noteId: string): Promise<NoteShare[]> => {
-    try {
-      const { data, error } = await supabase
-        .from('note_shares')
-        .select('*')
-        .eq('note_id', noteId);
-
-      if (error) throw error;
-
-      // Type cast the data to match our NoteShare interface
-      return (data || []).map(share => ({
-        ...share,
-        permission_level: share.permission_level as 'read' | 'write' | 'admin'
-      })) as NoteShare[];
-    } catch (error) {
-      console.error('Error fetching note shares:', error);
-      return [];
-    }
-  };
-
   useEffect(() => {
     if (currentUser) {
-      fetchNotes();
+      refreshNotes();
     }
   }, [currentUser]);
 
@@ -289,14 +184,11 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       notes,
       selectedNote,
       loading,
-      fetchNotes,
       createNote,
       updateNote,
       deleteNote,
       selectNote,
-      shareNote,
-      unshareNote,
-      getNoteShares
+      refreshNotes
     }}>
       {children}
     </NotesContext.Provider>

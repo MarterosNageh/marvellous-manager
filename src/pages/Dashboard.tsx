@@ -2,14 +2,21 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { supabase } from "@/integrations/supabase/client";
-import { HardDrive, Calendar, Users, Clock, AlertTriangle, CheckCircle, BarChart, FolderOpen } from "lucide-react";
-import * as dateFns from 'date-fns';
+import { 
+  HardDrive, 
+  Calendar, 
+  Users, 
+  Clock, 
+  AlertTriangle, 
+  UserX,
+  BarChart3
+} from "lucide-react";
+import { format } from 'date-fns';
 
 interface DashboardShift {
   id: string;
@@ -32,27 +39,6 @@ interface ShiftRequest {
   username?: string;
 }
 
-interface ProjectData {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-  created_at: string;
-  hardDrives: Array<{
-    id: string;
-    name: string;
-    capacity: string;
-    free_space: string;
-    status: string;
-    created_at: string;
-  }>;
-  tasks: Array<{
-    id: string;
-    title: string;
-    status: string;
-  }>;
-}
-
 interface UserUtilization {
   userId: string;
   username: string;
@@ -64,10 +50,9 @@ interface UserUtilization {
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
-  const { projects: dataProjects, hardDrives } = useData();
+  const { hardDrives } = useData();
   const [currentShifts, setCurrentShifts] = useState<DashboardShift[]>([]);
   const [todayTimeOffRequests, setTodayTimeOffRequests] = useState<ShiftRequest[]>([]);
-  const [projectsData, setProjectsData] = useState<ProjectData[]>([]);
   const [userUtilization, setUserUtilization] = useState<UserUtilization[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +61,7 @@ const Dashboard = () => {
       try {
         setLoading(true);
 
-        // Fetch currently active shifts with explicit user join
+        // Fetch currently active shifts
         const now = new Date().toISOString();
         const { data: currentShiftsData } = await supabase
           .from('shifts')
@@ -87,7 +72,7 @@ const Dashboard = () => {
             end_time,
             user_id,
             status,
-            user_username:auth_users!user_id(username)
+            auth_users!shifts_user_id_fkey(username)
           `)
           .lte('start_time', now)
           .gte('end_time', now)
@@ -96,12 +81,12 @@ const Dashboard = () => {
         if (currentShiftsData) {
           const shiftsWithUsers = currentShiftsData.map(shift => ({
             ...shift,
-            username: shift.user_username?.username || 'Unknown'
+            username: shift.auth_users?.username || 'Unknown'
           }));
           setCurrentShifts(shiftsWithUsers);
         }
 
-        // Fetch today's time-off requests only with explicit user join
+        // Fetch today's time-off requests
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
@@ -117,7 +102,7 @@ const Dashboard = () => {
             end_date,
             reason,
             user_id,
-            user_username:auth_users!user_id(username)
+            auth_users!shift_requests_user_id_fkey(username)
           `)
           .eq('request_type', 'time_off')
           .gte('start_date', todayStart.toISOString())
@@ -126,29 +111,9 @@ const Dashboard = () => {
         if (requestsData) {
           const requestsWithUsers = requestsData.map(request => ({
             ...request,
-            username: request.user_username?.username || 'Unknown'
+            username: request.auth_users?.username || 'Unknown'
           }));
           setTodayTimeOffRequests(requestsWithUsers);
-        }
-
-        // Fetch projects with their hard drives and tasks
-        const { data: projectsWithData } = await supabase
-          .from('projects')
-          .select(`
-            *,
-            hard_drives(*),
-            tasks(*)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (projectsWithData) {
-          const processedProjects = projectsWithData.map(project => ({
-            ...project,
-            hardDrives: project.hard_drives || [],
-            tasks: project.tasks || []
-          }));
-          setProjectsData(processedProjects);
         }
 
         // Fetch user utilization data
@@ -199,34 +164,28 @@ const Dashboard = () => {
 
   // Calculate low space alerts for backup drives containing "BK"
   const getBackupDriveAlerts = () => {
-    return projectsData.map(project => {
-      // Find backup drives containing "BK" in the name
-      const backupDrives = project.hardDrives
-        .filter(hd => hd.name.includes('BK') && hd.status === 'available')
-        .filter(hd => hd.free_space && hd.free_space !== 'N/A' && hd.free_space.trim() !== '')
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return hardDrives
+      .filter(hd => hd.name.includes('BK') && hd.status === 'available')
+      .filter(hd => hd.freeSpace && hd.freeSpace !== 'N/A' && hd.freeSpace.trim() !== '')
+      .map(hd => {
+        const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
+          const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
+          const total = parseFloat(capacity.replace(/[^\d.]/g, '')) || 1;
+          return (free / total) * 100;
+        };
 
-      if (backupDrives.length === 0) return null;
+        const freeSpacePercent = getFreeSpacePercentage(hd.freeSpace, hd.capacity || '1TB');
+        const isLowSpace = freeSpacePercent < 20;
 
-      const latestBackup = backupDrives[0];
-
-      const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
-        const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
-        const total = parseFloat(capacity.replace(/[^\d.]/g, '')) || 1;
-        return (free / total) * 100;
-      };
-
-      const freeSpacePercent = getFreeSpacePercentage(latestBackup.free_space, latestBackup.capacity);
-      const isLowSpace = freeSpacePercent < 20;
-
-      return isLowSpace ? {
-        project: project.name,
-        hardDrive: latestBackup.name,
-        freeSpacePercent,
-        capacity: latestBackup.capacity,
-        freeSpace: latestBackup.free_space
-      } : null;
-    }).filter(Boolean);
+        return isLowSpace ? {
+          id: hd.id,
+          name: hd.name,
+          freeSpacePercent,
+          capacity: hd.capacity,
+          freeSpace: hd.freeSpace
+        } : null;
+      })
+      .filter(Boolean);
   };
 
   const backupDriveAlerts = getBackupDriveAlerts();
@@ -244,224 +203,246 @@ const Dashboard = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Welcome back, {currentUser?.username}
-          </h1>
-          <p className="text-muted-foreground">
-            Here's what's happening with your organization today.
-          </p>
-        </div>
-
-        {/* Currently Working Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-green-600" />
-              Currently Working ({currentShifts.length})
-            </CardTitle>
-            <CardDescription>
-              Team members currently on shift
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {currentShifts.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No one is currently working</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {currentShifts.map((shift) => (
-                  <div key={shift.id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-green-100 text-green-700">
-                        {shift.username?.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{shift.username}</p>
-                      <p className="text-sm text-gray-600">{shift.title}</p>
-                      <p className="text-xs text-gray-500">
-                        Until {dateFns.format(new Date(shift.end_time), 'HH:mm')}
-                      </p>
-                    </div>
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Today's Time Off Requests */}
-        {todayTimeOffRequests.length > 0 && (
+        {/* Welcome Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Welcome Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-orange-600" />
-                Today's Time Off Requests ({todayTimeOffRequests.length})
+              <CardTitle className="text-2xl">
+                Welcome back, {currentUser?.username}
               </CardTitle>
               <CardDescription>
-                Time off requests for today
+                Here's what's happening with your organization today.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {todayTimeOffRequests.map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
-                          {request.username?.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-gray-900">{request.username}</p>
-                        <p className="text-sm text-gray-600">
-                          {dateFns.format(new Date(request.start_date), 'MMM d, yyyy')}
-                          {request.end_date && ` - ${dateFns.format(new Date(request.end_date), 'MMM d, yyyy')}`}
-                        </p>
-                        {request.reason && (
-                          <p className="text-xs text-gray-500">{request.reason}</p>
-                        )}
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-orange-600">
-                      {request.status}
-                    </Badge>
-                  </div>
-                ))}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                  <span className="text-sm font-medium">
+                    {format(new Date(), 'EEEE, MMMM d, yyyy')}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
 
-        {/* Backup Drive Storage Alerts */}
-        {backupDriveAlerts.length > 0 && (
+          {/* Currently Working & Time Off */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-green-600" />
+                Staff Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Currently Working */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-700">Currently Working</span>
+                  <Badge variant="secondary">{currentShifts.length}</Badge>
+                </div>
+                {currentShifts.length === 0 ? (
+                  <p className="text-sm text-gray-500">No one is currently working</p>
+                ) : (
+                  <div className="space-y-2">
+                    {currentShifts.slice(0, 3).map((shift) => (
+                      <div key={shift.id} className="flex items-center space-x-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="bg-green-100 text-green-700 text-xs">
+                            {shift.username?.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{shift.username}</span>
+                        <span className="text-xs text-gray-500">
+                          until {format(new Date(shift.end_time), 'HH:mm')}
+                        </span>
+                      </div>
+                    ))}
+                    {currentShifts.length > 3 && (
+                      <p className="text-xs text-gray-500">+{currentShifts.length - 3} more</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Time Off Today */}
+              {todayTimeOffRequests.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-orange-700 flex items-center gap-1">
+                      <UserX className="h-4 w-4" />
+                      Time Off Today
+                    </span>
+                    <Badge variant="outline">{todayTimeOffRequests.length}</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    {todayTimeOffRequests.map((request) => (
+                      <div key={request.id} className="flex items-center space-x-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
+                            {request.username?.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{request.username}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {request.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Alerts and Recent Hard Drives */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Hard Drives */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5" />
+                Recent Hard Drives
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {hardDrives.slice(0, 5).map((hardDrive) => (
+                  <div key={hardDrive.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <HardDrive className="h-6 w-6 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-sm">{hardDrive.name}</p>
+                        <p className="text-xs text-gray-500">{hardDrive.serialNumber}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={hardDrive.status === 'available' ? 'default' : 'secondary'} className="text-xs">
+                        {hardDrive.status}
+                      </Badge>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {hardDrive.capacity || 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {hardDrives.length === 0 && (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    No hard drives available
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Backup Drive Storage Alerts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
-                Backup Drive Storage Alerts ({backupDriveAlerts.length})
+                Backup Drive Storage Alerts
               </CardTitle>
-              <CardDescription>
-                Backup drives (BK) with low storage space
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {backupDriveAlerts.map((alert, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
-                    <div className="flex items-center space-x-3">
-                      <HardDrive className="h-8 w-8 text-red-600" />
-                      <div>
-                        <p className="font-medium text-gray-900">{alert.project}</p>
-                        <p className="text-sm text-gray-600">Backup drive: {alert.hardDrive}</p>
-                        <p className="text-xs text-gray-500">
-                          {alert.freeSpace} free of {alert.capacity}
-                        </p>
+              {backupDriveAlerts.length === 0 ? (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No storage alerts for backup drives
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {backupDriveAlerts.map((alert, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div className="flex items-center space-x-3">
+                        <HardDrive className="h-6 w-6 text-red-600" />
+                        <div>
+                          <p className="font-medium text-sm">{alert.name}</p>
+                          <p className="text-xs text-gray-600">
+                            {alert.freeSpace} free of {alert.capacity}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="destructive">
+                      <Badge variant="destructive" className="text-xs">
                         {alert.freeSpacePercent.toFixed(1)}% free
                       </Badge>
-                      <p className="text-xs text-gray-500 mt-1">Low Space</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recent Projects */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5" />
-              Recent Projects
-            </CardTitle>
-            <CardDescription>
-              Latest 5 projects in the system
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {projectsData.map((project) => (
-                <div key={project.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <FolderOpen className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">{project.name}</p>
-                      <p className="text-sm text-gray-600">{project.description || 'No description'}</p>
-                      <p className="text-xs text-gray-500">
-                        Created {dateFns.format(new Date(project.created_at), 'MMM d, yyyy')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
-                      {project.status}
-                    </Badge>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {project.tasks.length} tasks, {project.hardDrives.length} drives
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {projectsData.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  No projects available
+                  ))}
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* User Utilization */}
+        {/* User Task Utilization Table */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart className="h-5 w-5" />
+              <BarChart3 className="h-5 w-5" />
               User Task Utilization
             </CardTitle>
             <CardDescription>
-              Task completion rates by user
+              Task completion rates and workload distribution
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {userUtilization.map((user) => (
-                <div key={user.userId} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                          {user.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <h4 className="font-medium">{user.username}</h4>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {user.completedTasks}/{user.totalTasks} completed ({user.inProgressTasks} in progress)
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Progress value={user.completionRate} className="flex-1" />
-                    <span className="text-sm font-medium w-12 text-right">
-                      {user.completionRate}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {userUtilization.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  No user task data available
-                </div>
-              )}
-            </div>
+            {userUtilization.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No user task data available
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4 font-medium">User</th>
+                      <th className="text-center py-2 px-4 font-medium">Total Tasks</th>
+                      <th className="text-center py-2 px-4 font-medium">Completed</th>
+                      <th className="text-center py-2 px-4 font-medium">In Progress</th>
+                      <th className="text-center py-2 px-4 font-medium">Completion Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userUtilization.map((user) => (
+                      <tr key={user.userId} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                {user.username.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{user.username}</span>
+                          </div>
+                        </td>
+                        <td className="text-center py-3 px-4">{user.totalTasks}</td>
+                        <td className="text-center py-3 px-4">
+                          <Badge variant="default" className="bg-green-100 text-green-800">
+                            {user.completedTasks}
+                          </Badge>
+                        </td>
+                        <td className="text-center py-3 px-4">
+                          <Badge variant="secondary">
+                            {user.inProgressTasks}
+                          </Badge>
+                        </td>
+                        <td className="text-center py-3 px-4">
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="w-16 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full" 
+                                style={{ width: `${user.completionRate}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-medium">{user.completionRate}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

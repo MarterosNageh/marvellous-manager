@@ -6,7 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import * as dateFns from 'date-fns';
+import { 
+  isSameDay, 
+  format, 
+  addDays, 
+  subDays 
+} from 'date-fns';
 
 export const DailyScheduleView = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -16,7 +21,7 @@ export const DailyScheduleView = () => {
   // Filter shifts for current day
   const todayShifts = shifts.filter(shift => {
     const shiftDate = new Date(shift.start_time);
-    return dateFns.isSameDay(shiftDate, currentDate);
+    return isSameDay(shiftDate, currentDate);
   });
 
   // Sort shifts by start time
@@ -35,15 +40,11 @@ export const DailyScheduleView = () => {
   };
 
   const handlePreviousDay = () => {
-    const previousDay = new Date(currentDate);
-    previousDay.setDate(currentDate.getDate() - 1);
-    setCurrentDate(previousDay);
+    setCurrentDate(subDays(currentDate, 1));
   };
 
   const handleNextDay = () => {
-    const nextDay = new Date(currentDate);
-    nextDay.setDate(currentDate.getDate() + 1);
-    setCurrentDate(nextDay);
+    setCurrentDate(addDays(currentDate, 1));
   };
 
   const currentlyWorking = getCurrentlyWorking();
@@ -54,7 +55,7 @@ export const DailyScheduleView = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h3 className="text-lg font-semibold">
-            {dateFns.format(currentDate, 'EEEE, MMMM d, yyyy')}
+            {format(currentDate, 'EEEE, MMMM d, yyyy')}
           </h3>
         </div>
         <div className="flex items-center space-x-2">
@@ -66,39 +67,6 @@ export const DailyScheduleView = () => {
           </Button>
         </div>
       </div>
-
-      {/* Currently Working */}
-      {currentlyWorking.length > 0 && (
-        <Card className="bg-green-50 border-green-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg text-green-800">Currently Working</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {currentlyWorking.map((shift) => {
-              const user = users.find(u => u.id === shift.user_id);
-              return (
-                <div key={shift.id} className="bg-white rounded-lg p-4 border border-green-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{user?.username}</p>
-                        <p className="text-sm text-gray-600">{shift.title}</p>
-                        <p className="text-xs text-gray-500">
-                          {dateFns.format(new Date(shift.start_time), 'HH:mm')} - {dateFns.format(new Date(shift.end_time), 'HH:mm')}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
 
       {/* All Shifts for the Day */}
       <Card>
@@ -133,11 +101,11 @@ export const DailyScheduleView = () => {
                       <div className="flex items-center space-x-4">
                         <div className="text-center">
                           <div className="text-sm font-medium text-gray-900">
-                            {dateFns.format(new Date(shift.start_time), 'HH:mm')}
+                            {format(new Date(shift.start_time), 'HH:mm')}
                           </div>
                           <div className="text-xs text-gray-500">to</div>
                           <div className="text-sm font-medium text-gray-900">
-                            {dateFns.format(new Date(shift.end_time), 'HH:mm')}
+                            {format(new Date(shift.end_time), 'HH:mm')}
                           </div>
                         </div>
                         <div>

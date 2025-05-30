@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -7,19 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
-import { ArrowLeft, Edit, Trash2, HardDrive as HardDriveIcon, Printer } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, HardDrive as HardDriveIcon, Printer, AlertTriangle } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import type { Project, HardDrive, PrintHistory } from "@/types";
+import { format } from 'date-fns';
 
 const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return format(new Date(dateString), 'PPpp');
 };
 
 const ProjectDetail = () => {
@@ -82,14 +77,30 @@ const ProjectDetail = () => {
   const handlePrint = () => {
     if (!project) return;
     
-    // Navigate to print page with project data
+    // Navigate to print page with all hard drives for this project
     navigate('/print', { 
       state: { 
-        type: 'projectDetail',
+        type: 'allHards',
         project,
         hardDrives: projectHardDrives
       } 
     });
+  };
+
+  // Check for low space drives
+  const getLowSpaceStatus = (hardDrive: HardDrive) => {
+    if (!hardDrive.freeSpace || hardDrive.freeSpace === 'N/A' || hardDrive.freeSpace.trim() === '') {
+      return null;
+    }
+    
+    const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
+      const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
+      const total = parseFloat(capacity?.replace(/[^\d.]/g, '') || '1') || 1;
+      return (free / total) * 100;
+    };
+
+    const freeSpacePercent = getFreeSpacePercentage(hardDrive.freeSpace, hardDrive.capacity || '1TB');
+    return freeSpacePercent < 20;
   };
 
   if (loading) {
@@ -150,7 +161,7 @@ const ProjectDetail = () => {
               onClick={handlePrint}
             >
               <Printer className="h-4 w-4 mr-2" />
-              Print Summary
+              Print All Hard Drives
             </Button>
             <Button 
               variant="outline" 
@@ -231,31 +242,61 @@ const ProjectDetail = () => {
           </Card>
         </div>
 
-        {/* Associated Hard Drives */}
+        {/* Associated Hard Drives Table */}
         <Card>
           <CardHeader>
             <CardTitle>Associated Hard Drives ({projectHardDrives.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {projectHardDrives.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {projectHardDrives.map((hardDrive) => (
-                  <div 
-                    key={hardDrive.id} 
-                    className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <HardDriveIcon className="h-5 w-5 text-gray-600" />
-                      <h3 className="font-medium">{hardDrive.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{hardDrive.serialNumber}</p>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>{hardDrive.capacity || 'Unknown capacity'}</span>
-                      <span>{hardDrive.freeSpace || 'Unknown free space'}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4 font-medium">Name</th>
+                      <th className="text-left py-2 px-4 font-medium">Serial Number</th>
+                      <th className="text-center py-2 px-4 font-medium">Capacity</th>
+                      <th className="text-center py-2 px-4 font-medium">Free Space</th>
+                      <th className="text-center py-2 px-4 font-medium">Status</th>
+                      <th className="text-center py-2 px-4 font-medium">Alerts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projectHardDrives.map((hardDrive) => {
+                      const isLowSpace = getLowSpaceStatus(hardDrive);
+                      return (
+                        <tr 
+                          key={hardDrive.id} 
+                          className="border-b hover:bg-gray-50 cursor-pointer"
+                          onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <HardDriveIcon className="h-4 w-4 text-gray-600" />
+                              <span className="font-medium">{hardDrive.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{hardDrive.serialNumber}</td>
+                          <td className="text-center py-3 px-4 text-sm">{hardDrive.capacity || 'Unknown'}</td>
+                          <td className="text-center py-3 px-4 text-sm">{hardDrive.freeSpace || 'Unknown'}</td>
+                          <td className="text-center py-3 px-4">
+                            <Badge variant={hardDrive.status === 'available' ? 'default' : 'secondary'}>
+                              {hardDrive.status}
+                            </Badge>
+                          </td>
+                          <td className="text-center py-3 px-4">
+                            {isLowSpace && (
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Low Space
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="text-center py-8">

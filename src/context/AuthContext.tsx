@@ -15,7 +15,7 @@ interface User {
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
-  isAuthenticated: boolean;
+  isAuthenticated: boolean | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   refreshUsers: () => Promise<void>;
@@ -37,6 +37,29 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Check for existing session on app load
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          console.log('Restored user session:', user);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkSession();
+  }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
@@ -64,6 +87,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setCurrentUser(user);
+      setIsAuthenticated(true);
+      
+      // Store user session in localStorage
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      
       console.log('Login successful:', user);
       return true;
     } catch (error) {
@@ -74,6 +102,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setCurrentUser(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem('currentUser');
+    console.log('User logged out');
   };
 
   const refreshUsers = async () => {
@@ -126,7 +157,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Update current user if it's the same user
       if (currentUser && currentUser.id === userId) {
-        setCurrentUser(prev => prev ? { ...prev, ...userData } : null);
+        const updatedUser = { ...currentUser, ...userData };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       }
 
       return true;
@@ -188,10 +221,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    refreshUsers();
-  }, []);
-
-  const isAuthenticated = currentUser !== null;
+    if (isAuthenticated) {
+      refreshUsers();
+    }
+  }, [isAuthenticated]);
 
   return (
     <AuthContext.Provider value={{
