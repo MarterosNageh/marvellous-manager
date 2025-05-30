@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface PushSubscriptionData {
@@ -10,6 +9,7 @@ interface PushSubscriptionData {
 }
 
 class PushNotificationService {
+  // Correct VAPID key for marvellous-manager project
   private vapidPublicKey = 'BL7ELSlram2dAgx2Hm1BTEKD9EjvCcxkIqJaUNZjD1HNg_O2zzMiA5d9I5A5mPKZJVk7T2tLWS-4kzRv6fTuwS4';
 
   // Enhanced subscription status check
@@ -40,18 +40,20 @@ class PushNotificationService {
       }
 
       const user = JSON.parse(currentUser);
-      const { data: dbSubscriptions, error } = await supabase
+      
+      // Check both tables for subscriptions
+      const { data: pushSubs } = await supabase
         .from('push_subscriptions')
         .select('*')
         .eq('user_id', user.id)
         .eq('endpoint', browserSubscription.endpoint);
 
-      if (error) {
-        console.error('❌ Database subscription check failed:', error);
-        return false;
-      }
+      const { data: fcmTokens } = await supabase
+        .from('push_tokens')
+        .select('*')
+        .eq('user_id', user.id);
 
-      const hasDbSubscription = dbSubscriptions && dbSubscriptions.length > 0;
+      const hasDbSubscription = (pushSubs && pushSubs.length > 0) || (fcmTokens && fcmTokens.length > 0);
       console.log('🔍 Database subscription match:', hasDbSubscription ? 'Found' : 'None');
       
       // Both browser and database must have matching subscription

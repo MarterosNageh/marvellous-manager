@@ -12,38 +12,63 @@ interface PushToken {
   user_id: string;
 }
 
-// Updated Firebase Service Account from the provided JSON
-const SERVICE_ACCOUNT = {
-  "type": "service_account",
-  "project_id": "marvellous-manager",
-  "private_key_id": "04547119cb75b54f20c37a9e5af5bef9d38f7ce3",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDFgsq5Jjfo+xXn\nBEfr6Tt+EBMvfBxNNweXp73nHrLqWYl/kzf52gkLzGG4+jakS+7Bg4kTiIkAYZVs\nbbocnLSVjp8GjZev13awmSv3ZOnRcXnHAuLgZEsw+m5JXpyH1iqUGusEWjGuQMWW\nQIEXw4ZAndDV+ucN7ovjPIFfNhWARqyh51K2RLTj9rvoWWlViSKk2CgiPUpMtFnT\nPLtKkMTmQMz850OXGZKiqoxOVRsSFk7xp428MOjTh3jDZtf2bRoc0NUgAJksnEao\nB9fYZp+DTLEpNbYo7ib5KtqZCbNgqZnn/9OYH8Pin++pzGprHUILZLIMjIhMyZ6T\nd/Lft2utAgMBAAECggEAAUejBKbIv0u74plWgKLW7dmGJk1JlFPXoBXy1xKN2j2Q\n9IYBsNlxgZAQz2AKW++EsTWm/RIUwS82BqkssY7FD3WzIMRox+I/iflpctrxNkLj\n+nQnADPmK3++mInHveGXY7T2R5BGDiOr+W3wPYqDeNu3mgtcKpecdHEp7XIDmvyB\n/4LeVWGiliyvwK4ha40qUi2j6TpNcJuN98+PY9Web6Ou8879nJTPY0pRne/230QZ\nXppH13AljZelA7v7spmS91wmP9nlwzLolarPys4hVfpxnHsYML33IUEooigTz4f+\nQ7gKzRr/S93S7wb6+HUhZs/fgOW1d1omWK951c0GiQKBgQDwX+pLfJUzDKmmrosr\nCls/cUUOAsJQc1ygbaCLg+l7uSmuVRs8vob11TgK/9y7Y2ORTC8NydgyH/mAjY1t\nN49t9OqeT/xyKbdtIiBxu/9pAdrKxtffpuLtP91lcLijH3+9lF5BrWz7Ca0ilaea\nJZ0f+Dtpb+WIi/Zgrn97kXGdFwKBgQDSWZQ66u9tDswfQLVEHJwUoIIrSFgC8g/X\nhNbxC5I5jEPGJTgUxKBLj7vnoemecDl9H3PPsHHWNKQb81a+yifhcfokU1f6JKZJ\nTTNHZZfBffX3G5yHb3abDFGLRaCoAC0y573KSt6/4x+7SNenN1+qWR/ZoSVfkNSh\nDt+jJSnf2wKBgCiIU+60rEf2a6kSp57zWR2ikP1i07dTLJxUwAymirl1KKUf7r7Y\nddOAR7n7GRJ0GOFy0kBl99HD+IOH2wA+rS3ibamSXUQ26po5dfUXuWLQkD8/Nmmd\nL4jICyIu1sOS7Sxfl2FFyCmwoQRC7gcdLpiUeBg4aSEUUNBOvGpuxRSzAoGAJkjX\nicGowhinXijQ1Qy/+6EbD/WizyZva7JpzIVmn8K/sxijFGSVKCuI76ewdX3HeNZ4\npZxfm7UJCW1IpID2sTmlZWcl5Ak3mq/KXXxIGpdqZQdJffzzgVTEoqyRiQI/N7yl\n9mOaFyKna9beKTkS2FZQTbPesX4StR2X5oGlFXECgYBRnkYJp0wHZqAvbVE51J+H\n0VDFv4mZj/sSaBJXCXFekrZt0oATLu0v/CRpnb4SIcE13fXxIwGNIBUv0xf92xE4\nmUTPCbJ4gr2qG7Shm0hHaQPHoLgo1ZtkcJOESBXaFyTwAqapOEuur8meG2em6sQW\n38K3vO5Jxhh7im8XwyxUXQ==\n-----END PRIVATE KEY-----\n",
-  "client_email": "firebase-adminsdk-fbsvc@marvellous-manager.iam.gserviceaccount.com",
-  "client_id": "111912629734263281888",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40marvellous-manager.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-};
-
-// Firebase configuration
+// Firebase Service Account configuration
 const FIREBASE_CONFIG = {
   projectId: "marvellous-manager",
-  messagingSenderId: "368753443778"
-}
+  clientEmail: "firebase-adminsdk-fbsvc@marvellous-manager.iam.gserviceaccount.com",
+  privateKey: `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDFgsq5Jjfo+xXn
+BEfr6Tt+EBMvfBxNNweXp73nHrLqWYl/kzf52gkLzGG4+jakS+7Bg4kTiIkAYZVs
+bbocnLSVjp8GjZev13awmSv3ZOnRcXnHAuLgZEsw+m5JXpyH1iqUGusEWjGuQMWW
+QIEXw4ZAndDV+ucN7ovjPIFfNhWARqyh51K2RLTj9rvoWWlViSKk2CgiPUpMtFnT
+PLtKkMTmQMz850OXGZKiqoxOVRsSFk7xp428MOjTh3jDZtf2bRoc0NUgAJksnEao
+B9fYZp+DTLEpNbYo7ib5KtqZCbNgqZnn/9OYH8Pin++pzGprHUILZLIMjIhMyZ6T
+d/Lft2utAgMBAAECggEAAUejBKbIv0u74plWgKLW7dmGJk1JlFPXoBXy1xKN2j2Q
+9IYBsNlxgZAQz2AKW++EsTWm/RIUwS82BqkssY7FD3WzIMRox+I/iflpctrxNkLj
++nQnADPmK3++mInHveGXY7T2R5BGDiOr+W3wPYqDeNu3mgtcKpecdHEp7XIDmvyB
+/4LeVWGiliyvwK4ha40qUi2j6TpNcJuN98+PY9Web6Ou8879nJTPY0pRne/230QZ
+XppH13AljZelA7v7spmS91wmP9nlwzLolarPys4hVfpxnHsYML33IUEooigTz4f+
+Q7gKzRr/S93S7wb6+HUhZs/fgOW1d1omWK951c0GiQKBgQDwX+pLfJUzDKmmrosr
+Cls/cUUOAsJQc1ygbaCLg+l7uSmuVRs8vob11TgK/9y7Y2MRTC8NydgyH/mAjY1t
+N49t9OqeT/xyKbdtIiBxu/9pAdrKxtffpuLtP91lcLijH3+9lF5BrWz7Ca0ilaea
+JZ0f+Dtpb+WIi/Zgrn97kXGdFwKBgQDSWZQ66u9tDswfQLVEHJwUoIIrSFgC8g/X
+hNbxC5I5jEPGJTgUxKBLj7vnoemecDl9H3PPsHHWNKQb81a+yifhcfokU1f6JKZJ
+TTNHZZFBFFX3G5yHb3abDFGLRaCoAC0y573KSt6/4x+7SNenN1+qWR/ZoSVfkNSh
+Dt+jJSnf2wKBgCiIU+60rEf2a6kSp57zWR2ikP1i07dTLJxUwAymirl1KKUf7r7Y
+ddOAR7n7GRJ0GOFy0kBl99HD+IOH2wA+rS3ibamSXUQ26po5dfUXuWLQkD8/Nmmd
+L4jICyIu1sOS7Sxfl2FFyCmwoQRC7gcdLpiUeBg4aSEUUNBOvGpuxRSzAoGAJkjX
+icGowhinXijQ1Qy/+6EbD/WizyZva7JpzIVmn8K/sxijFGSVKCuI76ewdX3HeNZ4
+pZxfm7UJCW1IpID2sTmlZWcl5Ak3mq/KXXxIGpdqZQdJffzzgVTEoqyRiQI/N7yl
+9mOaFyKna9beKTkS2FZQTbPesX4StR2X5oGlFXECgYBRnkYJp0wHZqAvbVE51J+H
+0VDFv4mZj/sSaBJXCXFekrZt0oATLu0v/CRpnb4SIcE13fXxIwGNIBUv0xf92xE4
+mUTPCbJ4gr2qG7Shm0hHaQPHoLgo1ZtkcJOESBXaFyTwAqapOEuur8meG2em6sQW
+38K3vO5Jxhh7im8XwyxUXQ==
+-----END PRIVATE KEY-----`,
+  privateKeyId: "04547119cb75b54f20c37a9e5af5bef9d38f7ce3"
+};
 
-// Enhanced JWT creation with correct private key
-async function createJWT(payload: any): Promise<string> {
-  console.log('🔧 Creating JWT with updated service account...');
+async function getAccessToken(): Promise<string> {
+  console.log('🔐 Getting Firebase access token...');
   
   try {
+    const now = Math.floor(Date.now() / 1000);
+    const expiry = now + 3600;
+    
     const header = {
       alg: 'RS256',
       typ: 'JWT',
-      kid: SERVICE_ACCOUNT.private_key_id
+      kid: FIREBASE_CONFIG.privateKeyId
     };
 
+    const payload = {
+      iss: FIREBASE_CONFIG.clientEmail,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: expiry,
+      iat: now
+    };
+
+    // Create JWT manually
     const encodedHeader = btoa(JSON.stringify(header))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
@@ -56,8 +81,8 @@ async function createJWT(payload: any): Promise<string> {
 
     const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-    const privateKeyPem = SERVICE_ACCOUNT.private_key;
-    const privateKeyDer = privateKeyPem
+    // Import the private key
+    const privateKeyDer = FIREBASE_CONFIG.privateKey
       .replace(/-----BEGIN PRIVATE KEY-----/g, '')
       .replace(/-----END PRIVATE KEY-----/g, '')
       .replace(/\r?\n/g, '');
@@ -88,37 +113,12 @@ async function createJWT(payload: any): Promise<string> {
       .replace(/=/g, '');
 
     const jwt = `${signingInput}.${signatureB64}`;
-    console.log('✅ JWT created successfully with updated credentials');
-    
-    return jwt;
-  } catch (error) {
-    console.error('❌ JWT creation failed:', error);
-    throw new Error(`JWT creation failed: ${error.message}`);
-  }
-}
 
-async function getAccessToken(): Promise<string> {
-  console.log('🔐 Getting Firebase access token with updated service account...');
-  
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    const expiry = now + 3600;
-    
-    const payload = {
-      iss: SERVICE_ACCOUNT.client_email,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: expiry,
-      iat: now
-    };
-
-    const jwt = await createJWT(payload);
-
+    // Get access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
       },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -126,16 +126,12 @@ async function getAccessToken(): Promise<string> {
       })
     });
 
-    console.log('📡 Token response status:', tokenResponse.status);
-    
-    const responseText = await tokenResponse.text();
-
     if (!tokenResponse.ok) {
-      console.error('❌ Token request failed:', responseText);
-      throw new Error(`Token request failed: ${tokenResponse.status} - ${responseText}`);
+      const errorText = await tokenResponse.text();
+      throw new Error(`Token request failed: ${tokenResponse.status} - ${errorText}`);
     }
 
-    const tokenData = JSON.parse(responseText);
+    const tokenData = await tokenResponse.json();
     console.log('✅ Firebase access token obtained successfully');
     
     return tokenData.access_token;
@@ -275,17 +271,22 @@ serve(async (req) => {
     // Get Firebase access token
     const accessToken = await getAccessToken();
 
-    // Get FCM tokens from database
-    const { data: tokens, error } = await supabase
+    // Get FCM tokens from database - check both tables
+    const { data: fcmTokens, error: fcmError } = await supabase
       .from('push_tokens')
       .select('*')
       .in('user_id', userIds);
 
-    if (error) {
-      console.error('❌ Error fetching tokens:', error);
+    const { data: pushTokens, error: pushError } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .in('user_id', userIds);
+
+    if (fcmError && pushError) {
+      console.error('❌ Error fetching tokens:', { fcmError, pushError });
       return new Response(
         JSON.stringify({ 
-          error: `Database error: ${error.message}`,
+          error: `Database error: ${fcmError?.message || pushError?.message}`,
           success: false
         }),
         { 
@@ -295,9 +296,15 @@ serve(async (req) => {
       );
     }
 
-    console.log('📱 FCM tokens found:', tokens?.length || 0);
+    // Combine all tokens
+    const allTokens = [
+      ...(fcmTokens || []).map(t => ({ token: t.token, user_id: t.user_id, source: 'fcm' })),
+      ...(pushTokens || []).map(t => ({ token: t.endpoint, user_id: t.user_id, source: 'push' }))
+    ];
 
-    if (!tokens || tokens.length === 0) {
+    console.log('📱 Total tokens found:', allTokens.length);
+
+    if (allTokens.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -310,9 +317,17 @@ serve(async (req) => {
     }
 
     // Send notifications
-    const pushPromises = tokens.map(async (tokenData: PushToken) => {
+    const pushPromises = allTokens.map(async (tokenData) => {
       try {
-        const result = await sendFCMNotification(tokenData.token, {
+        let token = tokenData.token;
+        
+        // Extract FCM token from endpoint if needed
+        if (tokenData.source === 'push' && token.includes('fcm.googleapis.com')) {
+          const urlParts = token.split('/');
+          token = urlParts[urlParts.length - 1];
+        }
+
+        const result = await sendFCMNotification(token, {
           title,
           body,
           data: data || {},
@@ -323,13 +338,15 @@ serve(async (req) => {
 
         return {
           userId: tokenData.user_id,
-          token: tokenData.token.substring(0, 20) + '...',
+          token: token.substring(0, 20) + '...',
+          source: tokenData.source,
           ...result
         };
       } catch (sendError) {
         return {
           userId: tokenData.user_id,
           token: tokenData.token.substring(0, 20) + '...',
+          source: tokenData.source,
           success: false,
           error: sendError.message
         };

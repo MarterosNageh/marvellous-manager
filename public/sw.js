@@ -1,5 +1,5 @@
 
-console.log('🔧 Firebase FCM Enhanced Service Worker loaded with new VAPID key');
+console.log('🔧 Service Worker loaded for FCM');
 
 // Firebase configuration
 const firebaseConfig = {
@@ -12,20 +12,18 @@ const firebaseConfig = {
   measurementId: "G-YBBC3CXLEF"
 };
 
-// Updated VAPID key for proper authentication
-const VAPID_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
+// Correct VAPID key
+const VAPID_KEY = 'BL7ELSlram2dAgx2Hm1BTEKD9EjvCcxkIqJaUNZjD1HNg_O2zzMiA5d9I5A5mPKZJVk7T2tLWS-4kzRv6fTuwS4';
 
 console.log('🔑 Using VAPID key:', VAPID_KEY.substring(0, 30) + '...');
 console.log('🔥 Firebase Project:', firebaseConfig.projectId);
 
 self.addEventListener('push', function(event) {
-  console.log('📱 Firebase FCM Enhanced Push event received:', event);
-  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
-  console.log('🔑 VAPID Authentication Active');
+  console.log('📱 Push event received:', event);
   
   if (event.data) {
     const data = event.data.json();
-    console.log('📱 Firebase FCM Enhanced Push data:', data);
+    console.log('📱 Push data:', data);
     
     const options = {
       body: data.body || data.message,
@@ -37,9 +35,8 @@ self.addEventListener('push', function(event) {
         primaryKey: data.taskId || data.data?.taskId || '1',
         url: data.data?.url || '/task-manager',
         test: data.test || false,
-        type: data.type || 'firebase-fcm',
-        firebaseProject: firebaseConfig.projectId,
-        vapidAuthenticated: true
+        type: data.type || 'fcm',
+        firebaseProject: firebaseConfig.projectId
       },
       actions: [
         {
@@ -55,84 +52,39 @@ self.addEventListener('push', function(event) {
       ],
       requireInteraction: true,
       silent: false,
-      tag: data.tag || 'firebase-fcm',
+      tag: data.tag || 'fcm-notification',
       timestamp: Date.now()
     };
     
-    console.log('📱 Showing Firebase FCM enhanced notification with VAPID auth:', options);
+    console.log('📱 Showing notification:', options);
     
     event.waitUntil(
       self.registration.showNotification(data.title, options)
     );
   } else {
-    console.log('📱 Firebase FCM Push event received but no data');
+    console.log('📱 Push event received but no data');
     
     // Show a default notification
     event.waitUntil(
       self.registration.showNotification('New Notification', {
-        body: 'You have a new notification from Firebase FCM with VAPID authentication',
+        body: 'You have a new notification',
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         vibrate: [200, 100, 200],
         requireInteraction: true,
-        tag: 'firebase-fcm-default',
+        tag: 'fcm-default',
         data: {
           url: '/task-manager',
-          type: 'firebase-fcm-default',
-          firebaseProject: firebaseConfig.projectId,
-          vapidAuthenticated: true
+          type: 'fcm-default',
+          firebaseProject: firebaseConfig.projectId
         }
       })
     );
   }
 });
 
-self.addEventListener('message', function(event) {
-  console.log('💬 Firebase FCM Enhanced Service Worker message received:', event.data);
-  
-  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-    const { title, message, taskId } = event.data;
-    
-    const options = {
-      body: message,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      vibrate: [200, 100, 200, 100, 200],
-      data: {
-        dateOfArrival: Date.now(),
-        primaryKey: taskId || '1',
-        url: '/task-manager',
-        type: 'firebase-fcm-manual-message',
-        firebaseProject: firebaseConfig.projectId,
-        vapidAuthenticated: true
-      },
-      actions: [
-        {
-          action: 'explore', 
-          title: 'View Task',
-          icon: '/favicon.ico'
-        },
-        {
-          action: 'close', 
-          title: 'Close',
-          icon: '/favicon.ico'
-        }
-      ],
-      requireInteraction: true,
-      silent: false,
-      tag: 'firebase-fcm-manual-message'
-    };
-    
-    event.waitUntil(
-      self.registration.showNotification(title, options)
-    );
-  }
-});
-
 self.addEventListener('notificationclick', function(event) {
-  console.log('🖱️ Firebase FCM Enhanced Notification clicked:', event.action, event.notification.data);
-  console.log('🔥 Firebase Project:', event.notification.data?.firebaseProject);
-  console.log('🔑 VAPID Authenticated:', event.notification.data?.vapidAuthenticated);
+  console.log('🖱️ Notification clicked:', event.action, event.notification.data);
   
   event.notification.close();
   
@@ -146,13 +98,7 @@ self.addEventListener('notificationclick', function(event) {
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i];
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            console.log('🔄 Focusing existing tab and navigating to task manager');
-            client.postMessage({ 
-              type: 'NAVIGATE_TO_TASK_MANAGER', 
-              taskId: event.notification.data?.primaryKey,
-              firebaseProject: firebaseConfig.projectId,
-              vapidAuthenticated: true
-            });
+            console.log('🔄 Focusing existing tab');
             return client.focus();
           }
         }
@@ -169,21 +115,17 @@ self.addEventListener('notificationclick', function(event) {
 
 // Handle notification close
 self.addEventListener('notificationclose', function(event) {
-  console.log('❌ Firebase FCM Enhanced Notification closed:', event.notification.data);
+  console.log('❌ Notification closed:', event.notification.data);
 });
 
 // Handle service worker activation
 self.addEventListener('activate', function(event) {
-  console.log('🚀 Firebase FCM Enhanced Service Worker activated with VAPID authentication');
-  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
-  console.log('🔑 VAPID Key Active:', VAPID_KEY.substring(0, 30) + '...');
+  console.log('🚀 Service Worker activated');
   event.waitUntil(self.clients.claim());
 });
 
 // Handle service worker installation
 self.addEventListener('install', function(event) {
-  console.log('📦 Firebase FCM Enhanced Service Worker installed with VAPID authentication');
-  console.log('🔥 Firebase Project:', firebaseConfig.projectId);
-  console.log('🔑 VAPID Key Configured:', VAPID_KEY.substring(0, 30) + '...');
+  console.log('📦 Service Worker installed');
   event.waitUntil(self.skipWaiting());
 });

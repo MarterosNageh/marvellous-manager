@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { messaging, getToken, onMessage } from '../config/firebase';
 import { supabase } from '@/integrations/supabase/client';
 
-// VAPID key from Firebase Console
-const VAPID_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
+// Correct VAPID key for marvellous-manager project
+const VAPID_KEY = 'BL7ELSlram2dAgx2Hm1BTEKD9EjvCcxkIqJaUNZjD1HNg_O2zzMiA5d9I5A5mPKZJVk7T2tLWS-4kzRv6fTuwS4';
 
 export const useFirebaseMessaging = () => {
   const [token, setToken] = useState(null);
