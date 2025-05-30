@@ -19,7 +19,7 @@ class PushNotificationService {
 
   // Enhanced subscription status check
   async getSubscriptionStatus(): Promise<boolean> {
-    console.log('🔍 Checking comprehensive subscription status...');
+    console.log('🔍 === CHECKING COMPREHENSIVE SUBSCRIPTION STATUS ===');
     
     try {
       // Check browser subscription
@@ -45,16 +45,29 @@ class PushNotificationService {
       }
 
       const user = JSON.parse(currentUser);
+      console.log('👤 Checking database for user:', user.id);
       
       // Check push_subscriptions table for subscriptions
-      const { data: pushSubs } = await supabase
+      const { data: pushSubs, error } = await supabase
         .from('push_subscriptions')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('endpoint', browserSubscription.endpoint);
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('❌ Database query error:', error);
+        return false;
+      }
+
+      console.log('📊 Database subscriptions found:', pushSubs?.length || 0);
+      if (pushSubs && pushSubs.length > 0) {
+        console.log('📋 Database subscription details:');
+        pushSubs.forEach((sub, index) => {
+          console.log(`  ${index + 1}. Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+          console.log(`     Created: ${sub.created_at}`);
+        });
+      }
 
       const hasDbSubscription = pushSubs && pushSubs.length > 0;
-      console.log('🔍 Database subscription match:', hasDbSubscription ? 'Found' : 'None');
       
       // Both browser and database must have matching subscription
       const isFullySubscribed = !!(browserSubscription && hasDbSubscription);
@@ -79,7 +92,7 @@ class PushNotificationService {
     this.isSetupInProgress = true;
     this.lastSetupTime = now;
 
-    console.log('🚀 === ENHANCED PUSH NOTIFICATION SETUP ===');
+    console.log('🚀 === COMPLETE PUSH NOTIFICATION SETUP ===');
     
     try {
       // Step 1: Check browser support
@@ -118,52 +131,41 @@ class PushNotificationService {
       const registration = await navigator.serviceWorker.ready;
       console.log('✅ Service worker ready:', registration.scope);
 
-      // Step 4: Check for existing subscription
+      // Step 4: Check for existing subscription and unsubscribe first
       console.log('🔍 Checking for existing subscription...');
-      let subscription = await registration.pushManager.getSubscription();
+      let existingSubscription = await registration.pushManager.getSubscription();
       
-      if (subscription) {
-        console.log('✅ Existing subscription found:', subscription.endpoint.substring(0, 50) + '...');
-        
-        // Force re-store the existing subscription to fix database issues
-        console.log('🔄 Re-storing existing subscription in database...');
-        const stored = await this.storeSubscription(subscription);
-        
-        if (stored) {
-          console.log('✅ === EXISTING SUBSCRIPTION RE-STORED SUCCESSFULLY ===');
-          return true;
-        } else {
-          console.log('⚠️ Failed to store existing subscription, creating new one...');
-          // Continue to create new subscription
-        }
+      if (existingSubscription) {
+        console.log('🗑️ Unsubscribing from existing subscription...');
+        await existingSubscription.unsubscribe();
+        console.log('✅ Unsubscribed from existing subscription');
       }
 
-      // Step 5: Create new subscription if needed
-      if (!subscription) {
-        console.log('📱 Creating new push subscription...');
-        console.log('🔑 Using VAPID key:', this.vapidPublicKey.substring(0, 20) + '...');
-        
-        try {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
-          });
-          console.log('✅ New subscription created:', subscription.endpoint.substring(0, 50) + '...');
-        } catch (subscribeError) {
-          console.error('❌ Failed to create subscription:', subscribeError);
-          return false;
-        }
+      // Step 5: Create fresh subscription
+      console.log('📱 Creating fresh push subscription...');
+      console.log('🔑 Using VAPID key:', this.vapidPublicKey.substring(0, 20) + '...');
+      
+      let subscription: PushSubscription;
+      try {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
+        });
+        console.log('✅ Fresh subscription created:', subscription.endpoint.substring(0, 50) + '...');
+      } catch (subscribeError) {
+        console.error('❌ Failed to create subscription:', subscribeError);
+        return false;
       }
 
-      // Step 6: Store subscription in database
+      // Step 6: Store subscription in database with retry logic
       console.log('💾 Storing subscription in database...');
-      const stored = await this.storeSubscription(subscription);
+      const stored = await this.storeSubscriptionWithRetry(subscription, 3);
       
       if (stored) {
         console.log('✅ === PUSH NOTIFICATION SETUP COMPLETE ===');
         return true;
       } else {
-        console.error('❌ Failed to store subscription in database');
+        console.error('❌ Failed to store subscription in database after retries');
         return false;
       }
 
@@ -175,7 +177,26 @@ class PushNotificationService {
     }
   }
 
-  // Enhanced subscription storage with conflict handling
+  // Store subscription with retry logic
+  private async storeSubscriptionWithRetry(subscription: PushSubscription, maxRetries: number): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`💾 Storage attempt ${attempt}/${maxRetries}`);
+      
+      const success = await this.storeSubscription(subscription);
+      if (success) {
+        return true;
+      }
+      
+      if (attempt < maxRetries) {
+        console.log(`⏳ Retrying in 2 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+    
+    return false;
+  }
+
+  // Enhanced subscription storage with complete cleanup and verification
   private async storeSubscription(subscription: PushSubscription): Promise<boolean> {
     console.log('💾 === STORING PUSH SUBSCRIPTION ===');
     
@@ -200,16 +221,12 @@ class PushNotificationService {
       }
 
       console.log('🔑 Keys extracted successfully');
-      console.log('🔑 P256DH length:', p256dhKey.byteLength);
-      console.log('🔑 Auth length:', authKey.byteLength);
 
       // Convert keys to base64
       const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)));
       const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)));
 
       console.log('🔄 Keys converted to base64');
-      console.log('🔄 P256DH base64 length:', p256dhBase64.length);
-      console.log('🔄 Auth base64 length:', authBase64.length);
 
       const subscriptionData = {
         user_id: user.id,
@@ -220,21 +237,25 @@ class PushNotificationService {
 
       console.log('💾 Prepared subscription data for storage');
 
-      // First, delete any existing subscriptions for this user to avoid conflicts
-      console.log('🧹 Cleaning up existing subscriptions for user...');
+      // First, completely clean up existing subscriptions for this user
+      console.log('🧹 === CLEANING UP EXISTING SUBSCRIPTIONS ===');
       const { error: deleteError } = await supabase
         .from('push_subscriptions')
         .delete()
         .eq('user_id', user.id);
 
       if (deleteError) {
-        console.warn('⚠️ Warning during cleanup (may be normal):', deleteError.message);
+        console.error('❌ Error during cleanup:', deleteError);
+        // Continue anyway as this might be expected if no existing subscriptions
       } else {
-        console.log('✅ Cleanup completed');
+        console.log('✅ Cleanup completed successfully');
       }
 
+      // Wait a moment for cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Insert new subscription
-      console.log('📝 Inserting new subscription...');
+      console.log('📝 === INSERTING NEW SUBSCRIPTION ===');
       const { data: insertedData, error: insertError } = await supabase
         .from('push_subscriptions')
         .insert(subscriptionData)
@@ -242,6 +263,8 @@ class PushNotificationService {
 
       if (insertError) {
         console.error('❌ Error inserting subscription:', insertError);
+        console.error('❌ Error code:', insertError.code);
+        console.error('❌ Error message:', insertError.message);
         console.error('❌ Error details:', insertError.details);
         console.error('❌ Error hint:', insertError.hint);
         return false;
@@ -249,8 +272,10 @@ class PushNotificationService {
 
       console.log('✅ Subscription inserted successfully:', insertedData);
 
-      // Verify storage immediately
-      console.log('🔍 Verifying storage...');
+      // Verify storage immediately with detailed logging
+      console.log('🔍 === VERIFYING STORAGE ===');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for database consistency
+      
       const verified = await this.verifySubscriptionStorage(user.id, subscription.endpoint);
       
       if (verified) {
@@ -267,39 +292,58 @@ class PushNotificationService {
     }
   }
 
-  // Enhanced subscription verification
+  // Enhanced subscription verification with detailed logging
   private async verifySubscriptionStorage(userId: string, endpoint: string): Promise<boolean> {
     console.log('🔍 === VERIFYING SUBSCRIPTION STORAGE ===');
     console.log('👤 User ID:', userId);
     console.log('📍 Endpoint:', endpoint.substring(0, 50) + '...');
     
     try {
-      const { data: stored, error, count } = await supabase
+      // First check by user ID only
+      const { data: allUserSubs, error: userError, count: userCount } = await supabase
         .from('push_subscriptions')
         .select('*', { count: 'exact' })
-        .eq('user_id', userId)
-        .eq('endpoint', endpoint);
+        .eq('user_id', userId);
 
-      if (error) {
-        console.error('❌ Verification query failed:', error);
+      if (userError) {
+        console.error('❌ User verification query failed:', userError);
         return false;
       }
 
-      console.log('📊 Query results:');
-      console.log('📊 Count:', count);
-      console.log('📊 Data length:', stored?.length || 0);
+      console.log('📊 All subscriptions for user:');
+      console.log('📊 Count:', userCount);
+      console.log('📊 Data length:', allUserSubs?.length || 0);
 
-      if (stored && stored.length > 0) {
-        console.log('✅ Subscription verified in database:');
-        stored.forEach((sub, index) => {
+      if (allUserSubs && allUserSubs.length > 0) {
+        console.log('📋 User subscriptions:');
+        allUserSubs.forEach((sub, index) => {
           console.log(`  ${index + 1}. ID: ${sub.id}`);
           console.log(`     Created: ${sub.created_at}`);
-          console.log(`     Updated: ${sub.updated_at}`);
           console.log(`     Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+          console.log(`     Matches: ${sub.endpoint === endpoint}`);
         });
+      }
+
+      // Now check for exact match
+      const { data: exactMatch, error: exactError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('endpoint', endpoint);
+
+      if (exactError) {
+        console.error('❌ Exact match verification failed:', exactError);
+        return false;
+      }
+
+      const hasExactMatch = exactMatch && exactMatch.length > 0;
+      console.log('🎯 Exact endpoint match:', hasExactMatch);
+
+      if (hasExactMatch) {
+        console.log('✅ Subscription verified in database');
         return true;
       } else {
-        console.error('❌ Subscription not found in database after storage');
+        console.error('❌ No exact endpoint match found');
         return false;
       }
     } catch (error) {

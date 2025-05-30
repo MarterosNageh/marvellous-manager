@@ -12,7 +12,7 @@ export const usePushNotifications = () => {
   // Use refs to prevent multiple concurrent setups
   const isSetupInProgress = useRef(false);
   const lastCheckTime = useRef(0);
-  const CHECK_COOLDOWN = 5000; // 5 seconds cooldown between checks
+  const CHECK_COOLDOWN = 3000; // 3 seconds cooldown between checks
 
   useEffect(() => {
     // Check if push notifications are supported
@@ -35,23 +35,14 @@ export const usePushNotifications = () => {
     lastCheckTime.current = now;
 
     try {
-      console.log('🔍 Checking subscription status...');
-      
-      // Check both browser subscription and database subscription
-      const registration = await navigator.serviceWorker.ready;
-      const browserSubscription = await registration.pushManager.getSubscription();
-      console.log('🔍 Browser subscription:', browserSubscription ? 'Found' : 'None');
+      console.log('🔍 === CHECKING SUBSCRIPTION STATUS ===');
       
       const databaseSubscription = await pushNotificationService.getSubscriptionStatus();
-      console.log('🔍 Database subscription:', databaseSubscription ? 'Found' : 'None');
+      console.log('🔍 Complete subscription status:', databaseSubscription);
       
-      // Only consider subscribed if both browser and database have subscription
-      const actuallySubscribed = !!(browserSubscription && databaseSubscription);
-      console.log('🔍 Actually subscribed:', actuallySubscribed);
-      
-      setIsSubscribed(actuallySubscribed);
+      setIsSubscribed(databaseSubscription);
     } catch (error) {
-      console.error('Error checking subscription status:', error);
+      console.error('❌ Error checking subscription status:', error);
       setIsSubscribed(false);
     }
   };
@@ -65,31 +56,38 @@ export const usePushNotifications = () => {
 
     setIsLoading(true);
     isSetupInProgress.current = true;
-    console.log('🔔 Starting push subscription process...');
+    console.log('🔔 === STARTING PUSH SUBSCRIPTION PROCESS ===');
     
     try {
       const success = await pushNotificationService.requestPermissionAndSubscribe();
+      
       if (success) {
+        console.log('✅ Push subscription successful');
         setIsSubscribed(true);
+        
         toast({
-          title: "Success",
+          title: "✅ Success",
           description: "Push notifications enabled successfully",
         });
         
-        // Verify the subscription is working
-        setTimeout(() => checkSubscriptionStatus(), 1000);
+        // Verify the subscription is working after a delay
+        setTimeout(() => {
+          console.log('🔍 Verifying subscription after setup...');
+          checkSubscriptionStatus();
+        }, 2000);
       } else {
+        console.error('❌ Push subscription failed');
         toast({
-          title: "Error",
-          description: "Failed to enable push notifications. Check console for details.",
+          title: "❌ Error",
+          description: "Failed to enable push notifications. Check browser console for details.",
           variant: "destructive",
         });
       }
       return success;
     } catch (error) {
-      console.error('Error subscribing to push:', error);
+      console.error('❌ Error subscribing to push:', error);
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: "Failed to enable push notifications",
         variant: "destructive",
       });
@@ -107,14 +105,14 @@ export const usePushNotifications = () => {
       if (success) {
         setIsSubscribed(false);
         toast({
-          title: "Success",
+          title: "✅ Success",
           description: "Push notifications disabled",
         });
       }
     } catch (error) {
-      console.error('Error unsubscribing from push:', error);
+      console.error('❌ Error unsubscribing from push:', error);
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: "Failed to disable push notifications",
         variant: "destructive",
       });
