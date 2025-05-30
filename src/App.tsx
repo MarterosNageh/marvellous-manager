@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/sonner";
@@ -47,11 +46,14 @@ function App() {
                 <Route path="/hard-drives/new" element={<HardDriveForm />} />
                 <Route path="/hard-drives/:id" element={<HardDriveDetail />} />
                 <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
+                <Route path="/hard-drives/:id/print" element={<PrintPage />} />
+                <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
                 <Route path="/public/hard-drive/:id" element={<PublicHardDriveView />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/new" element={<ProjectForm />} />
                 <Route path="/projects/:id" element={<ProjectDetail />} />
                 <Route path="/projects/:id/edit" element={<ProjectForm />} />
+                <Route path="/projects/:id/print" element={<PrintPage />} />
                 <Route path="/task-manager" element={<TaskManager />} />
                 <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
                 <Route path="/user-management" element={<UserManagement />} />

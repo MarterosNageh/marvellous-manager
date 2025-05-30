@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { messaging, getToken, onMessage } from '../config/firebase';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,12 +9,19 @@ export const useFirebaseMessaging = () => {
   const [token, setToken] = useState(null);
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState(Notification.permission);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Check if messaging is supported
     const checkSupport = () => {
       const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
       setIsSupported(supported);
+      
+      if (!supported) {
+        setError('Push notifications are not supported in this browser');
+        console.error('Push notifications not supported');
+      }
+      
       return supported;
     };
 
@@ -24,76 +30,75 @@ export const useFirebaseMessaging = () => {
     }
   }, []);
 
+  const saveTokenToSupabase = async (fcmToken) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error('No authenticated user found');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: `https://fcm.googleapis.com/fcm/${fcmToken}`,
+          p256dh: 'FCM',
+          auth: 'FCM',
+          created_at: new Date().toISOString()
+        }, {
+          onConflict: 'endpoint'
+        });
+
+      if (error) {
+        console.error('Error saving FCM token:', error);
+        throw error;
+      }
+
+      console.log('FCM token saved successfully');
+      return data;
+    } catch (error) {
+      console.error('Error in saveTokenToSupabase:', error);
+      throw error;
+    }
+  };
+
   const initializeMessaging = async () => {
     try {
+      // Check if service worker is registered
+      const registration = await navigator.serviceWorker.ready;
+      console.log('Service Worker ready:', registration);
+
       // Request permission
       const permission = await Notification.requestPermission();
       setPermission(permission);
+      console.log('Notification permission:', permission);
       
       if (permission === 'granted') {
         // Get FCM token
         const currentToken = await getToken(messaging, { 
-          vapidKey: VAPID_KEY 
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: registration
         });
         
         if (currentToken) {
-          console.log('FCM Token:', currentToken);
+          console.log('FCM Token obtained:', currentToken);
           setToken(currentToken);
           await saveTokenToSupabase(currentToken);
         } else {
-          console.log('No registration token available.');
-        }
-      }
-    } catch (error) {
-      console.error('An error occurred while retrieving token. ', error);
-    }
-  };
-
-  const saveTokenToSupabase = async (token) => {
-    try {
-      const currentUser = localStorage.getItem('currentUser');
-      if (!currentUser) {
-        console.log('No current user found');
-        return;
-      }
-
-      const user = JSON.parse(currentUser);
-      
-      // Check if token already exists
-      const { data: existingToken, error: checkError } = await supabase
-        .from('push_tokens')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('token', token)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing token:', checkError);
-        return;
-      }
-
-      if (!existingToken) {
-        // Insert new token
-        const { data, error } = await supabase
-          .from('push_tokens')
-          .insert([
-            { 
-              user_id: user.id, 
-              token: token,
-              created_at: new Date().toISOString()
-            }
-          ]);
-
-        if (error) {
-          console.error('Error saving token to Supabase:', error);
-        } else {
-          console.log('Token saved to Supabase successfully');
+          const error = 'No registration token available.';
+          console.error(error);
+          setError(error);
         }
       } else {
-        console.log('Token already exists in Supabase');
+        const error = `Notification permission ${permission}`;
+        console.error(error);
+        setError(error);
       }
     } catch (error) {
-      console.error('Error in saveTokenToSupabase:', error);
+      console.error('Error initializing messaging:', error);
+      setError(error.message);
     }
   };
 
@@ -109,6 +114,7 @@ export const useFirebaseMessaging = () => {
       return permission;
     } catch (error) {
       console.error('Error requesting permission:', error);
+      setError(error.message);
       return 'denied';
     }
   };
@@ -117,14 +123,17 @@ export const useFirebaseMessaging = () => {
   useEffect(() => {
     if (messaging && permission === 'granted') {
       const unsubscribe = onMessage(messaging, (payload) => {
-        console.log('Message received in foreground: ', payload);
+        console.log('Message received in foreground:', payload);
         
         // Display notification manually for foreground messages
         if (Notification.permission === 'granted') {
           new Notification(payload.notification.title, {
             body: payload.notification.body,
             icon: payload.notification.icon || '/favicon.ico',
-            data: payload.data
+            badge: '/favicon.ico',
+            data: payload.data || {},
+            requireInteraction: true,
+            tag: payload.data?.tag || 'fcm-notification'
           });
         }
       });
@@ -137,6 +146,7 @@ export const useFirebaseMessaging = () => {
     token,
     isSupported,
     permission,
+    error,
     requestPermission,
     initializeMessaging
   };

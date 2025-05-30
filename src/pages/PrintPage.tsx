@@ -1,6 +1,5 @@
-
-import { useRef, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useRef, useState, useEffect } from "react";
+import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -24,6 +23,7 @@ const PrintPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { getHardDrive, getProject, getHardDrivesByProject, addPrintHistory } = useData();
   const { currentUser } = useAuth();
   
@@ -37,11 +37,18 @@ const PrintPage = () => {
   
   // Get the relevant data
   const hardDrive = !isProjectPrint && id ? getHardDrive(id) : null;
-  const project = isProjectPrint && id ? getProject(id) : (hardDrive ? getProject(hardDrive.projectId) : null);
+  const project = isProjectPrint ? getProject(id) : (hardDrive ? getProject(hardDrive.projectId) : null);
   const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : (hardDrive ? [hardDrive] : []);
 
-  // Check if we have the required data
-  const hasRequiredData = isProjectPrint ? (project && hardDrives.length > 0) : hardDrive;
+  // Set default print type for project prints
+  useEffect(() => {
+    if (isProjectPrint) {
+      setPrintType("all-hards");
+    }
+  }, [isProjectPrint]);
+
+  // Check if we have the required data based on print type
+  const hasRequiredData = printType === "all-hards" ? (isProjectPrint && project && hardDrives.length > 0) : (hardDrive !== null);
 
   if (!hasRequiredData) {
     return (

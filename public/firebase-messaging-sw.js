@@ -1,7 +1,6 @@
-
 // public/firebase-messaging-sw.js
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
 const firebaseConfig = {
   apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
@@ -25,13 +24,20 @@ messaging.onBackgroundMessage(function(payload) {
     body: payload.notification.body,
     icon: payload.notification.icon || '/favicon.ico',
     badge: '/favicon.ico',
-    data: payload.data,
+    data: payload.data || {},
     requireInteraction: true,
     vibrate: [200, 100, 200],
-    tag: 'firebase-fcm-notification'
+    tag: payload.data?.tag || 'firebase-fcm-notification',
+    actions: [
+      {
+        action: 'view',
+        title: 'View Task',
+        icon: '/favicon.ico'
+      }
+    ]
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 self.addEventListener('notificationclick', function(event) {

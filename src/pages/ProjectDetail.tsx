@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -77,10 +76,10 @@ const ProjectDetail = () => {
   const handlePrint = () => {
     if (!project) return;
     
-    // Navigate to print page with all hard drives for this project
-    navigate('/print', { 
+    // Navigate to project print page with all hard drives
+    navigate(`/projects/${project.id}/print`, { 
       state: { 
-        type: 'allHards',
+        type: 'all-hards',
         project,
         hardDrives: projectHardDrives
       } 
