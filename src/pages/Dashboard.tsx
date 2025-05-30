@@ -7,7 +7,7 @@ import { useShifts } from "@/context/ShiftsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, CheckCircle, Clock, Calendar, User, MapPin } from "lucide-react";
+import { Plus, Users, CheckCircle, Clock, Calendar, User, MapPin, HardDrive, FolderOpen, Activity } from "lucide-react";
 import { TaskUtilizationTable } from "@/components/dashboard/TaskUtilizationTable";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
@@ -72,7 +72,7 @@ const DashboardContent = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
@@ -116,15 +116,26 @@ const DashboardContent = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Schedule</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Projects</CardTitle>
+              <FolderOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {shiftsLoading ? '...' : todayShifts.length}
-              </div>
+              <div className="text-2xl font-bold">12</div>
               <p className="text-xs text-muted-foreground">
-                Total shifts scheduled
+                3 active projects
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Hard Drives</CardTitle>
+              <HardDrive className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">247</div>
+              <p className="text-xs text-muted-foreground">
+                8 available
               </p>
             </CardContent>
           </Card>
@@ -135,7 +146,7 @@ const DashboardContent = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
+                <Activity className="h-5 w-5 text-green-600" />
                 Currently Working ({currentShifts.length})
               </CardTitle>
             </CardHeader>
@@ -144,7 +155,7 @@ const DashboardContent = () => {
                 {currentShifts.map((shift) => (
                   <div
                     key={shift.id}
-                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                    className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
                   >
                     <div className="bg-green-100 dark:bg-green-900 p-2 rounded-full">
                       <User className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -185,6 +196,65 @@ const DashboardContent = () => {
           </Card>
         )}
 
+        {/* Quick Actions Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-lg">
+                  <FolderOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Projects</h3>
+                  <p className="text-sm text-muted-foreground">Manage projects</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 dark:bg-purple-900 p-2 rounded-lg">
+                  <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Hard Drives</h3>
+                  <p className="text-sm text-muted-foreground">Track storage</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 dark:bg-green-900 p-2 rounded-lg">
+                  <Calendar className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Schedule</h3>
+                  <p className="text-sm text-muted-foreground">View shifts</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-100 dark:bg-orange-900 p-2 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Tasks</h3>
+                  <p className="text-sm text-muted-foreground">Task manager</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Task Board */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
@@ -196,10 +266,9 @@ const DashboardContent = () => {
         </div>
 
         {/* Create Task Dialog */}
-        <CreateTaskDialog 
-          open={isCreateTaskOpen}
-          onOpenChange={setIsCreateTaskOpen}
-        />
+        <CreateTaskDialog>
+          <div></div>
+        </CreateTaskDialog>
       </div>
     </MainLayout>
   );

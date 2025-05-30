@@ -21,20 +21,58 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronDown, Settings as SettingsIcon, User, Bell, Shield } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ChevronDown, Settings as SettingsIcon, User, Bell, Shield, Users, Crown, UserCog, Edit } from "lucide-react";
 import Image from "@/components/ui/image";
 import { useDarkMode } from "@/hooks/use-dark-mode";
-import UserManagement from "./UserManagement";
+import { toast } from "sonner";
 
 const Settings = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, users, updateUser } = useAuth();
   const isDarkMode = useDarkMode();
   const [isOpen, setIsOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   
   if (!currentUser?.isAdmin) {
     return <Navigate to="/dashboard" />;
   }
+
+  const handleUpdateUserRole = async (userId: string, newRole: string, newTitle?: string) => {
+    try {
+      await updateUser(userId, { 
+        role: newRole, 
+        title: newTitle 
+      });
+      toast.success("User role updated successfully");
+      setIsEditUserOpen(false);
+    } catch (error) {
+      toast.error("Failed to update user role");
+    }
+  };
+
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'admin': return 'destructive';
+      case 'manager': return 'default';
+      case 'supervisor': return 'secondary';
+      case 'employee': return 'outline';
+      default: return 'outline';
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'admin': return Crown;
+      case 'manager': return UserCog;
+      case 'supervisor': return User;
+      default: return User;
+    }
+  };
   
   return (
     <MainLayout>
@@ -44,14 +82,18 @@ const Settings = () => {
         </div>
         
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid grid-cols-4 mb-8">
+          <TabsList className="grid grid-cols-5 mb-8">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <SettingsIcon className="h-4 w-4" />
               General
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Users
+              <Users className="h-4 w-4" />
+              User Management
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <Crown className="h-4 w-4" />
+              Roles & Permissions
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
@@ -137,8 +179,159 @@ const Settings = () => {
           </TabsContent>
 
           <TabsContent value="users">
-            {/* Only show UserManagement, nothing else */}
-            <UserManagement />
+            <Card>
+              <CardHeader>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>
+                  Manage user accounts and their basic information
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => {
+                      const RoleIcon = getRoleIcon(user.role || (user.isAdmin ? 'admin' : 'employee'));
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full">
+                                <User className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{user.username}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {currentUser?.id === user.id && "(Current User)"}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getRoleBadgeVariant(user.role || (user.isAdmin ? 'admin' : 'employee'))}>
+                              <RoleIcon className="h-3 w-3 mr-1" />
+                              {user.role || (user.isAdmin ? 'Admin' : 'Employee')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{user.title || 'Not Set'}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">Active</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsEditUserOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="roles">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Role Definitions</CardTitle>
+                  <CardDescription>
+                    Define roles and their permissions across the system
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-4">
+                    <Card className="border-red-200 bg-red-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Crown className="h-4 w-4 text-red-600" />
+                          Administrator
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-red-700">
+                          <li>• Full system access</li>
+                          <li>• User management</li>
+                          <li>• System settings</li>
+                          <li>• All shift management</li>
+                          <li>• Analytics and reports</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-blue-200 bg-blue-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <UserCog className="h-4 w-4 text-blue-600" />
+                          Manager
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-blue-700">
+                          <li>• Team management</li>
+                          <li>• Shift scheduling</li>
+                          <li>• Approve requests</li>
+                          <li>• View analytics</li>
+                          <li>• Task assignment</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-green-200 bg-green-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <User className="h-4 w-4 text-green-600" />
+                          Supervisor
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-green-700">
+                          <li>• View team schedules</li>
+                          <li>• Submit shift requests</li>
+                          <li>• Manage own tasks</li>
+                          <li>• Limited reporting</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-gray-200 bg-gray-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-600" />
+                          Employee
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-gray-700">
+                          <li>• View own schedule</li>
+                          <li>• Submit requests</li>
+                          <li>• Track own tasks</li>
+                          <li>• Basic dashboard access</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
           
           <TabsContent value="notifications">
@@ -167,18 +360,23 @@ const Settings = () => {
                 {notificationsEnabled && (
                   <div className="space-y-4 pl-4 border-l-2 border-gray-200">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="new-project-notification">New Project Created</Label>
-                      <Switch id="new-project-notification" defaultChecked />
+                      <Label htmlFor="shift-notifications">Shift Updates</Label>
+                      <Switch id="shift-notifications" defaultChecked />
                     </div>
                     
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="hard-drive-notification">Hard Drive Status Changed</Label>
-                      <Switch id="hard-drive-notification" defaultChecked />
+                      <Label htmlFor="request-notifications">Request Approvals</Label>
+                      <Switch id="request-notifications" defaultChecked />
                     </div>
                     
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="user-notification">User Account Changes</Label>
-                      <Switch id="user-notification" defaultChecked />
+                      <Label htmlFor="task-notifications">Task Assignments</Label>
+                      <Switch id="task-notifications" defaultChecked />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="user-notifications">User Account Changes</Label>
+                      <Switch id="user-notifications" defaultChecked />
                     </div>
                   </div>
                 )}
@@ -238,6 +436,52 @@ const Settings = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User Role & Title</DialogTitle>
+              <DialogDescription>
+                Update {selectedUser?.username}'s role and title
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select defaultValue={selectedUser?.role || (selectedUser?.isAdmin ? 'admin' : 'employee')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrator</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="employee">Employee</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input
+                  defaultValue={selectedUser?.title || ''}
+                  placeholder="e.g., Senior Developer, Team Lead"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => handleUpdateUserRole(selectedUser?.id, 'manager', 'Team Lead')}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
