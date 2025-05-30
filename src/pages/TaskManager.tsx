@@ -6,9 +6,10 @@ import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { FCMDebugger } from "@/components/FCMDebugger";
+import { FCMSetup } from "@/components/FCMSetup";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle, Bug } from "lucide-react";
+import { Plus, List, Kanban, Bell, BellRing, AlertCircle, CheckCircle, Bug, Settings } from "lucide-react";
 import { notificationService } from "@/services/notificationService";
 import { pushNotificationService } from "@/services/pushNotificationService";
 import { useToast } from "@/hooks/use-toast";
@@ -288,9 +289,13 @@ const TaskManager = () => {
                 <List className="h-4 w-4" />
                 List
               </TabsTrigger>
+              <TabsTrigger value="fcm-setup" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                FCM Setup
+              </TabsTrigger>
               <TabsTrigger value="debug" className="flex items-center gap-2">
                 <Bug className="h-4 w-4" />
-                FCM Debug
+                Debug
               </TabsTrigger>
             </TabsList>
             
@@ -300,6 +305,19 @@ const TaskManager = () => {
             
             <TabsContent value="list" className="mt-6">
               <TaskList />
+            </TabsContent>
+
+            <TabsContent value="fcm-setup" className="mt-6">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">Firebase Cloud Messaging Setup</h2>
+                  <p className="text-muted-foreground">
+                    Configure push notifications using Firebase Cloud Messaging
+                  </p>
+                </div>
+                
+                <FCMSetup />
+              </div>
             </TabsContent>
 
             <TabsContent value="debug" className="mt-6">

@@ -7,19 +7,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface PushSubscription {
-  endpoint: string;
-  p256dh_key: string;
-  auth_key: string;
+interface PushToken {
+  token: string;
   user_id: string;
 }
 
-// Firebase Admin SDK Service Account
+// Updated Firebase Service Account from the provided JSON
 const SERVICE_ACCOUNT = {
   "type": "service_account",
   "project_id": "marvellous-manager",
-  "private_key_id": "f895afdec090175a1c2b87757c4debb2b5b6af5c",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDyNlNcJmnCvnXn\n4sDGYmBf4XKq27MNwZZ2O2YxXtqMt7z5OlvJKGlhXcEcz2pO90b4d/XN8sYdLRYD\nRHBmc0k5nmwCM2o+6xtv+3IyQVq3P9B51d69nDnTT4idwKkuNn+/h7GhUs1gvFrS\ncoEyQVdPdQIOM2tI4HWNXGwtqF6CK6OsXv/2UHUCnmAo5hLhWZPwfpo7RVCggAdo\nQnSFfTUc16Xa/LCta7WqrihRHXkOEx7NMJvVl6cnWj6+krxDvQbcwR/fVThbpOnC\n6kQeEX/Dz8RVV71yEWcVgM3uR1DxvTraoHRIVMCnfy4F2HgeICDpTBd0H51ijN5e\n01gPmQFhAgMBAAECggEAJsAkRAjtQLfh+zBe8R5KFuzlwIoXsmq3XMESD3ICeyLm\nO+VnS96IRYiPXcGdW3baRuRCUim2InLVI76uUOW+4FYFJ7D8HYbVw+uxkHK+RbUS\n8HsUALfe1HzT+ZEaQAd+FrFp7Mpni0N3MFYbb2PeyRqKMqVtU6J9jBkuQXu/awmq\nnqsZYvjyjgv8ikV1QJmJXugtLndOVMk7/tWnIsmy+kmaG/d+YYW+Jx8D/CFXneqs\nMLy2LfnTzETFvT3MAECvw51/23cBWwQ9CWG1yfv6ClP6DqI0wcQ9apYPWb/e4LtW\nf0Z06LHrOmFbCaqlWPXFn+7wm4DVF0JAD3lkrGvj8QKBgQD7K86+QhCGH9gs9bPQ\nkEPnSlurCmCX103vIFdeiiaUV7A6bdRgipINkIXbProg+LGhfnqYYRPcI9DUMqjj\njnr2drAQfk5taEr9LqGHa/yuXJAQyu+gd979FfT2xej815Jx9KL5nIILY2Jrm9be\nlfgRNr1t3OGJjiGPIuu5i6xcFQKBgQD23mzBM6r1k28YKlVbMe9qX6J0wRsZz+uv\nVwpQfutZvqttJWJ2irZPed0GQym0WDlrpRJ6cOzu4No1PxaSBeMDR6/ZXz9eX3M3\nt014N3iB2V42MwQYrknGidmt/0uvFdcbKi9IcbF0oUsXKTCf0Pxqe5VdFc2tR/JS\nPm7UmdYHHQKBgFKcFvSGoA6tHJm0+j5HpL3GvB2mXRyzyMM0fOfwQj4aFTEyfF6A\nVQc3GH+Cww8jHLFD+yhxDWojMYUJYHjvnMvBP6k9Eah0W+2nz6LNxp7GfO+4/1Vk\n96d/+EDN2RKICHeIga3dZvw95NoFuIcfBicLPQSMWHW4lJsSXjt5j+f9AoGABzaq\noN6coT5koaUjB14nK8mNmrHF0/RCY8Y8U+vRfrbWlYLhJKua9imObs9pmY52ZxHU\nv2UrVzOUzLeCNlQbtQ3UMprY5C4P1NHzXo7oY4rxeM320a3OFBIVHUN3d69AsNeD\nuC8yS0EnS471j8XwikAANk8bynNuvj56yJWSLnUCgYB7iulqG8u7nKkYscgtqDW5\n5Ny6rjLqkdnSA3Vf0SmQqfGsguCcHAQcgA0YMxWROBfRATtvRqv60zU+UPlhAei9\nfcYHbBBKEwm/f++VopZ8+Xre18E0eRPryLfcDvxdWZCLvT0WmhVON27Hot58ywTE\npoR4ItAmeJ2XQa3wOLBk8A==\n-----END PRIVATE KEY-----\n",
+  "private_key_id": "04547119cb75b54f20c37a9e5af5bef9d38f7ce3",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDFgsq5Jjfo+xXn\nBEfr6Tt+EBMvfBxNNweXp73nHrLqWYl/kzf52gkLzGG4+jakS+7Bg4kTiIkAYZVs\nbbocnLSVjp8GjZev13awmSv3ZOnRcXnHAuLgZEsw+m5JXpyH1iqUGusEWjGuQMWW\nQIEXw4ZAndDV+ucN7ovjPIFfNhWARqyh51K2RLTj9rvoWWlViSKk2CgiPUpMtFnT\nPLtKkMTmQMz850OXGZKiqoxOVRsSFk7xp428MOjTh3jDZtf2bRoc0NUgAJksnEao\nB9fYZp+DTLEpNbYo7ib5KtqZCbNgqZnn/9OYH8Pin++pzGprHUILZLIMjIhMyZ6T\nd/Lft2utAgMBAAECggEAAUejBKbIv0u74plWgKLW7dmGJk1JlFPXoBXy1xKN2j2Q\n9IYBsNlxgZAQz2AKW++EsTWm/RIUwS82BqkssY7FD3WzIMRox+I/iflpctrxNkLj\n+nQnADPmK3++mInHveGXY7T2R5BGDiOr+W3wPYqDeNu3mgtcKpecdHEp7XIDmvyB\n/4LeVWGiliyvwK4ha40qUi2j6TpNcJuN98+PY9Web6Ou8879nJTPY0pRne/230QZ\nXppH13AljZelA7v7spmS91wmP9nlwzLolarPys4hVfpxnHsYML33IUEooigTz4f+\nQ7gKzRr/S93S7wb6+HUhZs/fgOW1d1omWK951c0GiQKBgQDwX+pLfJUzDKmmrosr\nCls/cUUOAsJQc1ygbaCLg+l7uSmuVRs8vob11TgK/9y7Y2ORTC8NydgyH/mAjY1t\nN49t9OqeT/xyKbdtIiBxu/9pAdrKxtffpuLtP91lcLijH3+9lF5BrWz7Ca0ilaea\nJZ0f+Dtpb+WIi/Zgrn97kXGdFwKBgQDSWZQ66u9tDswfQLVEHJwUoIIrSFgC8g/X\nhNbxC5I5jEPGJTgUxKBLj7vnoemecDl9H3PPsHHWNKQb81a+yifhcfokU1f6JKZJ\nTTNHZZfBffX3G5yHb3abDFGLRaCoAC0y573KSt6/4x+7SNenN1+qWR/ZoSVfkNSh\nDt+jJSnf2wKBgCiIU+60rEf2a6kSp57zWR2ikP1i07dTLJxUwAymirl1KKUf7r7Y\nddOAR7n7GRJ0GOFy0kBl99HD+IOH2wA+rS3ibamSXUQ26po5dfUXuWLQkD8/Nmmd\nL4jICyIu1sOS7Sxfl2FFyCmwoQRC7gcdLpiUeBg4aSEUUNBOvGpuxRSzAoGAJkjX\nicGowhinXijQ1Qy/+6EbD/WizyZva7JpzIVmn8K/sxijFGSVKCuI76ewdX3HeNZ4\npZxfm7UJCW1IpID2sTmlZWcl5Ak3mq/KXXxIGpdqZQdJffzzgVTEoqyRiQI/N7yl\n9mOaFyKna9beKTkS2FZQTbPesX4StR2X5oGlFXECgYBRnkYJp0wHZqAvbVE51J+H\n0VDFv4mZj/sSaBJXCXFekrZt0oATLu0v/CRpnb4SIcE13fXxIwGNIBUv0xf92xE4\nmUTPCbJ4gr2qG7Shm0hHaQPHoLgo1ZtkcJOESBXaFyTwAqapOEuur8meG2em6sQW\n38K3vO5Jxhh7im8XwyxUXQ==\n-----END PRIVATE KEY-----\n",
   "client_email": "firebase-adminsdk-fbsvc@marvellous-manager.iam.gserviceaccount.com",
   "client_id": "111912629734263281888",
   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -29,30 +27,23 @@ const SERVICE_ACCOUNT = {
   "universe_domain": "googleapis.com"
 };
 
-// Firebase configuration for FCM
+// Firebase configuration
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
-  authDomain: "marvellous-manager.firebaseapp.com",
   projectId: "marvellous-manager",
-  storageBucket: "marvellous-manager.firebasestorage.app",
-  messagingSenderId: "368753443778",
-  appId: "1:368753443778:web:2f5c47c984bee1f3184c5b",
-  measurementId: "G-YBBC3CXLEF"
+  messagingSenderId: "368753443778"
 }
 
-// Enhanced JWT creation with proper error handling
+// Enhanced JWT creation with correct private key
 async function createJWT(payload: any): Promise<string> {
-  console.log('🔧 Creating JWT for Firebase authentication...');
+  console.log('🔧 Creating JWT with updated service account...');
   
   try {
-    // JWT header
     const header = {
       alg: 'RS256',
       typ: 'JWT',
       kid: SERVICE_ACCOUNT.private_key_id
     };
 
-    // Base64url encode header and payload  
     const encodedHeader = btoa(JSON.stringify(header))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
@@ -64,20 +55,15 @@ async function createJWT(payload: any): Promise<string> {
       .replace(/=/g, '');
 
     const signingInput = `${encodedHeader}.${encodedPayload}`;
-    console.log('🔧 Signing input created, length:', signingInput.length);
 
-    // Extract and properly format private key
     const privateKeyPem = SERVICE_ACCOUNT.private_key;
     const privateKeyDer = privateKeyPem
       .replace(/-----BEGIN PRIVATE KEY-----/g, '')
       .replace(/-----END PRIVATE KEY-----/g, '')
       .replace(/\r?\n/g, '');
 
-    // Convert to ArrayBuffer
     const privateKeyBytes = Uint8Array.from(atob(privateKeyDer), c => c.charCodeAt(0));
-    console.log('🔧 Private key bytes length:', privateKeyBytes.length);
 
-    // Import the private key for signing
     const cryptoKey = await crypto.subtle.importKey(
       'pkcs8',
       privateKeyBytes.buffer,
@@ -89,16 +75,12 @@ async function createJWT(payload: any): Promise<string> {
       ['sign']
     );
 
-    console.log('✅ Private key imported successfully for signing');
-
-    // Sign the JWT
     const signature = await crypto.subtle.sign(
       'RSASSA-PKCS1-v1_5',
       cryptoKey,
       new TextEncoder().encode(signingInput)
     );
 
-    // Convert signature to base64url
     const signatureBytes = new Uint8Array(signature);
     const signatureB64 = btoa(String.fromCharCode(...signatureBytes))
       .replace(/\+/g, '-')
@@ -106,24 +88,21 @@ async function createJWT(payload: any): Promise<string> {
       .replace(/=/g, '');
 
     const jwt = `${signingInput}.${signatureB64}`;
-    console.log('✅ JWT created successfully, total length:', jwt.length);
+    console.log('✅ JWT created successfully with updated credentials');
     
     return jwt;
   } catch (error) {
-    console.error('❌ JWT creation failed with error:', error);
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
+    console.error('❌ JWT creation failed:', error);
     throw new Error(`JWT creation failed: ${error.message}`);
   }
 }
 
-// Enhanced access token retrieval with better error handling
 async function getAccessToken(): Promise<string> {
-  console.log('🔐 Getting Firebase Admin SDK access token...');
+  console.log('🔐 Getting Firebase access token with updated service account...');
   
   try {
     const now = Math.floor(Date.now() / 1000);
-    const expiry = now + 3600; // 1 hour from now
+    const expiry = now + 3600;
     
     const payload = {
       iss: SERVICE_ACCOUNT.client_email,
@@ -133,18 +112,8 @@ async function getAccessToken(): Promise<string> {
       iat: now
     };
 
-    console.log('🔧 JWT payload prepared:', {
-      iss: payload.iss,
-      scope: payload.scope,
-      aud: payload.aud,
-      exp: payload.exp,
-      iat: payload.iat
-    });
-
     const jwt = await createJWT(payload);
 
-    // Exchange JWT for access token
-    console.log('🔄 Exchanging JWT for access token...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
@@ -158,10 +127,8 @@ async function getAccessToken(): Promise<string> {
     });
 
     console.log('📡 Token response status:', tokenResponse.status);
-    console.log('📡 Token response headers:', Object.fromEntries(tokenResponse.headers.entries()));
     
     const responseText = await tokenResponse.text();
-    console.log('📡 Token response body:', responseText);
 
     if (!tokenResponse.ok) {
       console.error('❌ Token request failed:', responseText);
@@ -169,41 +136,24 @@ async function getAccessToken(): Promise<string> {
     }
 
     const tokenData = JSON.parse(responseText);
-    console.log('✅ Firebase Admin SDK access token obtained');
-    console.log('✅ Token type:', tokenData.token_type);
-    console.log('✅ Token expires in:', tokenData.expires_in, 'seconds');
+    console.log('✅ Firebase access token obtained successfully');
     
     return tokenData.access_token;
   } catch (error) {
     console.error('❌ Failed to get access token:', error);
-    console.error('❌ Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
     throw error;
   }
 }
 
-// Enhanced FCM sending with better error handling
-async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any, accessToken: string) {
-  console.log('📱 Sending Firebase Admin FCM notification to:', subscription.endpoint.substring(0, 50) + '...');
+async function sendFCMNotification(token: string, payload: any, accessToken: string) {
+  console.log('📱 Sending FCM notification to token:', token.substring(0, 20) + '...');
   
   try {
-    // Extract FCM token from endpoint
-    const fcmToken = subscription.endpoint.split('/').pop();
-    console.log('🔑 FCM Token extracted:', fcmToken?.substring(0, 20) + '...');
-    
-    if (!fcmToken) {
-      return { success: false, error: 'Invalid FCM endpoint - no token found' };
-    }
-
-    // Use Firebase Admin SDK HTTP v1 API
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/messages:send`;
     
     const message = {
       message: {
-        token: fcmToken,
+        token: token,
         notification: {
           title: payload.title,
           body: payload.body,
@@ -224,7 +174,7 @@ async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any
             badge: payload.badge || '/favicon.ico',
             requireInteraction: true,
             vibrate: [200, 100, 200],
-            tag: payload.tag || 'firebase-admin-fcm'
+            tag: payload.tag || 'fcm-notification'
           },
           fcm_options: {
             link: payload.data?.url || '/task-manager'
@@ -233,7 +183,7 @@ async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any
       }
     };
 
-    console.log('📤 Sending Firebase Admin FCM message:', JSON.stringify(message, null, 2));
+    console.log('📤 Sending FCM message...');
 
     const response = await fetch(fcmUrl, {
       method: 'POST',
@@ -244,60 +194,42 @@ async function sendFirebaseAdminFCM(subscription: PushSubscription, payload: any
       body: JSON.stringify(message)
     });
     
-    console.log('📤 Firebase Admin FCM Response status:', response.status);
-    console.log('📤 Firebase Admin FCM Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('📤 FCM Response status:', response.status);
     
     const responseText = await response.text();
-    console.log('📤 Firebase Admin FCM Response body:', responseText);
     
     if (!response.ok) {
-      console.error('❌ Firebase Admin FCM failed:', responseText);
-      return { success: false, error: `Firebase Admin FCM HTTP ${response.status}: ${responseText}` };
+      console.error('❌ FCM failed:', responseText);
+      return { success: false, error: `FCM HTTP ${response.status}: ${responseText}` };
     }
     
     const result = JSON.parse(responseText);
-    console.log('✅ Firebase Admin FCM Response parsed:', result);
+    console.log('✅ FCM Response:', result);
     
-    return { success: true, fcmResponse: result, method: 'firebase-admin-sdk' };
+    return { success: true, fcmResponse: result };
     
   } catch (error) {
-    console.error('❌ Error sending Firebase Admin FCM notification:', error);
+    console.error('❌ Error sending FCM notification:', error);
     return { success: false, error: error.message };
   }
 }
 
 serve(async (req) => {
-  console.log('📱 === FIREBASE ADMIN SDK FCM PUSH NOTIFICATION FUNCTION START ===');
-  console.log('🔗 Request method:', req.method);
-  console.log('🔗 Request URL:', req.url);
-  console.log('🔗 Request headers:', Object.fromEntries(req.headers.entries()));
-  console.log('🔥 Firebase Project:', FIREBASE_CONFIG.projectId);
-  console.log('🔐 Using Firebase Admin SDK with service account');
+  console.log('📱 === FCM PUSH NOTIFICATION FUNCTION START ===');
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('✅ Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Enhanced environment validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    console.log('🔍 Environment validation:');
-    console.log('  - SUPABASE_URL:', supabaseUrl ? `Present (${supabaseUrl.substring(0, 30)}...)` : 'Missing');
-    console.log('  - SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? `Present (${supabaseServiceKey.substring(0, 20)}...)` : 'Missing');
-    console.log('  - Deno.env.toObject() keys:', Object.keys(Deno.env.toObject()));
-    
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('❌ Missing required environment variables');
       return new Response(
         JSON.stringify({ 
           error: 'Missing required environment variables',
-          success: false,
-          details: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured',
-          available_env: Object.keys(Deno.env.toObject())
+          success: false
         }),
         { 
           status: 500,
@@ -306,67 +238,19 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client with enhanced configuration
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      },
-      global: {
-        headers: {
-          'User-Agent': 'edge-function-push-notification/1.0'
-        }
-      }
-    });
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('✅ Supabase client initialized successfully');
-
-    // Enhanced request body parsing
-    let requestBody: string;
-    let parsedBody: any;
-    
-    try {
-      requestBody = await req.text();
-      console.log('📨 Raw request body:', requestBody);
-      console.log('📨 Request body length:', requestBody.length);
-      
-      if (!requestBody.trim()) {
-        throw new Error('Request body is empty');
-      }
-      
-      parsedBody = JSON.parse(requestBody);
-      console.log('📨 Parsed request body:', parsedBody);
-    } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid request body',
-          success: false,
-          details: parseError.message,
-          receivedBody: requestBody || 'undefined'
-        }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    const requestBody = await req.text();
+    const parsedBody = JSON.parse(requestBody);
     
     const { userIds, title, body, data } = parsedBody;
-    console.log('📱 === FIREBASE ADMIN FCM NOTIFICATION REQUEST ===');
-    console.log('👥 Target users:', userIds);
-    console.log('📢 Title:', title);
-    console.log('💬 Body:', body);
-    console.log('📦 Data:', data);
+    console.log('📱 FCM Notification Request:', { userIds, title, body, data });
 
-    // Validate required fields
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      console.error('❌ Invalid userIds provided');
       return new Response(
         JSON.stringify({ 
           error: 'Invalid userIds - must be a non-empty array',
-          success: false,
-          received: { userIds, type: typeof userIds }
+          success: false
         }),
         { 
           status: 400,
@@ -376,12 +260,10 @@ serve(async (req) => {
     }
 
     if (!title || !body) {
-      console.error('❌ Missing title or body');
       return new Response(
         JSON.stringify({ 
           error: 'Missing required fields: title and body',
-          success: false,
-          received: { title, body }
+          success: false
         }),
         { 
           status: 400,
@@ -390,19 +272,21 @@ serve(async (req) => {
       );
     }
 
-    // Get Firebase Admin SDK access token with enhanced error handling
-    let accessToken: string;
-    try {
-      console.log('🔐 Getting Firebase Admin SDK access token...');
-      accessToken = await getAccessToken();
-      console.log('✅ Access token obtained successfully');
-    } catch (tokenError) {
-      console.error('❌ Failed to get access token:', tokenError);
+    // Get Firebase access token
+    const accessToken = await getAccessToken();
+
+    // Get FCM tokens from database
+    const { data: tokens, error } = await supabase
+      .from('push_tokens')
+      .select('*')
+      .in('user_id', userIds);
+
+    if (error) {
+      console.error('❌ Error fetching tokens:', error);
       return new Response(
         JSON.stringify({ 
-          error: 'Firebase authentication failed',
-          success: false,
-          details: tokenError.message
+          error: `Database error: ${error.message}`,
+          success: false
         }),
         { 
           status: 500,
@@ -411,143 +295,41 @@ serve(async (req) => {
       );
     }
 
-    // Enhanced database query with better error handling
-    console.log('🔍 Querying push_subscriptions for users:', userIds);
-    let subscriptions: any[] | null = null;
-    let queryError: any = null;
-    
-    try {
-      const query = supabase
-        .from('push_subscriptions')
-        .select('*')
-        .in('user_id', userIds);
-        
-      console.log('🔍 Executing query...');
-      const result = await query;
-      subscriptions = result.data;
-      queryError = result.error;
-      
-      console.log('🔍 Query result:', { 
-        data: subscriptions?.length || 0, 
-        error: queryError?.message || 'none' 
-      });
-      
-    } catch (dbError) {
-      console.error('❌ Database query failed:', dbError);
-      queryError = dbError;
-    }
+    console.log('📱 FCM tokens found:', tokens?.length || 0);
 
-    if (queryError) {
-      console.error('❌ Error fetching subscriptions:', queryError);
-      return new Response(
-        JSON.stringify({ 
-          error: `Database error: ${queryError.message}`,
-          success: false,
-          details: queryError,
-          query: { userIds }
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    console.log('📱 Firebase Admin FCM subscriptions found:', subscriptions?.length || 0);
-    
-    // Enhanced subscription analysis
-    if (subscriptions && subscriptions.length > 0) {
-      console.log('📱 Detailed subscription analysis:');
-      const devicesByUser = subscriptions.reduce((acc: Record<string, number>, sub) => {
-        acc[sub.user_id] = (acc[sub.user_id] || 0) + 1;
-        return acc;
-      }, {});
-      
-      Object.entries(devicesByUser).forEach(([userId, count]) => {
-        console.log(`  👤 User ${userId}: ${count} device(s)`);
-      });
-      
-      subscriptions.forEach((sub, index) => {
-        console.log(`  📱 Device ${index + 1}:`, {
-          user_id: sub.user_id,
-          endpoint: sub.endpoint.substring(0, 50) + '...',
-          created_at: sub.created_at,
-          id: sub.id
-        });
-      });
-    }
-
-    if (!subscriptions || subscriptions.length === 0) {
-      console.log('⚠️ No Firebase Admin FCM subscriptions found for users:', userIds);
-      
-      // Enhanced database analysis
-      try {
-        const { data: allSubs, error: allSubsError } = await supabase
-          .from('push_subscriptions')
-          .select('user_id, endpoint, created_at')
-          .limit(10);
-          
-        if (allSubsError) {
-          console.error('❌ Error checking all subscriptions:', allSubsError);
-        } else {
-          console.log('📊 Total subscriptions in database:', allSubs?.length || 0);
-          if (allSubs && allSubs.length > 0) {
-            console.log('📋 Sample available subscriptions:');
-            allSubs.forEach((sub, index) => {
-              console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}..., Created: ${sub.created_at}`);
-            });
-          }
-        }
-      } catch (analysisError) {
-        console.error('❌ Error during database analysis:', analysisError);
-      }
-      
+    if (!tokens || tokens.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No Firebase Admin FCM subscriptions found',
+          message: 'No FCM tokens found',
           sentCount: 0,
-          targetUsers: userIds.length,
-          method: 'firebase-admin-sdk',
-          analysis: {
-            queriedUsers: userIds,
-            foundSubscriptions: 0
-          }
+          targetUsers: userIds.length
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Enhanced notification sending with detailed tracking
-    console.log('📤 Sending Firebase Admin FCM notifications to', subscriptions.length, 'device(s)...');
-    const pushPromises = subscriptions.map(async (subscription: PushSubscription, index: number) => {
-      console.log(`📤 [${index + 1}/${subscriptions.length}] Processing notification for user ${subscription.user_id}`);
-      console.log(`📤 [${index + 1}/${subscriptions.length}] Device endpoint: ${subscription.endpoint.substring(0, 50)}...`);
-      
+    // Send notifications
+    const pushPromises = tokens.map(async (tokenData: PushToken) => {
       try {
-        const result = await sendFirebaseAdminFCM(subscription, {
+        const result = await sendFCMNotification(tokenData.token, {
           title,
           body,
           data: data || {},
           icon: '/favicon.ico',
           badge: '/favicon.ico',
-          tag: data?.tag || 'firebase-admin-fcm'
+          tag: data?.tag || 'fcm-notification'
         }, accessToken);
 
-        console.log(`📤 [${index + 1}/${subscriptions.length}] Result:`, result.success ? '✅ Success' : `❌ Failed: ${result.error}`);
-        
         return {
-          userId: subscription.user_id,
-          subscriptionId: subscription.id,
-          endpoint: subscription.endpoint.substring(0, 50) + '...',
+          userId: tokenData.user_id,
+          token: tokenData.token.substring(0, 20) + '...',
           ...result
         };
       } catch (sendError) {
-        console.error(`📤 [${index + 1}/${subscriptions.length}] Send error:`, sendError);
         return {
-          userId: subscription.user_id,
-          subscriptionId: subscription.id,
-          endpoint: subscription.endpoint.substring(0, 50) + '...',
+          userId: tokenData.user_id,
+          token: tokenData.token.substring(0, 20) + '...',
           success: false,
           error: sendError.message
         };
@@ -556,66 +338,34 @@ serve(async (req) => {
 
     const results = await Promise.all(pushPromises);
     const successCount = results.filter(r => r.success).length;
-    
-    console.log('📱 === FIREBASE ADMIN FCM NOTIFICATION RESULTS ===');
-    console.log(`✅ Successful deliveries: ${successCount}/${results.length}`);
-    console.log(`❌ Failed deliveries: ${results.length - successCount}/${results.length}`);
-    console.log('📊 Detailed results:', JSON.stringify(results, null, 2));
 
-    // Enhanced response with comprehensive delivery insights
-    const response = {
-      success: true, 
-      results,
-      sentCount: successCount,
-      totalSubscriptions: results.length,
-      targetUsers: userIds.length,
-      message: `Firebase Admin FCM notifications processed for ${successCount}/${results.length} devices`,
-      deliveryInsights: {
-        totalDevicesTargeted: results.length,
-        successfulDeliveries: successCount,
-        failedDeliveries: results.length - successCount,
-        method: 'firebase-admin-sdk',
-        authMethod: 'service-account-oauth2',
-        firebaseProject: FIREBASE_CONFIG.projectId,
-        recommendation: successCount === results.length ? 'All notifications delivered successfully!' : 'Some notifications failed - check device tokens',
-        analysis: {
-          queriedUsers: userIds,
-          foundUsers: [...new Set(results.map(r => r.userId))],
-          totalDevicesFound: results.length
-        }
-      }
-    };
-
-    console.log('📱 === FIREBASE ADMIN FCM DELIVERY COMPLETE ===');
-    console.log('🔐 Authentication method: Firebase Admin SDK with Service Account');
-    console.log('✅ Cross-device capability: Active');
-    console.log('📊 Final response:', JSON.stringify(response, null, 2));
+    console.log('📱 FCM Notification Summary:', {
+      total: results.length,
+      successful: successCount,
+      failed: results.length - successCount
+    });
 
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify({
+        success: true,
+        sentCount: successCount,
+        totalTokens: results.length,
+        targetUsers: userIds.length,
+        results: results
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('❌ Critical error in Firebase Admin FCM notification function:', error);
-    console.error('❌ Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-    
+    console.error('❌ Function error:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        success: false,
-        details: 'Firebase Admin FCM notification system encountered a critical error',
-        method: 'firebase-admin-sdk',
-        errorType: error.name,
-        timestamp: new Date().toISOString()
+        success: false
       }),
-      { 
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }
