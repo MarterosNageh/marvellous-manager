@@ -172,6 +172,14 @@ async function sendFCMNotificationV1(token: string, payload: any) {
     
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
     
+    // Convert all data values to strings for FCM HTTP v1 API compatibility
+    const stringifiedData: { [key: string]: string } = {};
+    if (payload.data) {
+      for (const [key, value] of Object.entries(payload.data)) {
+        stringifiedData[key] = String(value);
+      }
+    }
+    
     const message = {
       message: {
         token: token,
@@ -181,7 +189,7 @@ async function sendFCMNotificationV1(token: string, payload: any) {
           image: payload.icon || '/favicon.ico'
         },
         data: {
-          ...payload.data,
+          ...stringifiedData,
           click_action: payload.data?.url || '/task-manager'
         },
         android: {
@@ -207,7 +215,7 @@ async function sendFCMNotificationV1(token: string, payload: any) {
             icon: payload.icon || '/favicon.ico',
             badge: '/favicon.ico',
             requireInteraction: true,
-            data: payload.data
+            data: stringifiedData
           },
           fcm_options: {
             link: payload.data?.url || '/task-manager'
