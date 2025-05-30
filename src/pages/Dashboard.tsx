@@ -1,24 +1,33 @@
-
-import { useState } from "react";
+import React, { useMemo } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
 import { useTask } from "@/context/TaskContext";
 import { useShifts } from "@/context/ShiftsContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useData } from "@/context/DataContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, CheckCircle, Clock, Calendar, User, MapPin, HardDrive, FolderOpen, Activity } from "lucide-react";
-import { TaskUtilizationTable } from "@/components/dashboard/TaskUtilizationTable";
-import { TaskBoard } from "@/components/tasks/TaskBoard";
-import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
-import { format } from "date-fns";
-import { ShiftsProvider } from "@/context/ShiftsContext";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Calendar, 
+  CheckCircle, 
+  AlertCircle, 
+  Clock, 
+  HardDrive, 
+  BarChart3, 
+  TrendingUp, 
+  Users,
+  Activity,
+  User
+} from "lucide-react";
+import { ShiftsProvider } from '@/context/ShiftsContext';
+import { format } from 'date-fns';
 
 const DashboardContent = () => {
   const { currentUser } = useAuth();
-  const { tasks } = useTask();
-  const { getCurrentShifts, getTodayShifts, loading: shiftsLoading } = useShifts();
-  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const { tasks, projects } = useTask();
+  const { shifts } = useShifts();
+  const { hardDrives } = useData();
 
   // Helper function to get tasks by status
   const getTasksByStatus = (status: string) => {
@@ -34,45 +43,49 @@ const DashboardContent = () => {
   const inProgressTasks = getTasksByStatus("In Progress");
   const completedTasks = getTasksByStatus("Done");
   
-  const currentShifts = getCurrentShifts();
-  const todayShifts = getTodayShifts();
+  const currentShifts = shifts.filter(shift => shift.status === 'scheduled');
+  const todayShifts = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    return shifts.filter(shift => {
+      const shiftDate = new Date(shift.start_time).toISOString().split('T')[0];
+      return shiftDate === todayStr && shift.status === 'scheduled';
+    });
+  }, [shifts]);
 
-  const getShiftTypeColor = (type: string) => {
-    switch (type) {
-      case 'morning':
-        return 'bg-blue-100 text-blue-800';
-      case 'evening':
-        return 'bg-orange-100 text-orange-800';
-      case 'night':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const currentlyWorking = useMemo(() => {
+    const now = new Date();
+    return shifts.filter(shift => {
+      const shiftStart = new Date(shift.start_time);
+      const shiftEnd = new Date(shift.end_time);
+      return shiftStart <= now && shiftEnd >= now && shift.status === 'scheduled';
+    });
+  }, [shifts]);
+
+  const upcomingShifts = useMemo(() => {
+    const now = new Date();
+    return shifts.filter(shift => {
+      const shiftStart = new Date(shift.start_time);
+      return shiftStart > now && shift.status === 'scheduled';
+    }).slice(0, 5);
+  }, [shifts]);
+
+  const completionPercentage = (completedTasks / tasks.length) * 100;
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Welcome back, {currentUser?.username}!
-            </h1>
-            <p className="text-muted-foreground">
-              Here's what's happening with your team today.
-            </p>
-          </div>
-          {currentUser?.isAdmin && (
-            <Button onClick={() => setIsCreateTaskOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Task
-            </Button>
-          )}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back! Here's what's happening in your workspace.
+          </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {/* Overview Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
@@ -80,50 +93,24 @@ const DashboardContent = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{tasks.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {completedTasks.length} completed
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{inProgressTasks.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {todoTasks.length} pending
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Working Now</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {shiftsLoading ? '...' : currentShifts.length}
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <span>{completedTasks} completed</span>
+                <Badge variant="secondary">{completionPercentage}%</Badge>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {shiftsLoading ? 'Loading...' : `${todayShifts.length} shifts today`}
-              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Projects</CardTitle>
-              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">
-                3 active projects
-              </p>
+              <div className="text-2xl font-bold">{projects.length}</div>
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                <span>Projects in progress</span>
+              </div>
             </CardContent>
           </Card>
 
@@ -133,153 +120,520 @@ const DashboardContent = () => {
               <HardDrive className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">247</div>
-              <p className="text-xs text-muted-foreground">
-                8 available
-              </p>
+              <div className="text-2xl font-bold">{hardDrives.length}</div>
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <Activity className="h-3 w-3" />
+                <span>Devices tracked</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{todayShifts.length}</div>
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                <span>{currentlyWorking.length} currently working</span>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Current Shifts Section */}
-        {!shiftsLoading && currentShifts.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-green-600" />
-                Currently Working ({currentShifts.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {currentShifts.map((shift) => (
-                  <div
-                    key={shift.id}
-                    className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
-                  >
-                    <div className="bg-green-100 dark:bg-green-900 p-2 rounded-full">
-                      <User className="h-4 w-4 text-green-600 dark:text-green-400" />
+        {/* Main Content */}
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="shifts">Shifts</TabsTrigger>
+            <TabsTrigger value="devices">Devices</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Task Progress */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Task Progress</CardTitle>
+                  <CardDescription>
+                    Overall completion rate across all projects
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Overall Progress</span>
+                      <span>{completionPercentage}%</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">
-                          {shift.user?.username}
-                        </span>
-                        <Badge 
-                          variant="secondary" 
-                          className={getShiftTypeColor(shift.shift_type)}
-                        >
-                          {shift.shift_type}
+                    <Progress value={completionPercentage} className="h-2" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="font-bold text-green-600">{completedTasks}</div>
+                      <div className="text-muted-foreground">Completed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-blue-600">{inProgressTasks}</div>
+                      <div className="text-muted-foreground">In Progress</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-gray-600">{todoTasks}</div>
+                      <div className="text-muted-foreground">To Do</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Currently Working */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Currently Working
+                  </CardTitle>
+                  <CardDescription>
+                    Employees currently on shift
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {currentlyWorking.length > 0 ? (
+                    <div className="space-y-3">
+                      {currentlyWorking.map((shift) => (
+                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <div className="font-medium">{shift.user?.username}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                            </div>
+                            <Badge variant="secondary" className="mt-1">
+                              {shift.shift_type}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No one is currently working</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Upcoming Activities */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Recent Tasks */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Tasks</CardTitle>
+                  <CardDescription>Latest task activities</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {tasks.slice(0, 5).map((task) => (
+                      <div key={task.id} className="flex items-center space-x-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          task.status === 'completed' ? 'bg-green-500' : 
+                          task.status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Priority: {task.priority}
+                          </p>
+                        </div>
+                        <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                          {task.status.replace('_', ' ')}
                         </Badge>
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {shift.title}
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {format(new Date(shift.start_time), 'HH:mm')} - 
-                          {format(new Date(shift.end_time), 'HH:mm')}
-                        </div>
-                        {shift.role && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {shift.role}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Upcoming Shifts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Upcoming Shifts</CardTitle>
+                  <CardDescription>Next scheduled shifts</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {upcomingShifts.length > 0 ? (
+                    <div className="space-y-3">
+                      {upcomingShifts.map((shift) => (
+                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <div className="font-medium">{shift.user?.username}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title}</div>
                           </div>
-                        )}
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              {format(new Date(shift.start_time), 'MMM d, HH:mm')}
+                            </div>
+                            <Badge variant="outline" className="mt-1">
+                              {shift.shift_type}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No upcoming shifts</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tasks" className="space-y-4">
+            <TaskBoard />
+          </TabsContent>
+
+          <TabsContent value="projects" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Projects</CardTitle>
+                  <CardDescription>Manage your projects</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Project List</h3>
+                        <p className="text-sm text-muted-foreground">View all projects</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Project
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      {projects.map((project) => (
+                        <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <div className="font-medium">{project.name}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{project.description}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              {project.status}
+                            </div>
+                            <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                              {project.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project Status</CardTitle>
+                  <CardDescription>Track project progress</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Project Status</h3>
+                        <p className="text-sm text-muted-foreground">View project statuses</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Status
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Active</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects in progress</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            3
+                          </div>
+                          <Badge variant="default">
+                            Active
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Completed</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects completed</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            2
+                          </div>
+                          <Badge variant="default">
+                            Completed
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Pending</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Projects pending</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            1
+                          </div>
+                          <Badge variant="default">
+                            Pending
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-        {/* Quick Actions Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-lg">
-                  <FolderOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Projects</h3>
-                  <p className="text-sm text-muted-foreground">Manage projects</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="shifts" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Shifts</CardTitle>
+                  <CardDescription>Manage your shifts</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Shift List</h3>
+                        <p className="text-sm text-muted-foreground">View all shifts</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Shift
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      {shifts.map((shift) => (
+                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <div className="font-medium">{shift.title}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.description}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              {shift.status}
+                            </div>
+                            <Badge variant={shift.status === 'scheduled' ? 'default' : 'secondary'}>
+                              {shift.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-purple-100 dark:bg-purple-900 p-2 rounded-lg">
-                  <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Hard Drives</h3>
-                  <p className="text-sm text-muted-foreground">Track storage</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Shift Status</CardTitle>
+                  <CardDescription>Track shift progress</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Shift Status</h3>
+                        <p className="text-sm text-muted-foreground">View shift statuses</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Status
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Scheduled</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts scheduled</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            3
+                          </div>
+                          <Badge variant="default">
+                            Scheduled
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Completed</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts completed</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            2
+                          </div>
+                          <Badge variant="default">
+                            Completed
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Pending</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Shifts pending</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            1
+                          </div>
+                          <Badge variant="default">
+                            Pending
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 dark:bg-green-900 p-2 rounded-lg">
-                  <Calendar className="h-5 w-5 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Schedule</h3>
-                  <p className="text-sm text-muted-foreground">View shifts</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="devices" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Devices</CardTitle>
+                  <CardDescription>Manage your devices</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Device List</h3>
+                        <p className="text-sm text-muted-foreground">View all devices</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Device
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      {hardDrives.map((device) => (
+                        <div key={device.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <div className="font-medium">{device.name}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{device.description}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              {device.status}
+                            </div>
+                            <Badge variant={device.status === 'available' ? 'default' : 'secondary'}>
+                              {device.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-orange-100 dark:bg-orange-900 p-2 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Tasks</h3>
-                  <p className="text-sm text-muted-foreground">Task manager</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Task Board */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <TaskBoard />
-          </div>
-          <div>
-            <TaskUtilizationTable />
-          </div>
-        </div>
-
-        {/* Create Task Dialog */}
-        <CreateTaskDialog>
-          <div></div>
-        </CreateTaskDialog>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Device Status</CardTitle>
+                  <CardDescription>Track device progress</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Device Status</h3>
+                        <p className="text-sm text-muted-foreground">View device statuses</p>
+                      </div>
+                      <Button variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Status
+                      </Button>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Available</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices available</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            3
+                          </div>
+                          <Badge variant="default">
+                            Available
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">In Use</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices in use</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            2
+                          </div>
+                          <Badge variant="default">
+                            In Use
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div>
+                          <div className="font-medium">Pending</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Devices pending</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            1
+                          </div>
+                          <Badge variant="default">
+                            Pending
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
 };
 
-const Dashboard = () => {
-  return (
-    <ShiftsProvider>
-      <DashboardContent />
-    </ShiftsProvider>
-  );
-};
+const Dashboard = () => (
+  <ShiftsProvider>
+    <DashboardContent />
+  </ShiftsProvider>
+);
 
 export default Dashboard;

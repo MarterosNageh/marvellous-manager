@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ShiftsProvider } from '@/context/ShiftsContext';
@@ -27,7 +26,7 @@ const ShiftsScheduleContent = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const isAdmin = currentUser?.isAdmin;
-  const isManager = currentUser?.role === 'manager' || currentUser?.isAdmin;
+  const isManager = (currentUser?.role === 'manager') || currentUser?.isAdmin;
 
   return (
     <MainLayout>

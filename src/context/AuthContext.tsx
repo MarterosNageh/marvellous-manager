@@ -1,141 +1,116 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+interface User {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  role?: string;
+  title?: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  isAuthenticated: boolean | null; // null = loading, false = not authenticated, true = authenticated
-  addUser: (user: Omit<User, "id">) => Promise<void>;
-  removeUser: (userId: string) => Promise<void>;
   users: User[];
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  register: (username: string, password: string, isAdmin?: boolean) => Promise<boolean>;
+  updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // Start with null (loading)
+  const [loading, setLoading] = useState(true);
 
-  // Initialize - check for stored user first before any other operations
-  useEffect(() => {
-    const initializeAuth = async () => {
-      console.log('🔐 Initializing authentication...');
-      
-      // First check for stored user in localStorage to restore session
-      try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          setCurrentUser(parsedUser);
-          setIsAuthenticated(true);
-          console.log("✅ Session restored from localStorage:", parsedUser.username);
-        } else {
-          console.log("❌ No stored session found");
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error("Error parsing stored user:", error);
-        localStorage.removeItem('currentUser');
-        setIsAuthenticated(false);
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.from('auth_users').select('*').eq('username', username).single();
+
+      if (error) {
+        console.error('Login error:', error);
+        return false;
       }
 
-      // Then fetch users and check/create admin user
-      await fetchUsers();
-      await checkAndCreateAdminUser();
-    };
+      if (!data || data.password !== password) {
+        console.log('Invalid credentials');
+        return false;
+      }
 
-    initializeAuth();
-  }, []);
+      setCurrentUser({
+        id: data.id,
+        username: data.username,
+        isAdmin: data.isAdmin,
+        role: data.role,
+        title: data.title
+      });
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // This function will check if admin user exists and create it if not
-  const checkAndCreateAdminUser = async () => {
+  const logout = () => {
+    setCurrentUser(null);
+  };
+
+  const register = async (username: string, password: string, isAdmin = false): Promise<boolean> => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('auth_users')
-        .select('*')
-        .eq('username', 'admin')
-        .maybeSingle();
-      
+        .insert([{ username, password, isAdmin }]);
+
       if (error) {
-        console.error("Error checking for admin user:", error);
-        return;
+        console.error('Registration error:', error);
+        return false;
       }
-      
-      if (!data) {
-        console.log("Admin user doesn't exist, creating it...");
-        // Create the admin user
-        const { data: insertData, error: insertError } = await supabase
-          .from('auth_users')
-          .insert([
-            { 
-              username: 'admin', 
-              password: 'admin123',
-              is_admin: true
-            }
-          ])
-          .select();
-        
-        if (insertError) {
-          console.error("Error creating admin user:", insertError);
-          toast.error("Failed to create admin user. Please check the console for details.");
-        } else {
-          console.log("Admin user created successfully");
-          await fetchUsers(); // Refresh users list
-        }
-      } else {
-        console.log("Admin user exists:", data.username);
-      }
+
+      console.log('Registration successful:', data);
+      return true;
     } catch (error) {
-      console.error("Error checking for admin user:", error);
+      console.error('Registration failed:', error);
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const checkSession = async () => {
+  const updateUser = async (userId: string, updates: Partial<User>) => {
     try {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        await fetchCurrentUser();
-      }
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error("Error checking session:", error);
-      setIsAuthenticated(false);
-    }
-  };
+      const { error } = await supabase
+        .from('auth_users')
+        .update(updates)
+        .eq('id', userId);
 
-  const fetchCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
+      if (error) throw error;
+
+      // Update local state
+      setUsers(prev => prev.map(user => 
+        user.id === userId ? { ...user, ...updates } : user
+      ));
       
-      if (user) {
-        const { data: userData, error } = await supabase
-          .from('auth_users')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("Error fetching user data:", error);
-          setCurrentUser(null);
-          return;
-        }
-
-        if (userData) {
-          setCurrentUser({
-            id: userData.id,
-            username: userData.username,
-            password: userData.password, // Note: In production, you should not expose passwords
-            isAdmin: userData.is_admin
-          });
-        }
+      if (currentUser?.id === userId) {
+        setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
       }
     } catch (error) {
-      console.error("Error fetching current user:", error);
+      console.error('Error updating user:', error);
+      throw error;
     }
   };
 
@@ -143,186 +118,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('auth_users')
-        .select('*');
-
-      if (error) {
-        console.error("Error fetching users:", error);
-        return;
-      }
-
-      const formattedUsers: User[] = data.map(user => ({
-        id: user.id,
-        username: user.username,
-        password: user.password, // Note: In production, you should not expose passwords
-        isAdmin: user.is_admin
-      }));
-
-      setUsers(formattedUsers);
-      console.log("Fetched users:", formattedUsers);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    }
-  };
-
-  const login = async (username: string, password: string): Promise<boolean> => {
-    try {
-      console.log(`Attempting login with username: ${username}`);
-      
-      // Direct database login without going through Supabase Auth for simplicity
-      const { data: userData, error: userError } = await supabase
-        .from('auth_users')
         .select('*')
-        .eq('username', username)
-        .maybeSingle();
+        .order('username');
 
-      if (userError) {
-        console.error("Error fetching user:", userError);
-        return false;
-      }
+      if (error) throw error;
 
-      // If user doesn't exist
-      if (!userData) {
-        console.error("User not found");
-        return false;
-      }
-      
-      console.log("Found user data:", userData.username);
-      
-      // Check if password matches
-      if (userData.password !== password) {
-        console.error("Invalid password");
-        return false;
-      }
-      
-      console.log("Password matched, setting current user");
-
-      // Set current user without using Supabase Auth
-      const user = {
-        id: userData.id,
-        username: userData.username,
-        password: userData.password,
-        isAdmin: userData.is_admin
-      };
-      
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      
-      // Store user in localStorage for session persistence
-      localStorage.setItem('currentUser', JSON.stringify(user));
-
-      return true;
+      setUsers(data || []);
     } catch (error) {
-      console.error("Error during login:", error);
-      return false;
+      console.error('Error fetching users:', error);
     }
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      // Clear authentication state from localStorage
-      localStorage.removeItem('currentUser');
-    } catch (error) {
-      console.error("Error during logout:", error);
+  useEffect(() => {
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
     }
-  };
+  }, []);
 
-  const addUser = async (user: Omit<User, "id">) => {
-    try {
-      console.log("Adding user:", user);
-      
-      // Check if user already exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from('auth_users')
-        .select('*')
-        .eq('username', user.username)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking existing user:", checkError);
-        toast.error("Error checking if user already exists");
-        return;
-      }
-      
-      if (existingUser) {
-        console.log("User already exists:", existingUser);
-        toast.error("Username already exists");
-        return;
-      }
+  useEffect(() => {
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  }, [currentUser]);
 
-      // Create user in auth_users table
-      const { data: userData, error: userError } = await supabase
-        .from('auth_users')
-        .insert([
-          { 
-            username: user.username,
-            password: user.password,
-            is_admin: user.isAdmin
-          }
-        ])
-        .select('*');
+  useEffect(() => {
+    fetchUsers();
+    setLoading(false);
+  }, []);
 
-      if (userError) {
-        console.error("Error adding user:", userError);
-        toast.error("Failed to add user: " + userError.message);
-        return;
-      }
-      
-      console.log("User added successfully:", userData);
-      toast.success(`User ${user.username} added successfully`);
-
-      // Refresh users list
-      await fetchUsers();
-    } catch (error: any) {
-      console.error("Error adding user:", error);
-      toast.error("Failed to add user: " + error.message);
-    }
-  };
-
-  const removeUser = async (userId: string) => {
-    try {
-      // Delete from auth_users table
-      const { error } = await supabase
-        .from('auth_users')
-        .delete()
-        .eq('id', userId);
-
-      if (error) {
-        console.error("Error removing user:", error);
-        toast.error("Failed to remove user: " + error.message);
-        return;
-      }
-
-      toast.success("User removed successfully");
-      
-      // Refresh users list
-      await fetchUsers();
-    } catch (error: any) {
-      console.error("Error removing user:", error);
-      toast.error("Failed to remove user: " + error.message);
-    }
-  };
-
-  const value = {
-    currentUser,
-    login,
-    logout,
-    isAuthenticated: isAuthenticated === true, // Convert null to false for backwards compatibility
-    addUser,
-    removeUser,
-    users,
-  };
-
-  // Only render children when authentication is initialized
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  return (
+    <AuthContext.Provider value={{
+      currentUser,
+      users,
+      login,
+      logout,
+      register,
+      updateUser,
+      loading
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
