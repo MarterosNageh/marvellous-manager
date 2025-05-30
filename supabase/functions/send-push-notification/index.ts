@@ -12,15 +12,21 @@ const FIREBASE_PROJECT_ID = "marvellous-manager";
 
 // Get Firebase service account from Supabase secrets
 async function getFirebaseServiceAccount() {
-  const serviceAccount = Deno.env.get('FCM_PRIVATE_KEY');
+  // Try both possible secret names
+  let serviceAccount = Deno.env.get('FCM_PRIVATE_KEY_JSON');
   if (!serviceAccount) {
-    throw new Error('FCM_PRIVATE_KEY environment variable not found');
+    serviceAccount = Deno.env.get('FCM_PRIVATE_KEY');
+  }
+  
+  if (!serviceAccount) {
+    throw new Error('FCM service account not found in environment variables');
   }
   
   try {
     return JSON.parse(serviceAccount);
   } catch (error) {
-    throw new Error('Invalid FCM_PRIVATE_KEY JSON format');
+    console.error('❌ Error parsing service account JSON:', error);
+    throw new Error('Invalid service account JSON format');
   }
 }
 
@@ -30,6 +36,9 @@ async function getAccessToken() {
   
   try {
     const serviceAccount = await getFirebaseServiceAccount();
+    console.log('✅ Service account loaded successfully');
+    console.log('🔑 Client email:', serviceAccount.client_email);
+    console.log('🆔 Project ID:', serviceAccount.project_id);
     
     // Create JWT for OAuth2
     const now = Math.floor(Date.now() / 1000);
@@ -55,11 +64,22 @@ async function getAccessToken() {
     
     const signingInput = `${encodedHeader}.${encodedPayload}`;
     
+    // Clean and prepare private key
+    const privateKeyPem = serviceAccount.private_key.replace(/\\n/g, '\n');
+    console.log('🔑 Private key format check:', privateKeyPem.includes('-----BEGIN PRIVATE KEY-----'));
+    
+    // Convert PEM to DER format for Web Crypto API
+    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+    const pemFooter = "-----END PRIVATE KEY-----";
+    const pemContents = privateKeyPem.replace(pemHeader, "").replace(pemFooter, "").replace(/\s/g, "");
+    
+    // Decode base64 to get DER format
+    const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+    
     // Import private key for signing
-    const privateKeyPem = serviceAccount.private_key;
     const privateKey = await crypto.subtle.importKey(
       'pkcs8',
-      new TextEncoder().encode(privateKeyPem.replace(/\\n/g, '\n')),
+      binaryDer,
       {
         name: 'RSASSA-PKCS1-v1_5',
         hash: 'SHA-256',
@@ -67,6 +87,8 @@ async function getAccessToken() {
       false,
       ['sign']
     );
+    
+    console.log('✅ Private key imported successfully');
     
     // Sign the JWT
     const signature = await crypto.subtle.sign(
@@ -81,8 +103,10 @@ async function getAccessToken() {
       .replace(/=/g, '');
     
     const jwt = `${signingInput}.${encodedSignature}`;
+    console.log('✅ JWT created successfully');
     
     // Exchange JWT for access token
+    console.log('🔄 Exchanging JWT for access token...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -94,10 +118,12 @@ async function getAccessToken() {
       })
     });
     
+    console.log('🔄 Token response status:', tokenResponse.status);
+    
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error('❌ OAuth2 token request failed:', errorText);
-      throw new Error(`OAuth2 token request failed: ${tokenResponse.status}`);
+      throw new Error(`OAuth2 token request failed: ${tokenResponse.status} - ${errorText}`);
     }
     
     const tokenData = await tokenResponse.json();
@@ -405,8 +431,8 @@ serve(async (req) => {
         apiVersion: 'HTTP v1 (OAuth2)',
         debugInfo: {
           firebaseProjectId: FIREBASE_PROJECT_ID,
-          hasServiceAccount: !!Deno.env.get('FCM_PRIVATE_KEY'),
-          serviceAccountPreview: Deno.env.get('FCM_PRIVATE_KEY') ? 'Configured' : 'Missing'
+          hasServiceAccount: !!(Deno.env.get('FCM_PRIVATE_KEY_JSON') || Deno.env.get('FCM_PRIVATE_KEY')),
+          serviceAccountPreview: (Deno.env.get('FCM_PRIVATE_KEY_JSON') || Deno.env.get('FCM_PRIVATE_KEY')) ? 'Configured' : 'Missing'
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
