@@ -73,7 +73,13 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (error) throw error;
 
-      setNotes(data || []);
+      // Type cast the data to match our Note interface
+      const typedNotes = (data || []).map(note => ({
+        ...note,
+        note_type: note.note_type as 'note' | 'folder'
+      })) as Note[];
+
+      setNotes(typedNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
       toast.error('Failed to fetch notes');
@@ -103,7 +109,10 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (error) throw error;
 
-      const newNote = data as Note;
+      const newNote = {
+        ...data,
+        note_type: data.note_type as 'note' | 'folder'
+      } as Note;
       setNotes(prev => [newNote, ...prev]);
       toast.success(`${noteType === 'folder' ? 'Folder' : 'Note'} created successfully`);
       return newNote;
@@ -232,7 +241,11 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (error) throw error;
 
-      return data || [];
+      // Type cast the data to match our NoteShare interface
+      return (data || []).map(share => ({
+        ...share,
+        permission_level: share.permission_level as 'read' | 'write' | 'admin'
+      })) as NoteShare[];
     } catch (error) {
       console.error('Error fetching note shares:', error);
       return [];

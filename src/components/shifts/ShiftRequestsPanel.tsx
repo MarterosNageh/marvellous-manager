@@ -1,184 +1,169 @@
 
-import React, { useState, useMemo } from 'react';
-import { useShifts } from '@/context/ShiftsContext';
-import { useAuth } from '@/context/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, XCircle, Clock, Calendar, User } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useShifts } from '@/context/ShiftsContext';
+import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 
 export const ShiftRequestsPanel = () => {
-  const { shiftRequests, refreshShiftRequests } = useShifts();
-  const { currentUser, users } = useAuth();
-  const [loading, setLoading] = useState<string | null>(null);
+  const { shiftRequests, users, approveShiftRequest, rejectShiftRequest } = useShifts();
+  const { currentUser } = useAuth();
 
-  const isManagerOrAdmin = currentUser?.isAdmin || currentUser?.role === 'manager';
+  const [activeTab, setActiveTab] = useState('pending');
 
-  const pendingRequests = useMemo(() => {
-    return shiftRequests.filter(request => request.status === 'pending');
-  }, [shiftRequests]);
+  const isManager = currentUser?.role === 'manager' || currentUser?.isAdmin;
 
-  const approvedRequests = useMemo(() => {
-    return shiftRequests.filter(request => request.status === 'approved');
-  }, [shiftRequests]);
+  // Filter requests based on status
+  const pendingRequests = shiftRequests.filter(req => req.status === 'pending');
+  const approvedRequests = shiftRequests.filter(req => req.status === 'approved');
+  const rejectedRequests = shiftRequests.filter(req => req.status === 'rejected');
 
-  const rejectedRequests = useMemo(() => {
-    return shiftRequests.filter(request => request.status === 'rejected');
-  }, [shiftRequests]);
+  // Filter user's own requests vs all requests (for managers)
+  const getUserRequests = (requests: any[]) => {
+    if (isManager) {
+      return requests;
+    }
+    return requests.filter(req => req.user_id === currentUser?.id);
+  };
 
-  const userRequests = useMemo(() => {
-    return shiftRequests.filter(request => request.user_id === currentUser?.id);
-  }, [shiftRequests, currentUser?.id]);
-
-  const handleApproveRequest = async (requestId: string) => {
-    if (!isManagerOrAdmin) return;
-    
-    setLoading(requestId);
+  const handleApprove = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('shift_requests')
-        .update({
-          status: 'approved',
-          approved_by: currentUser?.id,
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      toast.success('Request approved successfully');
-      await refreshShiftRequests();
+      await approveShiftRequest(requestId);
     } catch (error) {
-      console.error('Error approving request:', error);
-      toast.error('Failed to approve request');
-    } finally {
-      setLoading(null);
+      console.error('Failed to approve request:', error);
     }
   };
 
-  const handleRejectRequest = async (requestId: string) => {
-    if (!isManagerOrAdmin) return;
-    
-    setLoading(requestId);
+  const handleReject = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('shift_requests')
-        .update({
-          status: 'rejected',
-          approved_by: currentUser?.id,
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      toast.success('Request rejected');
-      await refreshShiftRequests();
+      await rejectShiftRequest(requestId);
     } catch (error) {
-      console.error('Error rejecting request:', error);
-      toast.error('Failed to reject request');
-    } finally {
-      setLoading(null);
+      console.error('Failed to reject request:', error);
     }
   };
 
   const getRequestTypeLabel = (type: string) => {
     switch (type) {
-      case 'time_off': return 'Time Off';
-      case 'extra_shift': return 'Extra Shift';
-      case 'shift_swap': return 'Shift Swap';
-      default: return type;
+      case 'time_off':
+        return 'Time Off';
+      case 'extra_work':
+        return 'Extra Work';
+      case 'shift_change':
+        return 'Shift Change';
+      case 'custom_shift':
+        return 'Custom Shift';
+      default:
+        return type;
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="text-yellow-600"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-      case 'approved':
-        return <Badge variant="default" className="text-green-600"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  const getRequestTypeBadge = (type: string) => {
+    const variants = {
+      time_off: 'destructive',
+      extra_work: 'default',
+      shift_change: 'secondary',
+      custom_shift: 'outline'
+    } as const;
+
+    return (
+      <Badge variant={variants[type as keyof typeof variants] || 'secondary'}>
+        {getRequestTypeLabel(type)}
+      </Badge>
+    );
   };
 
   const RequestCard = ({ request }: { request: any }) => {
-    const requester = users.find(u => u.id === request.user_id);
-    const approver = users.find(u => u.id === request.approved_by);
+    const user = users.find(u => u.id === request.user_id);
+    const approver = request.approved_by ? users.find(u => u.id === request.approved_by) : null;
 
     return (
-      <Card key={request.id}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="h-8 w-8">
+      <Card key={request.id} className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start space-x-3">
+              <Avatar className="h-10 w-10">
                 <AvatarFallback>
-                  {requester?.username?.charAt(0).toUpperCase() || 'U'}
+                  {user?.username?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <CardTitle className="text-sm">{requester?.username || 'Unknown User'}</CardTitle>
-                <CardDescription className="text-xs">
-                  {getRequestTypeLabel(request.request_type)}
-                </CardDescription>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <h4 className="font-medium">{user?.username}</h4>
+                  {getRequestTypeBadge(request.request_type)}
+                </div>
+                
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>
+                      {format(new Date(request.start_date), 'MMM d, yyyy HH:mm')}
+                      {request.end_date && (
+                        <> - {format(new Date(request.end_date), 'MMM d, yyyy HH:mm')}</>
+                      )}
+                    </span>
+                  </div>
+                  
+                  {request.reason && (
+                    <div>
+                      <span className="font-medium">Reason:</span> {request.reason}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4" />
+                    <span>Requested: {format(new Date(request.created_at), 'MMM d, yyyy')}</span>
+                  </div>
+                  
+                  {approver && request.approved_at && (
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4" />
+                      <span>
+                        {request.status === 'approved' ? 'Approved' : 'Rejected'} by {approver.username} on{' '}
+                        {format(new Date(request.approved_at), 'MMM d, yyyy')}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            {getStatusBadge(request.status)}
+            
+            <div className="flex items-center space-x-2">
+              {request.status === 'pending' && isManager && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApprove(request.id)}
+                    className="text-green-600 hover:text-green-700"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleReject(request.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Reject
+                  </Button>
+                </>
+              )}
+              
+              <Badge variant={
+                request.status === 'approved' ? 'default' :
+                request.status === 'rejected' ? 'destructive' : 'secondary'
+              }>
+                {request.status}
+              </Badge>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center text-sm text-gray-600">
-            <Calendar className="h-4 w-4 mr-2" />
-            <span>
-              {format(new Date(request.start_date), 'MMM d, yyyy')}
-              {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
-            </span>
-          </div>
-
-          {request.reason && (
-            <div className="text-sm">
-              <strong>Reason:</strong> {request.reason}
-            </div>
-          )}
-
-          {request.status === 'pending' && isManagerOrAdmin && (
-            <div className="flex space-x-2 pt-2">
-              <Button
-                size="sm"
-                onClick={() => handleApproveRequest(request.id)}
-                disabled={loading === request.id}
-                className="flex-1"
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleRejectRequest(request.id)}
-                disabled={loading === request.id}
-                className="flex-1"
-              >
-                <XCircle className="h-4 w-4 mr-1" />
-                Reject
-              </Button>
-            </div>
-          )}
-
-          {request.approved_by && request.approved_at && (
-            <div className="text-xs text-gray-500 pt-2 border-t">
-              {request.status === 'approved' ? 'Approved' : 'Rejected'} by{' '}
-              {approver?.username || 'Unknown'} on{' '}
-              {format(new Date(request.approved_at), 'MMM d, yyyy HH:mm')}
-            </div>
-          )}
         </CardContent>
       </Card>
     );
@@ -186,102 +171,74 @@ export const ShiftRequestsPanel = () => {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue={isManagerOrAdmin ? "pending" : "my-requests"} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          {isManagerOrAdmin && (
-            <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Shift Requests
+            {isManager && (
+              <Badge variant="outline" className="ml-2">
+                Manager View
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Pending ({pendingRequests.length})
+                Pending
+                {pendingRequests.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {getUserRequests(pendingRequests).length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="approved" className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Approved ({approvedRequests.length})
-              </TabsTrigger>
-              <TabsTrigger value="rejected" className="flex items-center gap-2">
-                <XCircle className="h-4 w-4" />
-                Rejected ({rejectedRequests.length})
-              </TabsTrigger>
-            </>
-          )}
-          <TabsTrigger value="my-requests" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            My Requests ({userRequests.length})
-          </TabsTrigger>
-        </TabsList>
+              <TabsTrigger value="approved">Approved</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+            </TabsList>
 
-        {isManagerOrAdmin && (
-          <>
-            <TabsContent value="pending" className="space-y-4">
-              {pendingRequests.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {pendingRequests.map((request) => (
-                    <RequestCard key={request.id} request={request} />
-                  ))}
+            <TabsContent value="pending" className="space-y-4 mt-6">
+              {getUserRequests(pendingRequests).length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No pending requests</p>
                 </div>
               ) : (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <Clock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-gray-500">No pending requests</p>
-                  </CardContent>
-                </Card>
+                getUserRequests(pendingRequests).map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))
               )}
             </TabsContent>
 
-            <TabsContent value="approved" className="space-y-4">
-              {approvedRequests.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {approvedRequests.map((request) => (
-                    <RequestCard key={request.id} request={request} />
-                  ))}
+            <TabsContent value="approved" className="space-y-4 mt-6">
+              {getUserRequests(approvedRequests).length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No approved requests</p>
                 </div>
               ) : (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-gray-500">No approved requests</p>
-                  </CardContent>
-                </Card>
+                getUserRequests(approvedRequests).map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))
               )}
             </TabsContent>
 
-            <TabsContent value="rejected" className="space-y-4">
-              {rejectedRequests.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {rejectedRequests.map((request) => (
-                    <RequestCard key={request.id} request={request} />
-                  ))}
+            <TabsContent value="rejected" className="space-y-4 mt-6">
+              {getUserRequests(rejectedRequests).length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <XCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No rejected requests</p>
                 </div>
               ) : (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <XCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-gray-500">No rejected requests</p>
-                  </CardContent>
-                </Card>
+                getUserRequests(rejectedRequests).map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))
               )}
             </TabsContent>
-          </>
-        )}
-
-        <TabsContent value="my-requests" className="space-y-4">
-          {userRequests.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {userRequests.map((request) => (
-                <RequestCard key={request.id} request={request} />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <User className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-500">You haven't submitted any requests yet</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

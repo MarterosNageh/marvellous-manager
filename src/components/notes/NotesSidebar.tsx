@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNotes } from '@/context/NotesContext';
 import { useAuth } from '@/context/AuthContext';
-import { format } from 'date-fns';
 
 export const NotesSidebar = () => {
   const { notes, selectedNote, selectNote, createNote, deleteNote, loading } = useNotes();
@@ -72,6 +71,19 @@ export const NotesSidebar = () => {
     return note.user_id === currentUser?.id;
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   const NoteItem = ({ note, isChild = false }: { note: any; isChild?: boolean }) => (
     <div
       className={`group cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${
@@ -93,7 +105,7 @@ export const NotesSidebar = () => {
           <div className="flex-1 min-w-0">
             <div className="font-medium text-sm truncate">{note.title}</div>
             <div className="text-xs text-gray-500 flex items-center space-x-2">
-              <span>{format(new Date(note.updated_at), 'MMM d')}</span>
+              <span>{formatDate(note.updated_at)}</span>
               {note.is_shared && <Share className="h-3 w-3" />}
               {note.user_id !== currentUser?.id && (
                 <Badge variant="outline" className="text-xs">

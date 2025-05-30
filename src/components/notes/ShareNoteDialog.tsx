@@ -98,6 +98,10 @@ export const ShareNoteDialog: React.FC<ShareNoteDialogProps> = ({
     !shares.some(share => share.shared_with_user_id === user.id)
   );
 
+  const handlePermissionChange = (value: string) => {
+    setSelectedPermission(value as 'read' | 'write' | 'admin');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -126,7 +130,7 @@ export const ShareNoteDialog: React.FC<ShareNoteDialogProps> = ({
                 </SelectContent>
               </Select>
               
-              <Select value={selectedPermission} onValueChange={setSelectedPermission}>
+              <Select value={selectedPermission} onValueChange={handlePermissionChange}>
                 <SelectTrigger className="w-24">
                   <SelectValue />
                 </SelectTrigger>

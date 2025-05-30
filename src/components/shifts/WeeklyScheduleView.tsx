@@ -1,149 +1,168 @@
 
-import React, { useState, useMemo } from 'react';
-import { useShifts } from '@/context/ShiftsContext';
-import { useAuth } from '@/context/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, subWeeks, addWeeks } from 'date-fns';
+import { ChevronLeft, ChevronRight, Users, Clock } from 'lucide-react';
+import { useShifts } from '@/context/ShiftsContext';
+import { useAuth } from '@/context/AuthContext';
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, subWeeks, addWeeks, format } from 'date-fns';
 
 export const WeeklyScheduleView = () => {
-  const { shifts } = useShifts();
-  const { users } = useAuth();
-  const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const { shifts, users } = useShifts();
+  const { currentUser } = useAuth();
 
-  const weekDays = useMemo(() => {
-    const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: weekStart, end: weekEnd });
-  }, [selectedWeek]);
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const weekShifts = useMemo(() => {
-    return shifts.filter(shift => {
-      const shiftDate = new Date(shift.start_time);
-      return weekDays.some(day => isSameDay(shiftDate, day)) && shift.status === 'scheduled';
-    });
-  }, [shifts, weekDays]);
+  // Filter shifts for current week
+  const weekShifts = shifts.filter(shift => {
+    const shiftDate = new Date(shift.start_time);
+    return isSameDay(shiftDate, weekStart) || 
+           (shiftDate >= weekStart && shiftDate <= weekEnd);
+  });
 
-  const getShiftsForUserAndDay = (userId: string, day: Date) => {
-    return weekShifts.filter(shift => 
-      shift.user_id === userId && isSameDay(new Date(shift.start_time), day)
-    );
+  // Get shifts for a specific day
+  const getShiftsForDay = (day: Date) => {
+    return weekShifts.filter(shift => isSameDay(new Date(shift.start_time), day));
   };
 
+  // Get currently working employees (at the top)
   const getCurrentlyWorking = () => {
     const now = new Date();
     return weekShifts.filter(shift => {
-      const shiftStart = new Date(shift.start_time);
-      const shiftEnd = new Date(shift.end_time);
-      return shiftStart <= now && shiftEnd >= now;
+      const startTime = new Date(shift.start_time);
+      const endTime = new Date(shift.end_time);
+      return startTime <= now && endTime >= now;
     });
   };
 
-  const goToPreviousWeek = () => {
-    setSelectedWeek(subWeeks(selectedWeek, 1));
+  const handlePreviousWeek = () => {
+    setCurrentWeek(subWeeks(currentWeek, 1));
   };
 
-  const goToNextWeek = () => {
-    setSelectedWeek(addWeeks(selectedWeek, 1));
-  };
-
-  const goToCurrentWeek = () => {
-    setSelectedWeek(new Date());
+  const handleNextWeek = () => {
+    setCurrentWeek(addWeeks(currentWeek, 1));
   };
 
   const currentlyWorking = getCurrentlyWorking();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
+          <h3 className="text-lg font-semibold">
+            Week of {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
+          </h3>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={handlePreviousWeek}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-2xl font-bold">
-            {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
-          </h2>
-          <Button variant="outline" size="icon" onClick={goToNextWeek}>
+          <Button variant="outline" size="sm" onClick={handleNextWeek}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="outline" onClick={goToCurrentWeek}>
-          <Calendar className="mr-2 h-4 w-4" />
-          This Week
-        </Button>
       </div>
 
       {/* Currently Working Section */}
       {currentlyWorking.length > 0 && (
-        <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-          <CardHeader>
-            <CardTitle className="flex items-center text-green-800 dark:text-green-200">
-              <Clock className="mr-2 h-5 w-5" />
-              Currently Working
+        <Card className="bg-green-50 border-green-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg text-green-800 flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Currently Working ({currentlyWorking.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              {currentlyWorking.map((shift) => (
-                <div key={shift.id} className="text-sm text-green-700 dark:text-green-300 bg-white dark:bg-green-900 p-2 rounded">
-                  <strong>{shift.user?.username}</strong> - {shift.title || 'Shift'}
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {currentlyWorking.map((shift) => {
+              const user = users.find(u => u.id === shift.user_id);
+              return (
+                <div key={shift.id} className="bg-white rounded-lg p-3 border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{user?.username}</p>
+                      <p className="text-sm text-gray-600">{shift.title}</p>
+                      <p className="text-xs text-gray-500">
+                        {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      Active
+                    </Badge>
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
 
-      {/* Users vs Days Table View */}
+      {/* Weekly Schedule Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Weekly Schedule</CardTitle>
-          <CardDescription>Team schedule for the week</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2 font-medium">Employee</th>
+                  <th className="text-left p-4 font-medium bg-gray-50">Employee</th>
                   {weekDays.map((day) => (
-                    <th key={day.toISOString()} className="text-center p-2 font-medium min-w-[120px]">
-                      <div>{format(day, 'EEE')}</div>
-                      <div className="text-xs text-gray-500">{format(day, 'd')}</div>
+                    <th key={day.toISOString()} className="text-center p-4 font-medium bg-gray-50 min-w-32">
+                      <div>
+                        <div className="font-semibold">{format(day, 'EEE')}</div>
+                        <div className="text-sm text-gray-600">{format(day, 'MMM d')}</div>
+                      </div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="p-2 font-medium">
-                      <div>{user.username}</div>
-                      <div className="text-xs text-gray-500">{user.role || 'Employee'}</div>
-                    </td>
-                    {weekDays.map((day) => {
-                      const dayShifts = getShiftsForUserAndDay(user.id, day);
-                      return (
-                        <td key={day.toISOString()} className="p-1 text-center">
-                          {dayShifts.length > 0 ? (
-                            <div className="space-y-1">
-                              {dayShifts.map((shift) => (
-                                <div key={shift.id} className="text-xs p-1 bg-blue-100 dark:bg-blue-900 rounded">
-                                  <div className="font-medium">{shift.shift_type}</div>
-                                  <div>{format(new Date(shift.start_time), 'HH:mm')}-{format(new Date(shift.end_time), 'HH:mm')}</div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-gray-400">-</div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {users.map((user) => {
+                  return (
+                    <tr key={user.id} className="border-b hover:bg-gray-50">
+                      <td className="p-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {user.username.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.username}</p>
+                            <p className="text-sm text-gray-600">{user.role || 'Employee'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      {weekDays.map((day) => {
+                        const dayShifts = getShiftsForDay(day).filter(shift => shift.user_id === user.id);
+                        return (
+                          <td key={day.toISOString()} className="p-4 text-center">
+                            {dayShifts.length > 0 ? (
+                              <div className="space-y-1">
+                                {dayShifts.map((shift) => (
+                                  <div
+                                    key={shift.id}
+                                    className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs"
+                                  >
+                                    <div className="font-medium">{shift.title}</div>
+                                    <div className="text-xs">
+                                      {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-sm">Off</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
