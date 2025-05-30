@@ -256,10 +256,38 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    )
+    // Validate environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.log('🔍 Environment check:');
+    console.log('  - SUPABASE_URL:', supabaseUrl ? 'Present' : 'Missing');
+    console.log('  - SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'Present' : 'Missing');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing required environment variables');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing required environment variables',
+          success: false,
+          details: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured'
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Initialize Supabase client with proper service role key
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    console.log('✅ Supabase client initialized successfully');
 
     const requestBody = await req.text()
     console.log('📨 Raw request body:', requestBody)
@@ -284,7 +312,17 @@ serve(async (req) => {
 
     if (error) {
       console.error('❌ Error fetching subscriptions:', error)
-      throw error
+      return new Response(
+        JSON.stringify({ 
+          error: `Database error: ${error.message}`,
+          success: false,
+          details: error
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     console.log('📱 Firebase Admin FCM subscriptions found:', subscriptions?.length || 0)
