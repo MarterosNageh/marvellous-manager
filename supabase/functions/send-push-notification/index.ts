@@ -237,9 +237,9 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
 // Main Supabase Edge Function handler
 serve(async (req: Request) => {
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*', // Allow requests from any origin
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Explicitly allow POST and OPTIONS
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
   // Handle OPTIONS request for CORS preflight
@@ -247,29 +247,40 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  console.log('📱 === FCM PUSH NOTIFICATION FUNCTION START (HTTP v1) ===');
+  console.log('🔗 Request URL:', req.url);
+  console.log('🔗 Request method:', req.method);
+
   let userIds: string[] = [];
   let title: string = 'Notification Title';
   let body: string = 'Notification Body';
   let data: any = {};
 
   try {
-    const payload = await req.json();
-    userIds = payload.userIds || [];
-    title = payload.title || title;
-    body = payload.body || body;
-    data = payload.data || data;
+    const requestBody = await req.text();
+    console.log('📱 Raw request body:', requestBody);
+    
+    const httpRequestPayload = JSON.parse(requestBody);
+    console.log('📱 FCM v1 Notification Request:', JSON.stringify(httpRequestPayload, null, 2));
+    
+    userIds = httpRequestPayload.userIds || [];
+    title = httpRequestPayload.title || title;
+    body = httpRequestPayload.body || body;
+    data = httpRequestPayload.data || {};
+
+    console.log('🔍 Fetching push subscriptions for users:', JSON.stringify(userIds));
   } catch (e) {
     console.error('Error parsing request JSON:', e);
     return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   if (!userIds || userIds.length === 0) {
     return new Response(JSON.stringify({ error: 'userIds array is required and cannot be empty' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -287,46 +298,75 @@ serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   );
 
-  console.log(`Fetching subscriptions for user IDs: ${userIds.join(', ')}`);
   const { data: subscriptions, error: fetchError } = await supabaseAdmin
     .from('push_subscriptions')
-    .select('endpoint, p256dh_key, auth_key, user_id') // p256dh_key, auth_key are not used by FCM HTTP v1 with token
+    .select('endpoint, p256dh_key, auth_key, user_id')
     .in('user_id', userIds);
 
   if (fetchError) {
     console.error('Error fetching subscriptions:', fetchError);
     return new Response(JSON.stringify({ error: 'Failed to fetch subscriptions', details: fetchError.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    console.log('No subscriptions found for the given user IDs.');
+    console.log('📱 Push subscriptions found: 0');
     return new Response(JSON.stringify({ message: 'No subscriptions found for users.', userIds }), {
-      status: 200, // Or 404 if it should be an error that no subs were found
-      headers: { 'Content-Type': 'application/json' },
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  console.log(`Found ${subscriptions.length} subscriptions. Preparing to send notifications.`);
-  const results: NotificationResult[] = []; // Explicitly type the results array
+  console.log('📱 Push subscriptions found:', subscriptions.length);
+  console.log('📱 Subscription details:');
+  subscriptions.forEach((sub, index) => {
+    console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
+  });
+
+  const results: NotificationResult[] = [];
+  let successful = 0;
+  let failed = 0;
+  let cleanedUp = 0;
+
   for (const sub of subscriptions) {
     const rawFcmToken = extractFcmToken(sub.endpoint);
     if (rawFcmToken) {
-      // Pass title, body, data directly. userId and originalEndpoint for logging/cleanup.
+      console.log('📱 Processing subscription endpoint:', sub.endpoint.substring(0, 50) + '...');
+      console.log('📱 Extracted FCM token:', rawFcmToken.substring(0, 20) + '...');
+      
       const result = await sendFCMNotificationV1(rawFcmToken, title, body, data, supabaseAdmin, sub.user_id, sub.endpoint);
-      results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0,50)+'...', ...result });
+      results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0, 50) + '...', ...result });
+      
+      if (result.success) successful++;
+      else {
+        failed++;
+        if (result.status === 404 || result.status === 400) cleanedUp++;
+      }
     } else {
       console.warn(`Could not extract FCM token from endpoint: ${sub.endpoint} for user ${sub.user_id}. Skipping.`);
       results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: 'Could not extract token' });
+      failed++;
     }
   }
 
-  console.log('All notification attempts processed.');
-  return new Response(JSON.stringify({ message: 'Notifications processed', results }), {
+  console.log('📱 FCM v1 Notification Summary:', { total: subscriptions.length, successful, failed, cleanedUp });
+  
+  if (failed > 0) {
+    console.log('❌ Failed notifications:');
+    results.filter(r => !r.success).forEach((result, index) => {
+      console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+    });
+  }
+
+  return new Response(JSON.stringify({ 
+    message: 'Notifications processed', 
+    summary: { total: subscriptions.length, successful, failed, cleanedUp },
+    results 
+  }), {
     status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }, // Include CORS headers in actual response
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });
 
@@ -345,3 +385,4 @@ Example payload to this function:
   }
 }
 */
+
