@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { TaskProvider } from "@/context/TaskContext";
+import { ShiftsProvider } from "@/context/ShiftsContext";
 import { useNotifications } from "@/hooks/useNotifications";
 
 // Page imports
@@ -44,7 +46,9 @@ const AppContent = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={
           <TaskProvider>
-            <Dashboard />
+            <ShiftsProvider>
+              <Dashboard />
+            </ShiftsProvider>
           </TaskProvider>
         } />
 
@@ -66,7 +70,7 @@ const AppContent = () => {
         {/* Admin routes */}
         <Route path="/settings" element={<Settings />} />
 
-        {/* Coming soon */}
+        {/* User Management */}
         <Route path="/users" element={<UserManagement />} />
 
         {/* Task Manager */}
@@ -77,6 +81,9 @@ const AppContent = () => {
         
         {/* Knowledge Base */}
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
+
+        {/* FCM Debug */}
+        <Route path="/fcm-debug" element={<FCMDebug />} />
 
         {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
