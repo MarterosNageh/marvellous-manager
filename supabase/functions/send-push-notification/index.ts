@@ -23,81 +23,149 @@ interface NotificationResult {
 // Helper to get Firebase Service Account from Supabase Vault or Env Var
 // This is for generating OAuth 2.0 access tokens for FCM API v1
 async function getFirebaseServiceAccount() {
-  let serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON_VAULT');
-  if (serviceAccountJson && serviceAccountJson.startsWith('VAULT:')) {
-    const secretPath = serviceAccountJson.substring(6);
-    // Assuming a Supabase utility or direct Vault access here if that's how secrets are stored.
-    // For environment variables directly, this part might differ.
-    // This is a placeholder for how you'd fetch from Vault if that's the setup.
-    // If FIREBASE_SERVICE_ACCOUNT_JSON is the raw JSON in env, use that directly.
-    console.warn('Vault access for FIREBASE_SERVICE_ACCOUNT_JSON_VAULT is not fully implemented in this example script. Ensure your environment provides the JSON directly or adjust secret retrieval.');
-    // Fallback to direct env var if vault path seems like a placeholder or fails
-    serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON'); 
-  }
-  if (!serviceAccountJson) {
-    serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
-  }
-
-  if (!serviceAccountJson) {
-    throw new Error('Firebase service account JSON is not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON environment variable.');
-  }
   try {
-    return JSON.parse(serviceAccountJson);
-  } catch (e) {
-    console.error('Failed to parse Firebase service account JSON:', e.toString());
-    throw new Error('Invalid Firebase service account JSON.');
+    console.log('🔐 Starting Firebase service account retrieval...');
+    
+    // First try getting from vault
+    let serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON_VAULT');
+    console.log('Checking vault path:', serviceAccountJson ? 'Found' : 'Not found');
+    
+    // If not in vault, try direct environment variable
+    if (!serviceAccountJson || serviceAccountJson.startsWith('VAULT:')) {
+      serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
+      console.log('Checking direct environment variable:', serviceAccountJson ? 'Found' : 'Not found');
+    }
+
+    if (!serviceAccountJson) {
+      throw new Error('Firebase service account JSON is not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON environment variable.');
+    }
+
+    try {
+      const parsedAccount = JSON.parse(serviceAccountJson);
+      
+      // Log partial values for verification (being careful with sensitive data)
+      console.log('Service Account Details:');
+      console.log('- type:', parsedAccount.type);
+      console.log('- project_id:', parsedAccount.project_id);
+      console.log('- client_email:', parsedAccount.client_email);
+      console.log('- private_key_id:', parsedAccount.private_key_id ? '✓ Present' : '✗ Missing');
+      console.log('- private_key:', parsedAccount.private_key ? '✓ Present' : '✗ Missing');
+      
+      // Verify the structure of the private key
+      if (parsedAccount.private_key) {
+        const keyLines = parsedAccount.private_key.split('\n');
+        console.log('Private key format check:');
+        console.log('- Starts with BEGIN:', keyLines[0].includes('BEGIN PRIVATE KEY'));
+        console.log('- Ends with END:', keyLines[keyLines.length - 1].includes('END PRIVATE KEY'));
+        console.log('- Number of lines:', keyLines.length);
+      }
+      
+      // Verify required fields
+      const requiredFields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email', 'client_id'];
+      const missingFields = requiredFields.filter(field => !parsedAccount[field]);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Service account JSON is missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Verify project ID matches
+      const configuredProjectId = Deno.env.get('FIREBASE_PROJECT_ID');
+      if (configuredProjectId && configuredProjectId !== parsedAccount.project_id) {
+        console.warn('⚠️ Warning: FIREBASE_PROJECT_ID environment variable does not match service account project_id');
+        console.warn(`- Environment: ${configuredProjectId}`);
+        console.warn(`- Service Account: ${parsedAccount.project_id}`);
+      }
+      
+      return parsedAccount;
+    } catch (parseError) {
+      console.error('Failed to parse Firebase service account JSON:', parseError.toString());
+      if (serviceAccountJson.length > 50) {
+        console.error('First 50 characters of service account JSON:', serviceAccountJson.substring(0, 50) + '...');
+      } else {
+        console.error('Service account JSON appears to be too short:', serviceAccountJson.length, 'characters');
+      }
+      throw new Error('Invalid Firebase service account JSON format. Please check the JSON structure.');
+    }
+  } catch (error) {
+    console.error('Error in getFirebaseServiceAccount:', error);
+    throw error;
   }
 }
 
 // Get OAuth 2.0 Access Token for FCM API v1
 async function getAccessToken() {
-  const serviceAccount = await getFirebaseServiceAccount();
-  const iat = Math.floor(Date.now() / 1000);
+  try {
+    console.log('🔐 Getting Firebase service account...');
+    const serviceAccount = await getFirebaseServiceAccount();
+    
+    console.log('🔐 Generating JWT claims...');
+    const iat = Math.floor(Date.now() / 1000);
+    const exp = iat + 3600; // Token expires in 1 hour
 
-  const claims = {
-    iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.messaging',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: iat + 3600, // Token expires in 1 hour
-    iat: iat,
-  };
+    const claims = {
+      iss: serviceAccount.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: exp,
+      iat: iat,
+    };
 
-  const jwtPayload = JSON.stringify(claims);
-  const privateKeyPem = serviceAccount.private_key;
+    console.log('🔐 JWT claims generated for:', serviceAccount.client_email);
+    const privateKeyPem = serviceAccount.private_key;
+    
+    if (!privateKeyPem) {
+      throw new Error('Private key is missing from service account JSON');
+    }
 
-  // Dynamically import the jose library for JWT signing
-  // const { SignJWT, importPKCS8 } = await import('https://deno.land/x/jose@v5.6.3/index.ts');
-  
-  const privateKey = await importPKCS8(privateKeyPem, 'RS256');
+    if (!privateKeyPem.includes('BEGIN PRIVATE KEY') || !privateKeyPem.includes('END PRIVATE KEY')) {
+      throw new Error('Private key format appears invalid. Should contain BEGIN/END PRIVATE KEY markers');
+    }
 
-  const signedJwt = await new SignJWT(claims)
-    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-    .setIssuedAt(iat)
-    .setIssuer(serviceAccount.client_email)
-    .setAudience('https://oauth2.googleapis.com/token')
-    .setExpirationTime('1h')
-    .setSubject(serviceAccount.client_email) // FCM also recommends subject to be client_email
-    .sign(privateKey);
+    console.log('🔐 Importing private key...');
+    const privateKey = await importPKCS8(privateKeyPem, 'RS256');
+    
+    console.log('🔐 Signing JWT...');
+    const signedJwt = await new SignJWT(claims)
+      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+      .setIssuedAt(iat)
+      .setIssuer(serviceAccount.client_email)
+      .setAudience('https://oauth2.googleapis.com/token')
+      .setExpirationTime(exp)
+      .setSubject(serviceAccount.client_email)
+      .sign(privateKey);
 
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: signedJwt,
-    }).toString(),
-  });
+    console.log('🔐 JWT signed successfully, requesting access token...');
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: signedJwt,
+      }).toString(),
+    });
 
-  if (!tokenResponse.ok) {
-    const errorBody = await tokenResponse.text();
-    console.error('Error fetching access token:', tokenResponse.status, errorBody);
-    throw new Error(`Failed to get access token: ${tokenResponse.status} ${errorBody}`);
+    const responseText = await tokenResponse.text();
+    console.log('🔐 Token response status:', tokenResponse.status);
+    
+    if (!tokenResponse.ok) {
+      console.error('❌ Error fetching access token:', tokenResponse.status, responseText);
+      throw new Error(`Failed to get access token: ${tokenResponse.status} ${responseText}`);
+    }
+
+    try {
+      const tokenData = JSON.parse(responseText);
+      console.log('✅ Successfully obtained access token');
+      return tokenData.access_token;
+    } catch (e) {
+      console.error('❌ Failed to parse token response:', e);
+      throw new Error('Invalid token response format');
+    }
+  } catch (error) {
+    console.error('❌ Error in getAccessToken:', error);
+    throw error;
   }
-
-  const tokenData = await tokenResponse.json();
-  return tokenData.access_token;
 }
 
 // Helper to extract raw FCM token from endpoint URL
@@ -266,6 +334,27 @@ serve(async (req: Request) => {
   console.log('🔗 Request URL:', req.url);
   console.log('🔗 Request method:', req.method);
 
+  // Verify required environment variables
+  const requiredEnvVars = [
+    'FIREBASE_SERVICE_ACCOUNT_JSON',
+    'FIREBASE_PROJECT_ID',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY'
+  ];
+
+  const missingEnvVars = requiredEnvVars.filter(varName => !Deno.env.get(varName));
+  if (missingEnvVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingEnvVars);
+    return new Response(JSON.stringify({
+      error: 'Configuration Error',
+      message: `Missing required environment variables: ${missingEnvVars.join(', ')}`,
+      status: 500
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
   let userIds: string[] = [];
   let title: string = 'Notification Title';
   let body: string = 'Notification Body';
@@ -275,25 +364,44 @@ serve(async (req: Request) => {
     const requestBody = await req.text();
     console.log('📱 Raw request body:', requestBody);
     
+    if (!requestBody) {
+      throw new Error('Request body is empty');
+    }
+
     const httpRequestPayload = JSON.parse(requestBody);
     console.log('📱 FCM v1 Notification Request:', JSON.stringify(httpRequestPayload, null, 2));
     
+    if (!httpRequestPayload) {
+      throw new Error('Failed to parse request body as JSON');
+    }
+
     userIds = httpRequestPayload.userIds || [];
     title = httpRequestPayload.title || title;
     body = httpRequestPayload.body || body;
     data = httpRequestPayload.data || {};
 
+    if (!Array.isArray(userIds)) {
+      throw new Error('userIds must be an array');
+    }
+
     console.log('🔍 Fetching push subscriptions for users:', JSON.stringify(userIds));
   } catch (e) {
-    console.error('Error parsing request JSON:', e);
-    return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+    console.error('Error processing request:', e);
+    return new Response(JSON.stringify({ 
+      error: 'Invalid Request',
+      message: e.message,
+      details: 'The request body must be valid JSON with a userIds array'
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   if (!userIds || userIds.length === 0) {
-    return new Response(JSON.stringify({ error: 'userIds array is required and cannot be empty' }), {
+    return new Response(JSON.stringify({ 
+      error: 'Invalid Request',
+      message: 'userIds array is required and cannot be empty'
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -308,95 +416,138 @@ serve(async (req: Request) => {
     // });
   }
 
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-  );
-
-  const { data: subscriptions, error: fetchError } = await supabaseAdmin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh_key, auth_key, user_id')
-    .in('user_id', userIds);
-
-  if (fetchError) {
-    console.error('Error fetching subscriptions:', fetchError);
-    return new Response(JSON.stringify({ error: 'Failed to fetch subscriptions', details: fetchError.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  if (!subscriptions || subscriptions.length === 0) {
-    console.log('📱 Push subscriptions found: 0');
-    return new Response(JSON.stringify({ message: 'No subscriptions found for users.', userIds }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  console.log('📱 Push subscriptions found:', subscriptions.length);
-  console.log('📱 Subscription details:');
-  subscriptions.forEach((sub, index) => {
-    console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
-  });
-
-  const results: NotificationResult[] = [];
-  let successful = 0;
-  let failed = 0;
-  let cleanedUp = 0;
-
+  // Initialize Supabase client
   try {
-    for (const sub of subscriptions) {
-      try {
-        const rawFcmToken = extractFcmToken(sub.endpoint);
-        if (rawFcmToken) {
-          console.log('📱 Processing subscription endpoint:', sub.endpoint.substring(0, 50) + '...');
-          console.log('📱 Extracted FCM token:', rawFcmToken.substring(0, 20) + '...');
-          
-          const result = await sendFCMNotificationV1(rawFcmToken, title, body, data, supabaseAdmin, sub.user_id, sub.endpoint);
-          results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0, 50) + '...', ...result });
-          
-          if (result.success) successful++;
-          else {
-            failed++;
-            if (result.status === 404 || result.status === 400) cleanedUp++;
-          }
-        } else {
-          console.warn(`Could not extract FCM token from endpoint: ${sub.endpoint} for user ${sub.user_id}. Skipping.`);
-          results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: 'Could not extract token' });
-          failed++;
-        }
-      } catch (subError) {
-        console.error('❌ Error processing subscription for user', sub.user_id, ':', subError);
-        results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: subError.message });
-        failed++;
-      }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration is missing');
     }
 
-    console.log('📱 FCM v1 Notification Summary:', { total: subscriptions.length, successful, failed, cleanedUp });
-    
-    if (failed > 0) {
-      console.log('❌ Failed notifications:');
-      results.filter(r => !r.success).forEach((result, index) => {
-        console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+    // Test Firebase authentication before proceeding
+    try {
+      console.log('🔐 Testing Firebase authentication...');
+      await getAccessToken();
+      console.log('✅ Firebase authentication successful');
+    } catch (authError) {
+      console.error('❌ Firebase authentication failed:', authError);
+      return new Response(JSON.stringify({
+        error: 'Authentication Error',
+        message: 'Failed to authenticate with Firebase',
+        details: authError.message
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response(JSON.stringify({ 
-      message: 'Notifications processed', 
-      summary: { total: subscriptions.length, successful, failed, cleanedUp },
-      results 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const { data: subscriptions, error: fetchError } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh_key, auth_key, user_id')
+      .in('user_id', userIds);
+
+    if (fetchError) {
+      console.error('Error fetching subscriptions:', fetchError);
+      return new Response(JSON.stringify({ 
+        error: 'Database Error',
+        message: 'Failed to fetch subscriptions',
+        details: fetchError.message 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      console.log('📱 Push subscriptions found: 0');
+      return new Response(JSON.stringify({ 
+        message: 'No subscriptions found for users.',
+        userIds,
+        status: 'success',
+        subscriptions_found: 0
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('📱 Push subscriptions found:', subscriptions.length);
+    console.log('📱 Subscription details:');
+    subscriptions.forEach((sub, index) => {
+      console.log(`  ${index + 1}. User: ${sub.user_id}, Endpoint: ${sub.endpoint.substring(0, 50)}...`);
     });
+
+    const results: NotificationResult[] = [];
+    let successful = 0;
+    let failed = 0;
+    let cleanedUp = 0;
+
+    try {
+      for (const sub of subscriptions) {
+        try {
+          const rawFcmToken = extractFcmToken(sub.endpoint);
+          if (rawFcmToken) {
+            console.log('📱 Processing subscription endpoint:', sub.endpoint.substring(0, 50) + '...');
+            console.log('📱 Extracted FCM token:', rawFcmToken.substring(0, 20) + '...');
+            
+            const result = await sendFCMNotificationV1(rawFcmToken, title, body, data, supabaseAdmin, sub.user_id, sub.endpoint);
+            results.push({ userId: sub.user_id, endpoint: sub.endpoint.substring(0, 50) + '...', ...result });
+            
+            if (result.success) successful++;
+            else {
+              failed++;
+              if (result.status === 404 || result.status === 400) cleanedUp++;
+            }
+          } else {
+            console.warn(`Could not extract FCM token from endpoint: ${sub.endpoint} for user ${sub.user_id}. Skipping.`);
+            results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: 'Could not extract token' });
+            failed++;
+          }
+        } catch (subError) {
+          console.error('❌ Error processing subscription for user', sub.user_id, ':', subError);
+          results.push({ userId: sub.user_id, endpoint: sub.endpoint, success: false, error: subError.message });
+          failed++;
+        }
+      }
+
+      console.log('📱 FCM v1 Notification Summary:', { total: subscriptions.length, successful, failed, cleanedUp });
+      
+      if (failed > 0) {
+        console.log('❌ Failed notifications:');
+        results.filter(r => !r.success).forEach((result, index) => {
+          console.log(`  ${index + 1}. User: ${result.userId}, Error: ${result.error}`);
+        });
+      }
+
+      return new Response(JSON.stringify({ 
+        message: 'Notifications processed', 
+        summary: { total: subscriptions.length, successful, failed, cleanedUp },
+        results 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } catch (error) {
+      console.error('❌ Fatal error processing notifications:', error);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to process notifications',
+        message: error.message,
+        summary: { total: subscriptions.length, successful, failed, cleanedUp },
+        results 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
   } catch (error) {
-    console.error('❌ Fatal error processing notifications:', error);
+    console.error('❌ Fatal error processing request:', error);
     return new Response(JSON.stringify({ 
-      error: 'Failed to process notifications',
+      error: 'Failed to process request',
       message: error.message,
-      summary: { total: subscriptions.length, successful, failed, cleanedUp },
-      results 
+      details: 'An unexpected error occurred'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
