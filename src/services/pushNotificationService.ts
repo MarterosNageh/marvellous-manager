@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface PushSubscriptionData {
@@ -125,8 +124,22 @@ class PushNotificationService {
       
       if (subscription) {
         console.log('✅ Existing subscription found:', subscription.endpoint.substring(0, 50) + '...');
-      } else {
-        // Step 5: Create new subscription
+        
+        // Force re-store the existing subscription to fix database issues
+        console.log('🔄 Re-storing existing subscription in database...');
+        const stored = await this.storeSubscription(subscription);
+        
+        if (stored) {
+          console.log('✅ === EXISTING SUBSCRIPTION RE-STORED SUCCESSFULLY ===');
+          return true;
+        } else {
+          console.log('⚠️ Failed to store existing subscription, creating new one...');
+          // Continue to create new subscription
+        }
+      }
+
+      // Step 5: Create new subscription if needed
+      if (!subscription) {
         console.log('📱 Creating new push subscription...');
         console.log('🔑 Using VAPID key:', this.vapidPublicKey.substring(0, 20) + '...');
         
@@ -164,7 +177,7 @@ class PushNotificationService {
 
   // Enhanced subscription storage with conflict handling
   private async storeSubscription(subscription: PushSubscription): Promise<boolean> {
-    console.log('💾 Storing push subscription...');
+    console.log('💾 === STORING PUSH SUBSCRIPTION ===');
     
     try {
       const currentUser = localStorage.getItem('currentUser');
@@ -175,7 +188,9 @@ class PushNotificationService {
 
       const user = JSON.parse(currentUser);
       console.log('👤 Storing for user:', user.id);
+      console.log('📍 Endpoint:', subscription.endpoint.substring(0, 50) + '...');
 
+      // Get subscription keys
       const p256dhKey = subscription.getKey('p256dh');
       const authKey = subscription.getKey('auth');
 
@@ -184,65 +199,68 @@ class PushNotificationService {
         return false;
       }
 
+      console.log('🔑 Keys extracted successfully');
+      console.log('🔑 P256DH length:', p256dhKey.byteLength);
+      console.log('🔑 Auth length:', authKey.byteLength);
+
+      // Convert keys to base64
+      const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)));
+      const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)));
+
+      console.log('🔄 Keys converted to base64');
+      console.log('🔄 P256DH base64 length:', p256dhBase64.length);
+      console.log('🔄 Auth base64 length:', authBase64.length);
+
       const subscriptionData = {
         user_id: user.id,
         endpoint: subscription.endpoint,
-        p256dh_key: btoa(String.fromCharCode(...new Uint8Array(p256dhKey))),
-        auth_key: btoa(String.fromCharCode(...new Uint8Array(authKey)))
+        p256dh_key: p256dhBase64,
+        auth_key: authBase64
       };
 
-      console.log('💾 Subscription data:', {
-        user_id: subscriptionData.user_id,
-        endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
-        p256dh_length: subscriptionData.p256dh_key.length,
-        auth_length: subscriptionData.auth_key.length
-      });
+      console.log('💾 Prepared subscription data for storage');
 
-      // Check for existing subscription with same endpoint
-      const { data: existing, error: checkError } = await supabase
+      // First, delete any existing subscriptions for this user to avoid conflicts
+      console.log('🧹 Cleaning up existing subscriptions for user...');
+      const { error: deleteError } = await supabase
         .from('push_subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('endpoint', subscription.endpoint);
+        .delete()
+        .eq('user_id', user.id);
 
-      if (checkError) {
-        console.error('❌ Error checking existing subscription:', checkError);
+      if (deleteError) {
+        console.warn('⚠️ Warning during cleanup (may be normal):', deleteError.message);
+      } else {
+        console.log('✅ Cleanup completed');
+      }
+
+      // Insert new subscription
+      console.log('📝 Inserting new subscription...');
+      const { data: insertedData, error: insertError } = await supabase
+        .from('push_subscriptions')
+        .insert(subscriptionData)
+        .select();
+
+      if (insertError) {
+        console.error('❌ Error inserting subscription:', insertError);
+        console.error('❌ Error details:', insertError.details);
+        console.error('❌ Error hint:', insertError.hint);
         return false;
       }
 
-      if (existing && existing.length > 0) {
-        console.log('🔄 Updating existing subscription...');
-        const { error: updateError } = await supabase
-          .from('push_subscriptions')
-          .update({
-            p256dh_key: subscriptionData.p256dh_key,
-            auth_key: subscriptionData.auth_key,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existing[0].id);
+      console.log('✅ Subscription inserted successfully:', insertedData);
 
-        if (updateError) {
-          console.error('❌ Error updating subscription:', updateError);
-          return false;
-        }
-        console.log('✅ Subscription updated successfully');
-      } else {
-        console.log('📝 Creating new subscription record...');
-        const { error: insertError } = await supabase
-          .from('push_subscriptions')
-          .insert(subscriptionData);
-
-        if (insertError) {
-          console.error('❌ Error storing subscription:', insertError);
-          return false;
-        }
-        console.log('✅ Subscription stored successfully');
-      }
-
-      // Verify storage
-      await this.verifySubscriptionStorage(user.id, subscription.endpoint);
+      // Verify storage immediately
+      console.log('🔍 Verifying storage...');
+      const verified = await this.verifySubscriptionStorage(user.id, subscription.endpoint);
       
-      return true;
+      if (verified) {
+        console.log('✅ === SUBSCRIPTION STORAGE VERIFIED ===');
+        return true;
+      } else {
+        console.error('❌ Storage verification failed');
+        return false;
+      }
+      
     } catch (error) {
       console.error('❌ Error in storeSubscription:', error);
       return false;
@@ -250,32 +268,43 @@ class PushNotificationService {
   }
 
   // Enhanced subscription verification
-  private async verifySubscriptionStorage(userId: string, endpoint: string): Promise<void> {
-    console.log('🔍 Verifying subscription storage...');
+  private async verifySubscriptionStorage(userId: string, endpoint: string): Promise<boolean> {
+    console.log('🔍 === VERIFYING SUBSCRIPTION STORAGE ===');
+    console.log('👤 User ID:', userId);
+    console.log('📍 Endpoint:', endpoint.substring(0, 50) + '...');
     
     try {
-      const { data: stored, error } = await supabase
+      const { data: stored, error, count } = await supabase
         .from('push_subscriptions')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('user_id', userId)
         .eq('endpoint', endpoint);
 
       if (error) {
         console.error('❌ Verification query failed:', error);
-        return;
+        return false;
       }
 
+      console.log('📊 Query results:');
+      console.log('📊 Count:', count);
+      console.log('📊 Data length:', stored?.length || 0);
+
       if (stored && stored.length > 0) {
-        console.log('✅ Subscription verified in database:', {
-          id: stored[0].id,
-          created_at: stored[0].created_at,
-          updated_at: stored[0].updated_at
+        console.log('✅ Subscription verified in database:');
+        stored.forEach((sub, index) => {
+          console.log(`  ${index + 1}. ID: ${sub.id}`);
+          console.log(`     Created: ${sub.created_at}`);
+          console.log(`     Updated: ${sub.updated_at}`);
+          console.log(`     Endpoint: ${sub.endpoint.substring(0, 50)}...`);
         });
+        return true;
       } else {
         console.error('❌ Subscription not found in database after storage');
+        return false;
       }
     } catch (error) {
       console.error('❌ Verification failed:', error);
+      return false;
     }
   }
 
