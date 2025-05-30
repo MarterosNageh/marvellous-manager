@@ -6,27 +6,27 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Users, Clock } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, subWeeks, addWeeks, format } from 'date-fns';
+import * as dateFns from 'date-fns';
 
 export const WeeklyScheduleView = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const { shifts, users } = useShifts();
   const { currentUser } = useAuth();
 
-  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const weekStart = dateFns.startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = dateFns.endOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekDays = dateFns.eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   // Filter shifts for current week
   const weekShifts = shifts.filter(shift => {
     const shiftDate = new Date(shift.start_time);
-    return isSameDay(shiftDate, weekStart) || 
+    return dateFns.isSameDay(shiftDate, weekStart) || 
            (shiftDate >= weekStart && shiftDate <= weekEnd);
   });
 
   // Get shifts for a specific day
   const getShiftsForDay = (day: Date) => {
-    return weekShifts.filter(shift => isSameDay(new Date(shift.start_time), day));
+    return weekShifts.filter(shift => dateFns.isSameDay(new Date(shift.start_time), day));
   };
 
   // Get currently working employees (at the top)
@@ -40,11 +40,11 @@ export const WeeklyScheduleView = () => {
   };
 
   const handlePreviousWeek = () => {
-    setCurrentWeek(subWeeks(currentWeek, 1));
+    setCurrentWeek(dateFns.subWeeks(currentWeek, 1));
   };
 
   const handleNextWeek = () => {
-    setCurrentWeek(addWeeks(currentWeek, 1));
+    setCurrentWeek(dateFns.addWeeks(currentWeek, 1));
   };
 
   const currentlyWorking = getCurrentlyWorking();
@@ -55,7 +55,7 @@ export const WeeklyScheduleView = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h3 className="text-lg font-semibold">
-            Week of {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
+            Week of {dateFns.format(weekStart, 'MMM d')} - {dateFns.format(weekEnd, 'MMM d, yyyy')}
           </h3>
         </div>
         <div className="flex items-center space-x-2">
@@ -87,7 +87,7 @@ export const WeeklyScheduleView = () => {
                       <p className="font-medium text-gray-900">{user?.username}</p>
                       <p className="text-sm text-gray-600">{shift.title}</p>
                       <p className="text-xs text-gray-500">
-                        {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                        {dateFns.format(new Date(shift.start_time), 'HH:mm')} - {dateFns.format(new Date(shift.end_time), 'HH:mm')}
                       </p>
                     </div>
                     <Badge variant="secondary" className="bg-green-100 text-green-800">
@@ -112,8 +112,8 @@ export const WeeklyScheduleView = () => {
                   {weekDays.map((day) => (
                     <th key={day.toISOString()} className="text-center p-4 font-medium bg-gray-50 min-w-32">
                       <div>
-                        <div className="font-semibold">{format(day, 'EEE')}</div>
-                        <div className="text-sm text-gray-600">{format(day, 'MMM d')}</div>
+                        <div className="font-semibold">{dateFns.format(day, 'EEE')}</div>
+                        <div className="text-sm text-gray-600">{dateFns.format(day, 'MMM d')}</div>
                       </div>
                     </th>
                   ))}
@@ -149,7 +149,7 @@ export const WeeklyScheduleView = () => {
                                   >
                                     <div className="font-medium">{shift.title}</div>
                                     <div className="text-xs">
-                                      {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                                      {dateFns.format(new Date(shift.start_time), 'HH:mm')} - {dateFns.format(new Date(shift.end_time), 'HH:mm')}
                                     </div>
                                   </div>
                                 ))}

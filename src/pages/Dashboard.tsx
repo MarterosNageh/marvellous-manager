@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { supabase } from "@/integrations/supabase/client";
 import { HardDrive, Calendar, Users, Clock, AlertTriangle, CheckCircle, BarChart, FolderOpen } from "lucide-react";
-import { format, isToday, isSameDay } from 'date-fns';
+import * as dateFns from 'date-fns';
 
 interface DashboardShift {
   id: string;
@@ -18,9 +18,7 @@ interface DashboardShift {
   end_time: string;
   user_id: string;
   status: string;
-  user?: {
-    username: string;
-  };
+  username?: string;
 }
 
 interface ShiftRequest {
@@ -31,9 +29,7 @@ interface ShiftRequest {
   end_date?: string;
   reason?: string;
   user_id: string;
-  user?: {
-    username: string;
-  };
+  username?: string;
 }
 
 interface ProjectData {
@@ -80,13 +76,18 @@ const Dashboard = () => {
       try {
         setLoading(true);
 
-        // Fetch currently active shifts
+        // Fetch currently active shifts with explicit user join
         const now = new Date().toISOString();
         const { data: currentShiftsData } = await supabase
           .from('shifts')
           .select(`
-            *,
-            user:auth_users(username)
+            id,
+            title,
+            start_time,
+            end_time,
+            user_id,
+            status,
+            user_username:auth_users!user_id(username)
           `)
           .lte('start_time', now)
           .gte('end_time', now)
@@ -95,12 +96,12 @@ const Dashboard = () => {
         if (currentShiftsData) {
           const shiftsWithUsers = currentShiftsData.map(shift => ({
             ...shift,
-            user: { username: shift.user?.username || 'Unknown' }
+            username: shift.user_username?.username || 'Unknown'
           }));
           setCurrentShifts(shiftsWithUsers);
         }
 
-        // Fetch today's time-off requests only
+        // Fetch today's time-off requests only with explicit user join
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
@@ -109,8 +110,14 @@ const Dashboard = () => {
         const { data: requestsData } = await supabase
           .from('shift_requests')
           .select(`
-            *,
-            user:auth_users(username)
+            id,
+            request_type,
+            status,
+            start_date,
+            end_date,
+            reason,
+            user_id,
+            user_username:auth_users!user_id(username)
           `)
           .eq('request_type', 'time_off')
           .gte('start_date', todayStart.toISOString())
@@ -119,7 +126,7 @@ const Dashboard = () => {
         if (requestsData) {
           const requestsWithUsers = requestsData.map(request => ({
             ...request,
-            user: { username: request.user?.username || 'Unknown' }
+            username: request.user_username?.username || 'Unknown'
           }));
           setTodayTimeOffRequests(requestsWithUsers);
         }
@@ -269,14 +276,14 @@ const Dashboard = () => {
                   <div key={shift.id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-green-100 text-green-700">
-                        {shift.user?.username?.charAt(0).toUpperCase()}
+                        {shift.username?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{shift.user?.username}</p>
+                      <p className="font-medium text-gray-900">{shift.username}</p>
                       <p className="text-sm text-gray-600">{shift.title}</p>
                       <p className="text-xs text-gray-500">
-                        Until {format(new Date(shift.end_time), 'HH:mm')}
+                        Until {dateFns.format(new Date(shift.end_time), 'HH:mm')}
                       </p>
                     </div>
                     <Badge className="bg-green-100 text-green-800">Active</Badge>
@@ -306,14 +313,14 @@ const Dashboard = () => {
                     <div className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
-                          {request.user?.username?.charAt(0).toUpperCase()}
+                          {request.username?.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-gray-900">{request.user?.username}</p>
+                        <p className="font-medium text-gray-900">{request.username}</p>
                         <p className="text-sm text-gray-600">
-                          {format(new Date(request.start_date), 'MMM d, yyyy')}
-                          {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
+                          {dateFns.format(new Date(request.start_date), 'MMM d, yyyy')}
+                          {request.end_date && ` - ${dateFns.format(new Date(request.end_date), 'MMM d, yyyy')}`}
                         </p>
                         {request.reason && (
                           <p className="text-xs text-gray-500">{request.reason}</p>
@@ -390,7 +397,7 @@ const Dashboard = () => {
                       <p className="font-medium text-gray-900">{project.name}</p>
                       <p className="text-sm text-gray-600">{project.description || 'No description'}</p>
                       <p className="text-xs text-gray-500">
-                        Created {format(new Date(project.created_at), 'MMM d, yyyy')}
+                        Created {dateFns.format(new Date(project.created_at), 'MMM d, yyyy')}
                       </p>
                     </div>
                   </div>

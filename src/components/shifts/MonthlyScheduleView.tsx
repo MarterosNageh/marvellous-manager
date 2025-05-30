@@ -6,33 +6,22 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  isSameDay,
-  isSameMonth,
-  subMonths,
-  addMonths,
-  format
-} from 'date-fns';
+import * as dateFns from 'date-fns';
 
 export const MonthlyScheduleView = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const { shifts, users } = useShifts();
   const { currentUser } = useAuth();
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  const monthStart = dateFns.startOfMonth(currentMonth);
+  const monthEnd = dateFns.endOfMonth(currentMonth);
+  const calendarStart = dateFns.startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calendarEnd = dateFns.endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calendarDays = dateFns.eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   // Get shifts for a specific day
   const getShiftsForDay = (day: Date) => {
-    return shifts.filter(shift => isSameDay(new Date(shift.start_time), day));
+    return shifts.filter(shift => dateFns.isSameDay(new Date(shift.start_time), day));
   };
 
   // Get total shifts in current month
@@ -42,11 +31,11 @@ export const MonthlyScheduleView = () => {
   });
 
   const handlePreviousMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1));
+    setCurrentMonth(dateFns.subMonths(currentMonth, 1));
   };
 
   const handleNextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1));
+    setCurrentMonth(dateFns.addMonths(currentMonth, 1));
   };
 
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -57,7 +46,7 @@ export const MonthlyScheduleView = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h3 className="text-lg font-semibold">
-            {format(currentMonth, 'MMMM yyyy')}
+            {dateFns.format(currentMonth, 'MMMM yyyy')}
           </h3>
           <Badge variant="secondary">
             {monthShifts.length} shifts this month
@@ -87,8 +76,8 @@ export const MonthlyScheduleView = () => {
             {/* Calendar days */}
             {calendarDays.map((day) => {
               const dayShifts = getShiftsForDay(day);
-              const isCurrentMonth = isSameMonth(day, currentMonth);
-              const isToday = isSameDay(day, new Date());
+              const isCurrentMonth = dateFns.isSameMonth(day, currentMonth);
+              const isToday = dateFns.isSameDay(day, new Date());
               
               return (
                 <div
@@ -100,7 +89,7 @@ export const MonthlyScheduleView = () => {
                   <div className={`text-sm font-medium ${
                     isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
                   }`}>
-                    {format(day, 'd')}
+                    {dateFns.format(day, 'd')}
                   </div>
                   
                   {dayShifts.length > 0 && (
