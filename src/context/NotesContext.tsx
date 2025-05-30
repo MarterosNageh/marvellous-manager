@@ -19,8 +19,8 @@ interface NotesContextType {
   notes: Note[];
   selectedNote: Note | null;
   loading: boolean;
-  createNote: (title: string, content?: string) => Promise<void>;
-  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
+  createNote: (title: string, content?: string) => Promise<Note | null>;
+  updateNote: (id: string, updates: Partial<Note>) => Promise<boolean>;
   deleteNote: (id: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   refreshNotes: () => Promise<void>;
@@ -96,8 +96,8 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const createNote = async (title: string, content: string = '') => {
-    if (!currentUser) return;
+  const createNote = async (title: string, content: string = ''): Promise<Note | null> => {
+    if (!currentUser) return null;
 
     try {
       const { data, error } = await supabase
@@ -116,13 +116,15 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setNotes(prev => [data, ...prev]);
       setSelectedNote(data);
       toast.success('Note created successfully');
+      return data;
     } catch (error) {
       console.error('Error creating note:', error);
       toast.error('Failed to create note');
+      return null;
     }
   };
 
-  const updateNote = async (id: string, updates: Partial<Note>) => {
+  const updateNote = async (id: string, updates: Partial<Note>): Promise<boolean> => {
     try {
       const { data, error } = await supabase
         .from('notes')
@@ -141,9 +143,11 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (selectedNote?.id === id) {
         setSelectedNote(data);
       }
+      return true;
     } catch (error) {
       console.error('Error updating note:', error);
       toast.error('Failed to update note');
+      return false;
     }
   };
 

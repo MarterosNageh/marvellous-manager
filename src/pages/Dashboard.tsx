@@ -1,31 +1,30 @@
 
 import React, { useState, useEffect } from 'react';
-import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useAuth } from "@/context/AuthContext";
-import { useData } from "@/context/DataContext";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  HardDrive, 
-  Calendar, 
-  Users, 
-  Clock, 
-  AlertTriangle, 
-  UserX,
-  BarChart3
-} from "lucide-react";
+import { MainLayout } from '@/components/layout/MainLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Clock, User, AlertTriangle, HardDrive } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
-interface DashboardShift {
+interface HardDrive {
+  id: string;
+  name: string;
+  capacity: string;
+  free_space: string;
+  status: string;
+  created_at: string;
+}
+
+interface Shift {
   id: string;
   title: string;
   start_time: string;
   end_time: string;
   user_id: string;
   status: string;
-  username?: string;
 }
 
 interface ShiftRequest {
@@ -33,168 +32,156 @@ interface ShiftRequest {
   request_type: string;
   status: string;
   start_date: string;
-  end_date?: string;
-  reason?: string;
+  end_date: string | null;
   user_id: string;
-  username?: string;
 }
 
-interface UserUtilization {
-  userId: string;
+interface TaskUtilization {
+  user_id: string;
   username: string;
-  totalTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  completionRate: number;
+  total_tasks: number;
+  completed_tasks: number;
+  in_progress_tasks: number;
+  pending_tasks: number;
+  completion_rate: number;
 }
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
-  const { hardDrives } = useData();
-  const [currentShifts, setCurrentShifts] = useState<DashboardShift[]>([]);
-  const [todayTimeOffRequests, setTodayTimeOffRequests] = useState<ShiftRequest[]>([]);
-  const [userUtilization, setUserUtilization] = useState<UserUtilization[]>([]);
+  const { currentUser, users } = useAuth();
+  const [currentlyWorking, setCurrentlyWorking] = useState<(Shift & { username: string })[]>([]);
+  const [todayTimeOff, setTodayTimeOff] = useState<(ShiftRequest & { username: string })[]>([]);
+  const [storageAlerts, setStorageAlerts] = useState<HardDrive[]>([]);
+  const [recentHards, setRecentHards] = useState<HardDrive[]>([]);
+  const [taskUtilization, setTaskUtilization] = useState<TaskUtilization[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
+  const fetchDashboardData = async () => {
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
-        // Fetch currently active shifts
-        const now = new Date().toISOString();
-        const { data: currentShiftsData } = await supabase
-          .from('shifts')
-          .select(`
-            id,
-            title,
-            start_time,
-            end_time,
-            user_id,
-            status,
-            auth_users!shifts_user_id_fkey(username)
-          `)
-          .lte('start_time', now)
-          .gte('end_time', now)
-          .eq('status', 'scheduled');
+      // Fetch currently working shifts
+      const { data: shifts } = await supabase
+        .from('shifts')
+        .select('*, auth_users!shifts_user_id_fkey(username)')
+        .eq('status', 'scheduled')
+        .lte('start_time', now.toISOString())
+        .gte('end_time', now.toISOString());
 
-        if (currentShiftsData) {
-          const shiftsWithUsers = currentShiftsData.map(shift => ({
-            ...shift,
-            username: shift.auth_users?.username || 'Unknown'
-          }));
-          setCurrentShifts(shiftsWithUsers);
-        }
-
-        // Fetch today's time-off requests
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const todayEnd = new Date();
-        todayEnd.setHours(23, 59, 59, 999);
-
-        const { data: requestsData } = await supabase
-          .from('shift_requests')
-          .select(`
-            id,
-            request_type,
-            status,
-            start_date,
-            end_date,
-            reason,
-            user_id,
-            auth_users!shift_requests_user_id_fkey(username)
-          `)
-          .eq('request_type', 'time_off')
-          .gte('start_date', todayStart.toISOString())
-          .lte('start_date', todayEnd.toISOString());
-
-        if (requestsData) {
-          const requestsWithUsers = requestsData.map(request => ({
-            ...request,
-            username: request.auth_users?.username || 'Unknown'
-          }));
-          setTodayTimeOffRequests(requestsWithUsers);
-        }
-
-        // Fetch user utilization data
-        const { data: usersData } = await supabase
-          .from('auth_users')
-          .select('id, username');
-
-        const { data: tasksData } = await supabase
-          .from('tasks')
-          .select(`
-            *,
-            task_assignments(user_id)
-          `);
-
-        if (usersData && tasksData) {
-          const utilization = usersData.map(user => {
-            const userTasks = tasksData.filter(task => 
-              task.task_assignments?.some((assignment: any) => assignment.user_id === user.id)
-            );
-            
-            const totalTasks = userTasks.length;
-            const completedTasks = userTasks.filter(task => task.status === 'completed').length;
-            const inProgressTasks = userTasks.filter(task => task.status === 'in_progress').length;
-            const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-            return {
-              userId: user.id,
-              username: user.username,
-              totalTasks,
-              completedTasks,
-              inProgressTasks,
-              completionRate: Math.round(completionRate)
-            };
-          }).filter(user => user.totalTasks > 0);
-
-          setUserUtilization(utilization);
-        }
-
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
+      if (shifts) {
+        const workingShifts = shifts.map(shift => ({
+          ...shift,
+          username: shift.auth_users?.username || 'Unknown'
+        }));
+        setCurrentlyWorking(workingShifts);
       }
-    };
 
-    fetchDashboardData();
-  }, []);
+      // Fetch today's time off requests
+      const { data: timeOffData } = await supabase
+        .from('shift_requests')
+        .select('*, auth_users!shift_requests_user_id_fkey(username)')
+        .eq('status', 'approved')
+        .gte('start_date', today.toISOString())
+        .lt('start_date', tomorrow.toISOString());
 
-  // Calculate low space alerts for backup drives containing "BK"
-  const getBackupDriveAlerts = () => {
-    return hardDrives
-      .filter(hd => hd.name.includes('BK') && hd.status === 'available')
-      .filter(hd => hd.freeSpace && hd.freeSpace !== 'N/A' && hd.freeSpace.trim() !== '')
-      .map(hd => {
-        const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
-          const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
-          const total = parseFloat(capacity.replace(/[^\d.]/g, '')) || 1;
-          return (free / total) * 100;
-        };
+      if (timeOffData) {
+        const timeOffRequests = timeOffData.map(request => ({
+          ...request,
+          username: request.auth_users?.username || 'Unknown'
+        }));
+        setTodayTimeOff(timeOffRequests);
+      }
 
-        const freeSpacePercent = getFreeSpacePercentage(hd.freeSpace, hd.capacity || '1TB');
-        const isLowSpace = freeSpacePercent < 20;
+      // Fetch hard drives for storage alerts and recent drives
+      const { data: hardDrives } = await supabase
+        .from('hard_drives')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        return isLowSpace ? {
-          id: hd.id,
-          name: hd.name,
-          freeSpacePercent,
-          capacity: hd.capacity,
-          freeSpace: hd.freeSpace
-        } : null;
-      })
-      .filter(Boolean);
+      if (hardDrives) {
+        // Filter and sort drives for storage alerts
+        const bkDrives = hardDrives
+          .filter(drive => 
+            drive.name.includes('BK') && 
+            drive.free_space && 
+            drive.capacity &&
+            drive.free_space !== '0' &&
+            drive.free_space.toLowerCase() !== 'n/a' &&
+            drive.free_space.toLowerCase() !== 'empty' &&
+            drive.capacity !== '0' &&
+            drive.capacity.toLowerCase() !== 'n/a' &&
+            drive.capacity.toLowerCase() !== 'empty'
+          )
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        const alerts: HardDrive[] = [];
+        
+        for (const drive of bkDrives) {
+          const freeSpaceStr = drive.free_space.replace(/[^\d.]/g, '');
+          const capacityStr = drive.capacity.replace(/[^\d.]/g, '');
+          
+          const freeSpace = parseFloat(freeSpaceStr);
+          const capacity = parseFloat(capacityStr);
+          
+          if (!isNaN(freeSpace) && !isNaN(capacity) && capacity > 0) {
+            const freePercentage = (freeSpace / capacity) * 100;
+            if (freePercentage < 15) {
+              alerts.push(drive);
+            }
+          }
+        }
+
+        setStorageAlerts(alerts);
+        setRecentHards(hardDrives.slice(0, 5));
+      }
+
+      // Fetch task utilization
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('created_by, status')
+        .not('created_by', 'is', null);
+
+      if (tasks && users.length > 0) {
+        const utilization = users.map(user => {
+          const userTasks = tasks.filter(task => task.created_by === user.id);
+          const completed = userTasks.filter(task => task.status === 'completed').length;
+          const inProgress = userTasks.filter(task => task.status === 'in_progress').length;
+          const pending = userTasks.filter(task => task.status === 'pending').length;
+          const total = userTasks.length;
+          
+          return {
+            user_id: user.id,
+            username: user.username,
+            total_tasks: total,
+            completed_tasks: completed,
+            in_progress_tasks: inProgress,
+            pending_tasks: pending,
+            completion_rate: total > 0 ? Math.round((completed / total) * 100) : 0
+          };
+        });
+
+        setTaskUtilization(utilization);
+      }
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const backupDriveAlerts = getBackupDriveAlerts();
+  useEffect(() => {
+    if (users.length > 0) {
+      fetchDashboardData();
+    }
+  }, [users]);
 
   if (loading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading dashboard...</div>
+          <div className="text-lg">Loading dashboard...</div>
         </div>
       </MainLayout>
     );
@@ -203,103 +190,112 @@ const Dashboard = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Welcome Section */}
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Welcome back, {currentUser?.username}!
+          </h1>
+          <p className="text-muted-foreground">
+            Here's what's happening in your workspace today
+          </p>
+        </div>
+
+        {/* Top Row - 2 Cards Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Welcome Card */}
+          {/* Left: Welcome & Shifts */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl">
-                Welcome back, {currentUser?.username}
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Today's Shifts
               </CardTitle>
-              <CardDescription>
-                Here's what's happening with your organization today.
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm font-medium">
-                    {format(new Date(), 'EEEE, MMMM d, yyyy')}
-                  </span>
+              <div className="space-y-4">
+                {/* Currently Working */}
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Currently Working</h4>
+                  {currentlyWorking.length === 0 ? (
+                    <p className="text-sm text-gray-500">No one is currently working</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {currentlyWorking.map(shift => (
+                        <div key={shift.id} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                          <div>
+                            <p className="font-medium text-sm">{shift.username}</p>
+                            <p className="text-xs text-gray-600">{shift.title}</p>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {/* Time Off Today */}
+                {todayTimeOff.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Time Off Today</h4>
+                    <div className="space-y-2">
+                      {todayTimeOff.map(request => (
+                        <div key={request.id} className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                          <div>
+                            <p className="font-medium text-sm">{request.username}</p>
+                            <p className="text-xs text-gray-600 capitalize">{request.request_type.replace('_', ' ')}</p>
+                          </div>
+                          <Badge variant="secondary">Day Off</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Currently Working & Time Off */}
+          {/* Right: Storage Alerts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-green-600" />
-                Staff Status
+                <AlertTriangle className="h-5 w-5" />
+                Backup Drive Storage Alerts
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Currently Working */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-700">Currently Working</span>
-                  <Badge variant="secondary">{currentShifts.length}</Badge>
-                </div>
-                {currentShifts.length === 0 ? (
-                  <p className="text-sm text-gray-500">No one is currently working</p>
-                ) : (
-                  <div className="space-y-2">
-                    {currentShifts.slice(0, 3).map((shift) => (
-                      <div key={shift.id} className="flex items-center space-x-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="bg-green-100 text-green-700 text-xs">
-                            {shift.username?.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{shift.username}</span>
-                        <span className="text-xs text-gray-500">
-                          until {format(new Date(shift.end_time), 'HH:mm')}
-                        </span>
-                      </div>
-                    ))}
-                    {currentShifts.length > 3 && (
-                      <p className="text-xs text-gray-500">+{currentShifts.length - 3} more</p>
-                    )}
-                  </div>
-                )}
-              </div>
+            <CardContent>
+              {storageAlerts.length === 0 ? (
+                <p className="text-sm text-gray-500">No storage alerts</p>
+              ) : (
+                <div className="space-y-2">
+                  {storageAlerts.map(drive => {
+                    const freeSpaceStr = drive.free_space.replace(/[^\d.]/g, '');
+                    const capacityStr = drive.capacity.replace(/[^\d.]/g, '');
+                    const freeSpace = parseFloat(freeSpaceStr);
+                    const capacity = parseFloat(capacityStr);
+                    const freePercentage = capacity > 0 ? Math.round((freeSpace / capacity) * 100) : 0;
 
-              {/* Time Off Today */}
-              {todayTimeOffRequests.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-orange-700 flex items-center gap-1">
-                      <UserX className="h-4 w-4" />
-                      Time Off Today
-                    </span>
-                    <Badge variant="outline">{todayTimeOffRequests.length}</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    {todayTimeOffRequests.map((request) => (
-                      <div key={request.id} className="flex items-center space-x-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
-                            {request.username?.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{request.username}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {request.status}
-                        </Badge>
+                    return (
+                      <div key={drive.id} className="flex items-center justify-between p-2 bg-red-50 rounded border border-red-200">
+                        <div>
+                          <p className="font-medium text-sm">{drive.name}</p>
+                          <p className="text-xs text-gray-600">
+                            {drive.free_space} free of {drive.capacity}
+                          </p>
+                        </div>
+                        <Badge variant="destructive">{freePercentage}% free</Badge>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Alerts and Recent Hard Drives */}
+        {/* Bottom Row - 2 Cards Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Hard Drives */}
+          {/* Left: Recent Hard Drives */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -308,143 +304,69 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {hardDrives.slice(0, 5).map((hardDrive) => (
-                  <div key={hardDrive.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <HardDrive className="h-6 w-6 text-blue-600" />
-                      <div>
-                        <p className="font-medium text-sm">{hardDrive.name}</p>
-                        <p className="text-xs text-gray-500">{hardDrive.serialNumber}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={hardDrive.status === 'available' ? 'default' : 'secondary'} className="text-xs">
-                        {hardDrive.status}
-                      </Badge>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {hardDrive.capacity || 'Unknown'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {hardDrives.length === 0 && (
-                  <div className="text-center py-4 text-gray-500 text-sm">
-                    No hard drives available
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Backup Drive Storage Alerts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-                Backup Drive Storage Alerts
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {backupDriveAlerts.length === 0 ? (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                  No storage alerts for backup drives
-                </div>
+              {recentHards.length === 0 ? (
+                <p className="text-sm text-gray-500">No hard drives found</p>
               ) : (
-                <div className="space-y-3">
-                  {backupDriveAlerts.map((alert, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                      <div className="flex items-center space-x-3">
-                        <HardDrive className="h-6 w-6 text-red-600" />
-                        <div>
-                          <p className="font-medium text-sm">{alert.name}</p>
-                          <p className="text-xs text-gray-600">
-                            {alert.freeSpace} free of {alert.capacity}
-                          </p>
-                        </div>
+                <div className="space-y-2">
+                  {recentHards.map(drive => (
+                    <div key={drive.id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <p className="font-medium text-sm">{drive.name}</p>
+                        <p className="text-xs text-gray-600">{drive.capacity}</p>
                       </div>
-                      <Badge variant="destructive" className="text-xs">
-                        {alert.freeSpacePercent.toFixed(1)}% free
-                      </Badge>
+                      <div className="text-right">
+                        <Badge variant="outline">{drive.status}</Badge>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {format(new Date(drive.created_at), 'MMM d')}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* User Task Utilization Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              User Task Utilization
-            </CardTitle>
-            <CardDescription>
-              Task completion rates and workload distribution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {userUtilization.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No user task data available
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-4 font-medium">User</th>
-                      <th className="text-center py-2 px-4 font-medium">Total Tasks</th>
-                      <th className="text-center py-2 px-4 font-medium">Completed</th>
-                      <th className="text-center py-2 px-4 font-medium">In Progress</th>
-                      <th className="text-center py-2 px-4 font-medium">Completion Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {userUtilization.map((user) => (
-                      <tr key={user.userId} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                                {user.username.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{user.username}</span>
-                          </div>
-                        </td>
-                        <td className="text-center py-3 px-4">{user.totalTasks}</td>
-                        <td className="text-center py-3 px-4">
-                          <Badge variant="default" className="bg-green-100 text-green-800">
-                            {user.completedTasks}
+          {/* Right: User Task Utilization */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                User Task Utilization
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {taskUtilization.length === 0 ? (
+                <p className="text-sm text-gray-500">No task data available</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead>Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {taskUtilization.map(util => (
+                      <TableRow key={util.user_id}>
+                        <TableCell className="font-medium">{util.username}</TableCell>
+                        <TableCell>{util.total_tasks}</TableCell>
+                        <TableCell>{util.completed_tasks}</TableCell>
+                        <TableCell>
+                          <Badge variant={util.completion_rate >= 80 ? 'default' : 'secondary'}>
+                            {util.completion_rate}%
                           </Badge>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <Badge variant="secondary">
-                            {user.inProgressTasks}
-                          </Badge>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <div className="flex items-center justify-center space-x-2">
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-blue-600 h-2 rounded-full" 
-                                style={{ width: `${user.completionRate}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-sm font-medium">{user.completionRate}%</span>
-                          </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </MainLayout>
   );

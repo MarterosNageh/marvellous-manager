@@ -9,8 +9,6 @@ import {
   Plus,
   Search,
   FileText,
-  Folder,
-  FolderOpen,
   Share,
   Trash2,
   MoreVertical
@@ -28,39 +26,17 @@ export const NotesSidebar = () => {
   const { notes, selectedNote, selectNote, createNote, deleteNote, loading } = useNotes();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
   const filteredNotes = notes.filter(note =>
     note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     note.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const folders = filteredNotes.filter(note => note.note_type === 'folder' && !note.parent_id);
-  const rootNotes = filteredNotes.filter(note => note.note_type === 'note' && !note.parent_id);
-
-  const getNotesInFolder = (folderId: string) => {
-    return filteredNotes.filter(note => note.parent_id === folderId);
-  };
-
-  const toggleFolder = (folderId: string) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpandedFolders(newExpanded);
-  };
-
   const handleCreateNote = async () => {
     const newNote = await createNote('New Note', '');
     if (newNote) {
       selectNote(newNote);
     }
-  };
-
-  const handleCreateFolder = async () => {
-    await createNote('New Folder', '', undefined, 'folder');
   };
 
   const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
@@ -87,30 +63,16 @@ export const NotesSidebar = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const NoteItem = ({ note, isChild = false }: { note: any; isChild?: boolean }) => (
+  const NoteItem = ({ note }: { note: any }) => (
     <div
       className={`group cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${
         selectedNote?.id === note.id ? 'bg-blue-100 dark:bg-blue-900' : ''
-      } ${isChild ? 'ml-4' : ''}`}
-      onClick={() => {
-        if (note.note_type === 'folder') {
-          toggleFolder(note.id);
-        } else {
-          selectNote(note);
-        }
-      }}
+      }`}
+      onClick={() => selectNote(note)}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 flex-1 min-w-0">
-          {note.note_type === 'folder' ? (
-            expandedFolders.has(note.id) ? (
-              <FolderOpen className="h-4 w-4 text-blue-500 flex-shrink-0" />
-            ) : (
-              <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
-            )
-          ) : (
-            <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
-          )}
+          <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-sm truncate">{note.title}</div>
             <div className="text-xs text-gray-500 flex items-center space-x-2">
@@ -118,7 +80,7 @@ export const NotesSidebar = () => {
               {note.is_shared && <Share className="h-3 w-3" />}
               {note.user_id !== currentUser?.id && (
                 <Badge variant="outline" className="text-xs">
-                  {note.user?.username}
+                  Shared
                 </Badge>
               )}
             </div>
@@ -157,24 +119,14 @@ export const NotesSidebar = () => {
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Notes</CardTitle>
-          <div className="flex space-x-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCreateFolder}
-              title="New Folder"
-            >
-              <Folder className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCreateNote}
-              title="New Note"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCreateNote}
+            title="New Note"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
         
         <div className="relative">
@@ -197,22 +149,7 @@ export const NotesSidebar = () => {
               </div>
             ) : (
               <>
-                {/* Folders */}
-                {folders.map((folder) => (
-                  <div key={folder.id}>
-                    <NoteItem note={folder} />
-                    {expandedFolders.has(folder.id) && (
-                      <div className="ml-2">
-                        {getNotesInFolder(folder.id).map((note) => (
-                          <NoteItem key={note.id} note={note} isChild />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Root Notes */}
-                {rootNotes.map((note) => (
+                {filteredNotes.map((note) => (
                   <NoteItem key={note.id} note={note} />
                 ))}
 

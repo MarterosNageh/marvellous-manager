@@ -45,6 +45,8 @@ export const WeeklyScheduleView = () => {
     setCurrentWeek(addWeeks(currentWeek, 1));
   };
 
+  const weekDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   return (
     <div className="space-y-6">
       {/* Header */}

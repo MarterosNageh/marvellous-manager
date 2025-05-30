@@ -124,28 +124,16 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
             <div className="space-y-4">
               {sortedShifts.map((shift) => {
                 const user = users.find(u => u.id === shift.user_id);
-                const isCurrentlyActive = (() => {
-                  const now = new Date();
-                  const startTime = new Date(shift.start_time);
-                  const endTime = new Date(shift.end_time);
-                  return startTime <= now && endTime >= now;
-                })();
                 
                 return (
                   <div 
                     key={shift.id} 
-                    className={`p-4 rounded-lg border ${
-                      isCurrentlyActive 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-white border-gray-200'
-                    }`}
+                    className="p-4 rounded-lg border bg-white border-gray-200"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <Avatar className="h-12 w-12">
-                          <AvatarFallback className={`text-sm font-medium ${
-                            isCurrentlyActive ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-600'
-                          }`}>
+                          <AvatarFallback className="text-sm font-medium bg-blue-100 text-blue-600">
                             {user?.username?.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -166,11 +154,6 @@ export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
                         </div>
                       </div>
                       <div className="text-right">
-                        {isCurrentlyActive && (
-                          <Badge className="bg-green-100 text-green-800 mb-2">
-                            Currently Active
-                          </Badge>
-                        )}
                         <div className="text-xs text-gray-500">
                           {isToday(new Date(shift.start_time)) ? 'Today' : 
                            format(new Date(shift.start_time), 'MMM d, yyyy')}

@@ -29,16 +29,6 @@ export const DailyScheduleView = () => {
     new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
   );
 
-  // Get currently working shifts
-  const getCurrentlyWorking = () => {
-    const now = new Date();
-    return sortedShifts.filter(shift => {
-      const startTime = new Date(shift.start_time);
-      const endTime = new Date(shift.end_time);
-      return startTime <= now && endTime >= now;
-    });
-  };
-
   const handlePreviousDay = () => {
     setCurrentDate(subDays(currentDate, 1));
   };
@@ -46,8 +36,6 @@ export const DailyScheduleView = () => {
   const handleNextDay = () => {
     setCurrentDate(addDays(currentDate, 1));
   };
-
-  const currentlyWorking = getCurrentlyWorking();
 
   return (
     <div className="space-y-6">
@@ -86,16 +74,11 @@ export const DailyScheduleView = () => {
             <div className="space-y-3">
               {sortedShifts.map((shift) => {
                 const user = users.find(u => u.id === shift.user_id);
-                const isCurrentlyWorking = currentlyWorking.some(cs => cs.id === shift.id);
                 
                 return (
                   <div 
                     key={shift.id} 
-                    className={`p-4 rounded-lg border ${
-                      isCurrentlyWorking 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-white border-gray-200'
-                    }`}
+                    className="p-4 rounded-lg border bg-white border-gray-200"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -120,9 +103,6 @@ export const DailyScheduleView = () => {
                         <Badge variant={shift.shift_type === 'morning' ? 'default' : 'secondary'}>
                           {shift.shift_type}
                         </Badge>
-                        {isCurrentlyWorking && (
-                          <Badge className="bg-green-100 text-green-800">Active</Badge>
-                        )}
                       </div>
                     </div>
                   </div>
