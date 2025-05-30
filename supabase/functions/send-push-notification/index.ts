@@ -1,5 +1,6 @@
-import { મુખ્યServe } from 'https://deno.land/x/supabase_functions@v1/mod.ts';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"; // Standard Deno serve
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SignJWT, importPKCS8 } from 'https://deno.land/x/jose@v5.6.3/index.ts'; // For JWT signing
 // Note: web-push is not used if directly calling FCM HTTP v1 API with a token.
 // import webpush from 'https://deno.land/x/webpush@0.2.0/mod.ts';
 
@@ -7,6 +8,17 @@ const FCM_API_KEY = Deno.env.get('FCM_SERVER_KEY'); // Legacy Server Key, used i
 const FIREBASE_PROJECT_ID = Deno.env.get('FIREBASE_PROJECT_ID') || 'YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER'; // Ensure this is set in Supabase secrets
 
 console.log('Function send-push-notification started');
+console.log(`Using FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}`);
+
+// Interface for the result objects stored in the results array
+interface NotificationResult {
+  userId: string;
+  endpoint: string;
+  success: boolean;
+  status?: number;
+  body?: any; 
+  error?: string;
+}
 
 // Helper to get Firebase Service Account from Supabase Vault or Env Var
 // This is for generating OAuth 2.0 access tokens for FCM API v1
@@ -40,15 +52,13 @@ async function getFirebaseServiceAccount() {
 // Get OAuth 2.0 Access Token for FCM API v1
 async function getAccessToken() {
   const serviceAccount = await getFirebaseServiceAccount();
-  const jwtHeader = JSON.stringify({ alg: 'RS256', typ: 'JWT' });
   const iat = Math.floor(Date.now() / 1000);
-  const exp = iat + 3600; // Token expires in 1 hour
 
   const claims = {
     iss: serviceAccount.client_email,
     scope: 'https://www.googleapis.com/auth/firebase.messaging',
     aud: 'https://oauth2.googleapis.com/token',
-    exp: exp,
+    exp: iat + 3600, // Token expires in 1 hour
     iat: iat,
   };
 
@@ -56,7 +66,7 @@ async function getAccessToken() {
   const privateKeyPem = serviceAccount.private_key;
 
   // Dynamically import the jose library for JWT signing
-  const { SignJWT, importPKCS8 } = await import('https://deno.land/x/jose@v5.6.3/index.ts');
+  // const { SignJWT, importPKCS8 } = await import('https://deno.land/x/jose@v5.6.3/index.ts');
   
   const privateKey = await importPKCS8(privateKeyPem, 'RS256');
 
@@ -93,13 +103,23 @@ async function getAccessToken() {
 // Helper to extract raw FCM token from endpoint URL
 function extractFcmToken(endpoint: string): string | null {
   if (endpoint && endpoint.includes('fcm.googleapis.com/fcm/')) {
-    return endpoint.substring(endpoint.lastIndexOf('/') + 1);
+    const token = endpoint.substring(endpoint.lastIndexOf('/') + 1);
+    // Basic validation: FCM tokens are typically long and don't contain certain characters like '?' or '#'
+    // A more robust validation might be needed depending on observed endpoint variations.
+    if (token && token.length > 50 && !token.includes('?') && !token.includes('#')) {
+        return token;
+    }
+    console.warn(`Extracted token from "${endpoint}" seems invalid or short: "${token.substring(0,30)}...". Endpoint might not be a standard FCM device token URL.`);
+    return null; // Return null if extracted token looks suspicious
   }
   // If it doesn't look like a standard FCM endpoint URL, assume it might already be a raw token
-  // or handle other push service endpoint formats if necessary.
-  // For this function, we primarily expect FCM endpoints as stored by pushNotificationService.ts
-  console.warn(`Endpoint "${endpoint}" does not look like a standard FCM URL. Attempting to use as is.`);
-  return endpoint; // Or return null if only FCM URLs are valid and it doesn't match.
+  // but log a warning. This path should ideally not be hit if clients store full endpoint URLs.
+  if (endpoint && endpoint.length > 50 && !endpoint.includes('/') && !endpoint.includes('?') && !endpoint.includes('#')) {
+    console.warn(`Endpoint "${endpoint.substring(0,30)}..." does not look like an FCM URL but is treated as a raw token.`);
+    return endpoint; 
+  }
+  console.error(`Cannot extract a valid FCM token from endpoint: "${endpoint}". It will be skipped.`);
+  return null;
 }
 
 
@@ -121,47 +141,47 @@ async function cleanupInvalidToken(supabaseAdmin: any, endpoint: string, userId:
 }
 
 // Send notification using FCM HTTP v1 API
-async function sendFCMNotificationV1(fcmToken: string, title: string, body: string, data: any, supabaseAdmin: any, userId: string, originalEndpoint: string) {
+async function sendFCMNotificationV1(fcmToken: string, title: string, body: string, data: any, supabaseAdmin: any, userId: string, originalEndpoint: string): Promise<Omit<NotificationResult, 'userId' | 'endpoint'>> {
   if (!fcmToken) {
-    console.error('FCM token is null or empty, cannot send notification.');
-    return;
+    console.error('FCM token is null or empty for sendFCMNotificationV1, cannot send notification.');
+    return { success: false, error: 'FCM token was null or empty' };
   }
-  const accessToken = await getAccessToken();
-  const fcmV1Endpoint = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
+  try {
+    const accessToken = await getAccessToken();
+    const fcmV1Endpoint = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
 
-  const messagePayload = {
-    message: {
-      token: fcmToken,
-      notification: {
-        title: title,
-        body: body,
-        // icon: data?.icon || '/favicon.ico', // Standard notification fields
-      },
-      data: data, // Custom data payload
-      webpush: {
-        // headers: { // Optional: TTL, Urgency, Topic
-        //   TTL: '86400', // 1 day in seconds
-        //   Urgency: 'high'
-        // },
-        notification: { // Webpush-specific notification fields (can override or extend general notification)
-            // title: title, // Can be repeated here if needed
-            // body: body,
-            icon: data?.icon || '/marvellous-logo-black.png', // Recommended: provide an icon
-            badge: data?.badge || '/marvellous-logo-black.png', // For Android
-            tag: data?.tag, // Allows replacing an existing notification with the same tag
-            // requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
-            // actions: data?.actions // e.g., [{ action: 'explore', title: 'Explore'}]
+    const messagePayload = {
+      message: {
+        token: fcmToken,
+        notification: {
+          title: title,
+          body: body,
+          // icon: data?.icon || '/favicon.ico', // Standard notification fields
         },
-        fcm_options: {
-          link: data?.url || `/` // The page to open when the notification is clicked
+        data: data, // Custom data payload
+        webpush: {
+          // headers: { // Optional: TTL, Urgency, Topic
+          //   TTL: '86400', // 1 day in seconds
+          //   Urgency: 'high'
+          // },
+          notification: { // Webpush-specific notification fields (can override or extend general notification)
+              // title: title, // Can be repeated here if needed
+              // body: body,
+              icon: data?.icon || '/marvellous-logo-black.png', // Recommended: provide an icon
+              badge: data?.badge || '/marvellous-logo-black.png', // For Android
+              tag: data?.tag, // Allows replacing an existing notification with the same tag
+              // requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
+              // actions: data?.actions // e.g., [{ action: 'explore', title: 'Explore'}]
+          },
+          fcm_options: {
+            link: data?.url || `/` // The page to open when the notification is clicked
+          }
         }
       }
-    }
-  };
+    };
 
-  console.log(`Sending FCM v1 to token: ${fcmToken.substring(0,30)}... for user ${userId}, title: ${title}`);
+    console.log(`Sending FCM v1 to token: ${fcmToken.substring(0,30)}... for user ${userId}, title: ${title}`);
 
-  try {
     const fcmResponse = await fetch(fcmV1Endpoint, {
       method: 'POST',
       headers: {
@@ -185,23 +205,28 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
       if (fcmResponse.status === 404 || fcmResponse.status === 400) {
          try {
             const errorJson = JSON.parse(responseBodyText);
-            if (errorJson.error && (errorJson.error.details || []).some((detail: any) => detail.errorCode === 'UNREGISTERED' || detail.errorCode === 'INVALID_ARGUMENT')) {
-                console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} is unregistered or invalid. Scheduling cleanup.`);
+            if (errorJson.error && (errorJson.error.details || []).some((detail: any) => detail.errorCode === 'UNREGISTERED' || detail.errorCode === 'INVALID_ARGUMENT' || detail.errorCode === 'SENDER_ID_MISMATCH')) {
+                console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} is ${errorJson.error.details[0].errorCode}. Scheduling cleanup.`);
                 await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
             }
          } catch (e) {
             // If parsing fails, still log it, but might not be a structured FCM error
             console.warn('Could not parse FCM error response as JSON for cleanup decision:', e);
-            if (responseBodyText.toLowerCase().includes('unregistered') || responseBodyText.toLowerCase().includes('invalid registration token')) {
-                 console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} seems unregistered (text match). Scheduling cleanup.`);
+            if (responseBodyText.toLowerCase().includes('unregistered') || responseBodyText.toLowerCase().includes('invalid registration token') || responseBodyText.toLowerCase().includes('mismatched sender id')) {
+                 console.log(`Token ${fcmToken.substring(0,30)}... for user ${userId} seems invalid (text match). Scheduling cleanup.`);
                  await cleanupInvalidToken(supabaseAdmin, originalEndpoint, userId);
             }
          }
       }
-      return { success: false, status: fcmResponse.status, body: responseBodyText };
+      return { success: false, status: fcmResponse.status, body: responseBodyText, error: `FCM HTTP Error: ${fcmResponse.status} - ${responseBodyText.substring(0,100)}` };
     } else {
       console.log(`Successfully sent FCM v1 notification to user ${userId}, token ${fcmToken.substring(0,30)}... Body: ${responseBodyText.substring(0,100)}`);
-      return { success: true, status: fcmResponse.status, body: JSON.parse(responseBodyText) };
+      try {
+        return { success: true, status: fcmResponse.status, body: JSON.parse(responseBodyText) };
+      } catch (parseError) {
+        console.warn('FCM success response was not JSON:', parseError, responseBodyText);
+        return { success: true, status: fcmResponse.status, body: responseBodyText }; // Return raw body if JSON parse fails
+      }
     }
   } catch (error) {
     console.error(`Exception during FCM v1 send for user ${userId}, token ${fcmToken.substring(0,30)}...:`, error);
@@ -209,7 +234,19 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
   }
 }
 
-मुख्यServe(async (req: Request) => {
+// Main Supabase Edge Function handler
+serve(async (req: Request) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*', // Allow requests from any origin
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Explicitly allow POST and OPTIONS
+  };
+
+  // Handle OPTIONS request for CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   let userIds: string[] = [];
   let title: string = 'Notification Title';
   let body: string = 'Notification Body';
@@ -273,7 +310,7 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
   }
 
   console.log(`Found ${subscriptions.length} subscriptions. Preparing to send notifications.`);
-  const results = [];
+  const results: NotificationResult[] = []; // Explicitly type the results array
   for (const sub of subscriptions) {
     const rawFcmToken = extractFcmToken(sub.endpoint);
     if (rawFcmToken) {
@@ -289,7 +326,7 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
   console.log('All notification attempts processed.');
   return new Response(JSON.stringify({ message: 'Notifications processed', results }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }, // Include CORS headers in actual response
   });
 });
 
