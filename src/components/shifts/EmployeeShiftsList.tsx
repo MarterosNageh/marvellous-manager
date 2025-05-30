@@ -4,214 +4,158 @@ import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Calendar, Clock, User } from 'lucide-react';
 import { format, isToday, isThisWeek } from 'date-fns';
 
 interface EmployeeShiftsListProps {
-  searchTerm?: string;
-  filterRole?: string;
+  searchTerm: string;
+  filterRole: string;
 }
 
-export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({ 
-  searchTerm = '', 
-  filterRole = '' 
+export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({
+  searchTerm,
+  filterRole
 }) => {
   const { shifts } = useShifts();
   const { users } = useAuth();
 
-  const todayShifts = useMemo(() => {
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = filterRole === 'all' || user.role === filterRole;
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchTerm, filterRole]);
+
+  const getUserShifts = (userId: string) => {
+    return shifts.filter(shift => shift.user_id === userId && shift.status === 'scheduled');
+  };
+
+  const getTodayShifts = (userId: string) => {
     return shifts.filter(shift => 
+      shift.user_id === userId && 
       isToday(new Date(shift.start_time)) && 
       shift.status === 'scheduled'
     );
-  }, [shifts]);
+  };
 
-  const weekShifts = useMemo(() => {
+  const getWeekShifts = (userId: string) => {
     return shifts.filter(shift => 
+      shift.user_id === userId && 
       isThisWeek(new Date(shift.start_time)) && 
       shift.status === 'scheduled'
     );
-  }, [shifts]);
+  };
 
-  const filteredShifts = useMemo(() => {
-    let filtered = shifts.filter(shift => shift.status === 'scheduled');
-    
-    if (searchTerm) {
-      filtered = filtered.filter(shift => 
-        shift.user?.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shift.title?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    if (filterRole) {
-      filtered = filtered.filter(shift => shift.role === filterRole);
-    }
-    
-    return filtered;
-  }, [shifts, searchTerm, filterRole]);
-
-  const employeeStats = useMemo(() => {
-    return users.map(user => {
-      const userShifts = shifts.filter(shift => shift.user_id === user.id && shift.status === 'scheduled');
-      const todayUserShifts = userShifts.filter(shift => isToday(new Date(shift.start_time)));
-      const weekUserShifts = userShifts.filter(shift => isThisWeek(new Date(shift.start_time)));
-      
-      return {
-        user,
-        totalShifts: userShifts.length,
-        todayShifts: todayUserShifts.length,
-        weekShifts: weekUserShifts.length,
-        upcomingShifts: userShifts.filter(shift => new Date(shift.start_time) > new Date()).slice(0, 3)
-      };
-    }).filter(stat => stat.totalShifts > 0);
-  }, [users, shifts]);
+  const getUpcomingShifts = (userId: string) => {
+    const now = new Date();
+    return shifts.filter(shift => 
+      shift.user_id === userId && 
+      new Date(shift.start_time) > now && 
+      shift.status === 'scheduled'
+    ).slice(0, 3);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Today's Shifts Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Today's Shifts ({todayShifts.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {todayShifts.length > 0 ? (
-            <div className="grid gap-3">
-              {todayShifts.map((shift) => (
-                <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div>
-                    <div className="font-medium">{shift.user?.username}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                    </div>
-                    <Badge variant="secondary" className="mt-1">
-                      {shift.shift_type}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-4">No shifts scheduled for today</p>
-          )}
-        </CardContent>
-      </Card>
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {filteredUsers.map((user) => {
+        const userShifts = getUserShifts(user.id);
+        const todayShifts = getTodayShifts(user.id);
+        const weekShifts = getWeekShifts(user.id);
+        const upcomingShifts = getUpcomingShifts(user.id);
 
-      {/* Employee Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Employee Shift Statistics</CardTitle>
-          <CardDescription>Overview of shifts per employee</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {employeeStats.map((stat) => (
-              <Card key={stat.user.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <User className="h-8 w-8 text-gray-400" />
-                    <div>
-                      <div className="font-medium">{stat.user.username}</div>
-                      <div className="text-sm text-gray-500">{stat.user.role || 'Employee'}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                    <div>
-                      <div className="font-bold text-blue-600">{stat.todayShifts}</div>
-                      <div className="text-gray-500">Today</div>
-                    </div>
-                    <div>
-                      <div className="font-bold text-green-600">{stat.weekShifts}</div>
-                      <div className="text-gray-500">This Week</div>
-                    </div>
-                    <div>
-                      <div className="font-bold text-purple-600">{stat.totalShifts}</div>
-                      <div className="text-gray-500">Total</div>
-                    </div>
-                  </div>
-                  
-                  {stat.upcomingShifts.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <div className="text-sm font-medium mb-2">Upcoming Shifts:</div>
-                      <div className="space-y-1">
-                        {stat.upcomingShifts.map((shift) => (
-                          <div key={shift.id} className="text-xs text-gray-600 dark:text-gray-400">
-                            {format(new Date(shift.start_time), 'MMM d, HH:mm')} - {shift.shift_type}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Filtered Shifts List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Scheduled Shifts</CardTitle>
-          <CardDescription>
-            {filteredShifts.length} shift(s) found
-            {searchTerm && ` matching "${searchTerm}"`}
-            {filterRole && ` for role "${filterRole}"`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {filteredShifts.length > 0 ? (
-            <div className="space-y-3">
-              {filteredShifts.map((shift) => (
-                <div key={shift.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <User className="h-8 w-8 text-gray-400" />
-                    <div>
-                      <div className="font-medium">{shift.user?.username}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
-                      {shift.role && (
-                        <Badge variant="outline" className="mt-1">
-                          {shift.role}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      <div className="text-sm font-medium">
-                        {format(new Date(shift.start_time), 'MMM d, yyyy')}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                      </div>
-                    </div>
-                    
-                    <Badge variant={
-                      shift.shift_type === 'morning' ? 'default' :
-                      shift.shift_type === 'evening' ? 'secondary' : 'outline'
-                    }>
-                      {shift.shift_type}
-                    </Badge>
-                  </div>
+        return (
+          <Card key={user.id}>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <Avatar>
+                  <AvatarFallback>
+                    {user.username.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">{user.username}</CardTitle>
+                  <CardDescription>
+                    {user.role || 'Employee'} • {user.title || 'Staff Member'}
+                  </CardDescription>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No shifts found matching your criteria</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {user.isAdmin && (
+                  <Badge variant="secondary">Admin</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Today's Shifts */}
+              <div>
+                <h4 className="font-medium text-sm flex items-center mb-2">
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Today ({todayShifts.length})
+                </h4>
+                {todayShifts.length > 0 ? (
+                  <div className="space-y-1">
+                    {todayShifts.map((shift) => (
+                      <div key={shift.id} className="text-xs p-2 bg-blue-50 dark:bg-blue-950 rounded">
+                        <div className="font-medium">{shift.title || 'Shift'}</div>
+                        <div className="text-gray-600 dark:text-gray-400">
+                          {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No shifts today</p>
+                )}
+              </div>
+
+              {/* Weekly Summary */}
+              <div>
+                <h4 className="font-medium text-sm flex items-center mb-2">
+                  <Clock className="h-4 w-4 mr-1" />
+                  This Week ({weekShifts.length} shifts)
+                </h4>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Total hours: {weekShifts.reduce((acc, shift) => {
+                    const start = new Date(shift.start_time);
+                    const end = new Date(shift.end_time);
+                    return acc + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                  }, 0).toFixed(1)}h
+                </div>
+              </div>
+
+              {/* Upcoming Shifts */}
+              <div>
+                <h4 className="font-medium text-sm flex items-center mb-2">
+                  <User className="h-4 w-4 mr-1" />
+                  Upcoming
+                </h4>
+                {upcomingShifts.length > 0 ? (
+                  <div className="space-y-1">
+                    {upcomingShifts.map((shift) => (
+                      <div key={shift.id} className="text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                        <div className="font-medium">{shift.title || 'Shift'}</div>
+                        <div className="text-gray-600 dark:text-gray-400">
+                          {format(new Date(shift.start_time), 'MMM d, HH:mm')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No upcoming shifts</p>
+                )}
+              </div>
+
+              {/* Total Shifts */}
+              <div className="pt-2 border-t">
+                <div className="flex justify-between text-sm">
+                  <span>Total shifts:</span>
+                  <span className="font-medium">{userShifts.length}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

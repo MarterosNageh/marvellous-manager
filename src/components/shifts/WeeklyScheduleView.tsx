@@ -1,14 +1,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, subWeeks, addWeeks } from 'date-fns';
 
 export const WeeklyScheduleView = () => {
   const { shifts } = useShifts();
+  const { users } = useAuth();
   const [selectedWeek, setSelectedWeek] = useState(new Date());
 
   const weekDays = useMemo(() => {
@@ -24,8 +26,19 @@ export const WeeklyScheduleView = () => {
     });
   }, [shifts, weekDays]);
 
-  const getShiftsForDay = (day: Date) => {
-    return weekShifts.filter(shift => isSameDay(new Date(shift.start_time), day));
+  const getShiftsForUserAndDay = (userId: string, day: Date) => {
+    return weekShifts.filter(shift => 
+      shift.user_id === userId && isSameDay(new Date(shift.start_time), day)
+    );
+  };
+
+  const getCurrentlyWorking = () => {
+    const now = new Date();
+    return weekShifts.filter(shift => {
+      const shiftStart = new Date(shift.start_time);
+      const shiftEnd = new Date(shift.end_time);
+      return shiftStart <= now && shiftEnd >= now;
+    });
   };
 
   const goToPreviousWeek = () => {
@@ -39,6 +52,8 @@ export const WeeklyScheduleView = () => {
   const goToCurrentWeek = () => {
     setSelectedWeek(new Date());
   };
+
+  const currentlyWorking = getCurrentlyWorking();
 
   return (
     <div className="space-y-4">
@@ -60,41 +75,80 @@ export const WeeklyScheduleView = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-7 gap-4">
-        {weekDays.map((day) => {
-          const dayShifts = getShiftsForDay(day);
-          return (
-            <Card key={day.toISOString()}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">
-                  {format(day, 'EEE')}
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {format(day, 'd')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {dayShifts.map((shift) => (
-                  <div key={shift.id} className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-                    <div className="font-medium truncate">{shift.user?.username}</div>
-                    <div className="text-gray-600 dark:text-gray-400">
-                      {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                    </div>
-                    <Badge variant="outline" className="mt-1 text-xs">
-                      {shift.shift_type}
-                    </Badge>
-                  </div>
+      {/* Currently Working Section */}
+      {currentlyWorking.length > 0 && (
+        <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-800 dark:text-green-200">
+              <Clock className="mr-2 h-5 w-5" />
+              Currently Working
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {currentlyWorking.map((shift) => (
+                <div key={shift.id} className="text-sm text-green-700 dark:text-green-300 bg-white dark:bg-green-900 p-2 rounded">
+                  <strong>{shift.user?.username}</strong> - {shift.title || 'Shift'}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Users vs Days Table View */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly Schedule</CardTitle>
+          <CardDescription>Team schedule for the week</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2 font-medium">Employee</th>
+                  {weekDays.map((day) => (
+                    <th key={day.toISOString()} className="text-center p-2 font-medium min-w-[120px]">
+                      <div>{format(day, 'EEE')}</div>
+                      <div className="text-xs text-gray-500">{format(day, 'd')}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="p-2 font-medium">
+                      <div>{user.username}</div>
+                      <div className="text-xs text-gray-500">{user.role || 'Employee'}</div>
+                    </td>
+                    {weekDays.map((day) => {
+                      const dayShifts = getShiftsForUserAndDay(user.id, day);
+                      return (
+                        <td key={day.toISOString()} className="p-1 text-center">
+                          {dayShifts.length > 0 ? (
+                            <div className="space-y-1">
+                              {dayShifts.map((shift) => (
+                                <div key={shift.id} className="text-xs p-1 bg-blue-100 dark:bg-blue-900 rounded">
+                                  <div className="font-medium">{shift.shift_type}</div>
+                                  <div>{format(new Date(shift.start_time), 'HH:mm')}-{format(new Date(shift.end_time), 'HH:mm')}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-400">-</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 ))}
-                {dayShifts.length === 0 && (
-                  <div className="text-xs text-gray-400 text-center py-2">
-                    No shifts
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

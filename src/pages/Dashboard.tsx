@@ -103,7 +103,7 @@ const DashboardContent = () => {
 
   const completionPercentage = tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0;
 
-  // Hard drives by project
+  // Enhanced Hard drives by project with latest backup detection
   const hardDrivesByProject = useMemo(() => {
     const projectMap = new Map();
     
@@ -113,36 +113,69 @@ const DashboardContent = () => {
         const projectName = project?.name || 'Unknown Project';
         
         if (!projectMap.has(projectName)) {
-          projectMap.set(projectName, []);
+          projectMap.set(projectName, {
+            project,
+            drives: [],
+            backupDrives: [],
+            latestBackup: null,
+            lowSpaceAlert: false
+          });
         }
-        projectMap.get(projectName).push(drive);
+        
+        const projectData = projectMap.get(projectName);
+        projectData.drives.push(drive);
+        
+        // Check if it's a backup drive
+        const isBackupDrive = drive.name && (drive.name.includes('BK') || drive.name.includes('Backup'));
+        if (isBackupDrive) {
+          projectData.backupDrives.push(drive);
+        }
       }
     });
     
-    return Array.from(projectMap.entries()).map(([name, drives]) => ({
+    // Find latest backup and check for low space for each project
+    projectMap.forEach((projectData, projectName) => {
+      if (projectData.backupDrives.length > 0) {
+        // Sort backup drives by created date (latest first) and then by name number
+        const sortedBackups = projectData.backupDrives.sort((a, b) => {
+          // First sort by creation date
+          const dateCompare = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          
+          // If dates are same, sort by number in name
+          const aMatch = a.name?.match(/(\d+)$/);
+          const bMatch = b.name?.match(/(\d+)$/);
+          const aNum = aMatch ? parseInt(aMatch[1]) : 0;
+          const bNum = bMatch ? parseInt(bMatch[1]) : 0;
+          return bNum - aNum;
+        });
+        
+        projectData.latestBackup = sortedBackups[0];
+        
+        // Check if latest backup has low space
+        const latestBackup = projectData.latestBackup;
+        if (latestBackup && latestBackup.capacity && latestBackup.freeSpace) {
+          const capacity = parseFloat((latestBackup.capacity || '0').replace(/[^\d.]/g, ''));
+          const freeSpace = parseFloat((latestBackup.freeSpace || '0').replace(/[^\d.]/g, ''));
+          
+          if (capacity > 0) {
+            const freePercentage = (freeSpace / capacity) * 100;
+            projectData.lowSpaceAlert = freePercentage <= 15;
+          }
+        }
+      }
+    });
+    
+    return Array.from(projectMap.entries()).map(([name, data]) => ({
       projectName: name,
-      drives: drives as typeof hardDrives,
-      count: drives.length
+      project: data.project,
+      drives: data.drives,
+      backupDrives: data.backupDrives,
+      latestBackup: data.latestBackup,
+      lowSpaceAlert: data.lowSpaceAlert,
+      count: data.drives.length
     }));
   }, [hardDrives, projects]);
-
-  // Low space indicator - check backup drives with ≤15% free space
-  const lowSpaceHardDrives = useMemo(() => {
-    return hardDrives.filter(drive => {
-      // Check if it's a backup drive
-      const isBackupDrive = drive.name && (drive.name.includes('BK') || drive.name.includes('Backup'));
-      if (!isBackupDrive) return false;
-
-      // Parse capacity and free space
-      const capacity = parseFloat((drive.capacity || '0').replace(/[^\d.]/g, ''));
-      const freeSpace = parseFloat((drive.freeSpace || '0').replace(/[^\d.]/g, ''));
-      
-      if (capacity === 0) return false;
-      
-      const freePercentage = (freeSpace / capacity) * 100;
-      return freePercentage <= 15;
-    });
-  }, [hardDrives]);
 
   // Project utilization
   const projectUtilization = useMemo(() => {
@@ -177,6 +210,9 @@ const DashboardContent = () => {
       };
     }).filter(item => item.totalTasks > 0);
   }, [users, tasks]);
+
+  // Count projects with low space alerts
+  const projectsWithLowSpace = hardDrivesByProject.filter(item => item.lowSpaceAlert);
 
   return (
     <MainLayout>
@@ -229,8 +265,8 @@ const DashboardContent = () => {
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <Activity className="h-3 w-3" />
                 <span>Devices tracked</span>
-                {lowSpaceHardDrives.length > 0 && (
-                  <Badge variant="destructive">{lowSpaceHardDrives.length} low space</Badge>
+                {projectsWithLowSpace.length > 0 && (
+                  <Badge variant="destructive">{projectsWithLowSpace.length} low space</Badge>
                 )}
               </div>
             </CardContent>
@@ -251,8 +287,8 @@ const DashboardContent = () => {
           </Card>
         </div>
 
-        {/* Alerts Section */}
-        {(lowSpaceHardDrives.length > 0 || todayTimeOffRequests.length > 0 || todayExtraWorkRequests.length > 0) && (
+        {/* Enhanced Alerts Section */}
+        {(projectsWithLowSpace.length > 0 || todayTimeOffRequests.length > 0 || todayExtraWorkRequests.length > 0) && (
           <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
             <CardHeader>
               <CardTitle className="flex items-center text-orange-800 dark:text-orange-200">
@@ -260,12 +296,36 @@ const DashboardContent = () => {
                 Today's Alerts
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {lowSpaceHardDrives.length > 0 && (
-                <div className="text-sm text-orange-700 dark:text-orange-300">
-                  ⚠️ {lowSpaceHardDrives.length} hard drive(s) have low space (≤15%): {lowSpaceHardDrives.map(d => d.name).join(', ')}
+            <CardContent className="space-y-4">
+              {/* Low Space Alerts by Project */}
+              {projectsWithLowSpace.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
+                    ⚠️ Projects with Low Space Backup Drives:
+                  </h4>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {projectsWithLowSpace.map((projectData) => {
+                      const latestBackup = projectData.latestBackup;
+                      const capacity = parseFloat((latestBackup?.capacity || '0').replace(/[^\d.]/g, ''));
+                      const freeSpace = parseFloat((latestBackup?.freeSpace || '0').replace(/[^\d.]/g, ''));
+                      const freePercentage = capacity > 0 ? ((freeSpace / capacity) * 100).toFixed(1) : '0';
+                      
+                      return (
+                        <div key={projectData.projectName} className="bg-white dark:bg-orange-900 p-3 rounded-lg border border-orange-200 dark:border-orange-700">
+                          <div className="font-medium text-orange-900 dark:text-orange-100">{projectData.projectName}</div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">
+                            Latest Backup: {latestBackup?.name}
+                          </div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">
+                            Free Space: {freePercentage}% ({latestBackup?.freeSpace} of {latestBackup?.capacity})
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
+              
               {todayTimeOffRequests.length > 0 && (
                 <div className="text-sm text-orange-700 dark:text-orange-300">
                   🏖️ {todayTimeOffRequests.length} employee(s) on time off today: {todayTimeOffRequests.map(r => r.user?.username).join(', ')}
@@ -340,13 +400,13 @@ const DashboardContent = () => {
                   {currentlyWorking.length > 0 ? (
                     <div className="space-y-3">
                       {currentlyWorking.map((shift) => (
-                        <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div key={shift.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900 rounded-lg border border-green-200 dark:border-green-700">
                           <div>
-                            <div className="font-medium">{shift.user?.username}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{shift.title || 'Shift'}</div>
+                            <div className="font-medium text-green-900 dark:text-green-100">{shift.user?.username}</div>
+                            <div className="text-sm text-green-700 dark:text-green-300">{shift.title || 'Shift'}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-medium">
+                            <div className="text-sm font-medium text-green-800 dark:text-green-200">
                               {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
                             </div>
                             <Badge variant="secondary" className="mt-1">
@@ -366,19 +426,42 @@ const DashboardContent = () => {
               </Card>
             </div>
 
-            {/* Hard Drives by Project */}
+            {/* Enhanced Hard Drives by Project */}
             <Card>
               <CardHeader>
                 <CardTitle>Hard Drives by Project</CardTitle>
-                <CardDescription>Distribution of hard drives across projects</CardDescription>
+                <CardDescription>Distribution and status of hard drives across projects</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {hardDrivesByProject.map((item) => (
-                    <div key={item.projectName} className="p-4 border rounded-lg">
-                      <div className="font-medium">{item.projectName}</div>
+                    <div 
+                      key={item.projectName} 
+                      className={`p-4 border rounded-lg ${item.lowSpaceAlert ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950' : 'border-gray-200 dark:border-gray-700'}`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="font-medium">{item.projectName}</div>
+                        {item.lowSpaceAlert && (
+                          <Badge variant="destructive" className="ml-2">Low Space</Badge>
+                        )}
+                      </div>
                       <div className="text-2xl font-bold mt-2">{item.count}</div>
-                      <div className="text-sm text-gray-600">Hard Drives</div>
+                      <div className="text-sm text-gray-600 mb-2">Total Hard Drives</div>
+                      {item.backupDrives.length > 0 && (
+                        <div className="text-sm text-gray-600">
+                          <div>Backup Drives: {item.backupDrives.length}</div>
+                          {item.latestBackup && (
+                            <div className="mt-1">
+                              <div className="font-medium">Latest: {item.latestBackup.name}</div>
+                              {item.latestBackup.freeSpace && item.latestBackup.capacity && (
+                                <div className={`text-xs ${item.lowSpaceAlert ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
+                                  {item.latestBackup.freeSpace} free of {item.latestBackup.capacity}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

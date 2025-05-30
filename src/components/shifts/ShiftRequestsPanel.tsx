@@ -1,37 +1,42 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CheckCircle, XCircle, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const ShiftRequestsPanel = () => {
   const { shiftRequests, approveShiftRequest, rejectShiftRequest } = useShifts();
+  const { currentUser } = useAuth();
 
-  const pendingRequests = shiftRequests.filter(request => request.status === 'pending');
-  const approvedRequests = shiftRequests.filter(request => request.status === 'approved');
-  const rejectedRequests = shiftRequests.filter(request => request.status === 'rejected');
+  const isManagerOrAdmin = currentUser?.isAdmin || currentUser?.role === 'manager';
 
-  const handleApprove = async (requestId: string) => {
-    await approveShiftRequest(requestId);
-  };
+  const pendingRequests = useMemo(() => {
+    return shiftRequests.filter(request => request.status === 'pending');
+  }, [shiftRequests]);
 
-  const handleReject = async (requestId: string) => {
-    await rejectShiftRequest(requestId);
-  };
+  const approvedRequests = useMemo(() => {
+    return shiftRequests.filter(request => request.status === 'approved');
+  }, [shiftRequests]);
 
-  const getRequestTypeColor = (type: string) => {
+  const rejectedRequests = useMemo(() => {
+    return shiftRequests.filter(request => request.status === 'rejected');
+  }, [shiftRequests]);
+
+  const getRequestTypeIcon = (type: string) => {
     switch (type) {
       case 'time_off':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+        return <Calendar className="h-4 w-4" />;
       case 'extra_work':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+        return <Clock className="h-4 w-4" />;
       case 'shift_change':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+        return <AlertCircle className="h-4 w-4" />;
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+        return <Clock className="h-4 w-4" />;
     }
   };
 
@@ -48,153 +53,156 @@ export const ShiftRequestsPanel = () => {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pending</Badge>;
+      case 'approved':
+        return <Badge variant="default">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const RequestCard = ({ request, showActions = false }: { request: any; showActions?: boolean }) => (
+    <Card key={request.id}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            {getRequestTypeIcon(request.request_type)}
+            <CardTitle className="text-lg">
+              {getRequestTypeLabel(request.request_type)}
+            </CardTitle>
+          </div>
+          {getStatusBadge(request.status)}
+        </div>
+        <CardDescription>
+          From {request.user?.username} • {format(new Date(request.start_date), 'MMM d, yyyy')}
+          {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {request.reason && (
+          <div className="mb-4">
+            <h4 className="font-medium mb-1">Reason:</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{request.reason}</p>
+          </div>
+        )}
+        
+        <div className="text-xs text-gray-500 mb-4">
+          Requested on {format(new Date(request.created_at), 'MMM d, yyyy HH:mm')}
+        </div>
+
+        {showActions && isManagerOrAdmin && request.status === 'pending' && (
+          <div className="flex space-x-2">
+            <Button 
+              size="sm" 
+              onClick={() => approveShiftRequest(request.id)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Approve
+            </Button>
+            <Button 
+              size="sm" 
+              variant="destructive"
+              onClick={() => rejectShiftRequest(request.id)}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Reject
+            </Button>
+          </div>
+        )}
+
+        {request.status !== 'pending' && request.approved_at && (
+          <div className="text-xs text-gray-500">
+            {request.status === 'approved' ? 'Approved' : 'Rejected'} on {format(new Date(request.approved_at), 'MMM d, yyyy HH:mm')}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Pending Requests */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Pending Requests ({pendingRequests.length})
-          </CardTitle>
-          <CardDescription>Requests awaiting approval</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Shift Requests</h2>
+        <div className="flex space-x-2">
+          <Badge variant="outline">
+            {pendingRequests.length} Pending
+          </Badge>
+          <Badge variant="default">
+            {approvedRequests.length} Approved
+          </Badge>
+          <Badge variant="destructive">
+            {rejectedRequests.length} Rejected
+          </Badge>
+        </div>
+      </div>
+
+      <Tabs defaultValue="pending" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="pending" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Pending ({pendingRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="approved" className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Approved ({approvedRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="rejected" className="flex items-center gap-2">
+            <XCircle className="h-4 w-4" />
+            Rejected ({rejectedRequests.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="space-y-4">
           {pendingRequests.length > 0 ? (
-            <div className="space-y-4">
-              {pendingRequests.map((request) => (
-                <div key={request.id} className="p-4 border rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium">{request.user?.username}</span>
-                        <Badge className={getRequestTypeColor(request.request_type)}>
-                          {getRequestTypeLabel(request.request_type)}
-                        </Badge>
-                      </div>
-                      
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            {format(new Date(request.start_date), 'MMM d, yyyy')}
-                            {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {request.reason && (
-                        <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                          <strong>Reason:</strong> {request.reason}
-                        </div>
-                      )}
-                      
-                      <div className="text-xs text-gray-500">
-                        Requested: {format(new Date(request.created_at), 'MMM d, yyyy HH:mm')}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-600 hover:bg-green-50"
-                        onClick={() => handleApprove(request.id)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 border-red-600 hover:bg-red-50"
-                        onClick={() => handleReject(request.id)}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            pendingRequests.map((request) => (
+              <RequestCard key={request.id} request={request} showActions={true} />
+            ))
           ) : (
-            <p className="text-gray-500 text-center py-4">No pending requests</p>
+            <Card>
+              <CardContent className="text-center py-8">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">No pending requests</p>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      {/* Approved Requests */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            Approved Requests ({approvedRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <TabsContent value="approved" className="space-y-4">
           {approvedRequests.length > 0 ? (
-            <div className="space-y-3">
-              {approvedRequests.slice(0, 10).map((request) => (
-                <div key={request.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{request.user?.username}</span>
-                      <Badge className={getRequestTypeColor(request.request_type)}>
-                        {getRequestTypeLabel(request.request_type)}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {format(new Date(request.start_date), 'MMM d, yyyy')}
-                      {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="bg-green-100 text-green-800">
-                    Approved
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            approvedRequests.map((request) => (
+              <RequestCard key={request.id} request={request} />
+            ))
           ) : (
-            <p className="text-gray-500 text-center py-4">No approved requests</p>
+            <Card>
+              <CardContent className="text-center py-8">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">No approved requests</p>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      {/* Rejected Requests */}
-      {rejectedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-600" />
-              Rejected Requests ({rejectedRequests.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {rejectedRequests.slice(0, 5).map((request) => (
-                <div key={request.id} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{request.user?.username}</span>
-                      <Badge className={getRequestTypeColor(request.request_type)}>
-                        {getRequestTypeLabel(request.request_type)}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {format(new Date(request.start_date), 'MMM d, yyyy')}
-                      {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="bg-red-100 text-red-800">
-                    Rejected
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="rejected" className="space-y-4">
+          {rejectedRequests.length > 0 ? (
+            rejectedRequests.map((request) => (
+              <RequestCard key={request.id} request={request} />
+            ))
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <XCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">No rejected requests</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

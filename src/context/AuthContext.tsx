@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -19,6 +20,8 @@ interface AuthContextType {
   logout: () => void;
   refreshUsers: () => Promise<void>;
   updateUser: (userId: string, userData: Partial<User>) => Promise<boolean>;
+  addUser: (userData: { username: string; password: string; isAdmin: boolean; role?: string; title?: string }) => Promise<boolean>;
+  removeUser: (userId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,6 +136,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const addUser = async (userData: { username: string; password: string; isAdmin: boolean; role?: string; title?: string }): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('auth_users')
+        .insert({
+          username: userData.username,
+          password: userData.password,
+          is_admin: userData.isAdmin,
+          role: userData.role || 'operator',
+          title: userData.title
+        });
+
+      if (error) {
+        console.error('Error adding user:', error);
+        toast.error('Failed to add user');
+        return false;
+      }
+
+      toast.success('User added successfully');
+      await refreshUsers();
+      return true;
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error('Failed to add user');
+      return false;
+    }
+  };
+
+  const removeUser = async (userId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('auth_users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error removing user:', error);
+        toast.error('Failed to remove user');
+        return false;
+      }
+
+      toast.success('User removed successfully');
+      await refreshUsers();
+      return true;
+    } catch (error) {
+      console.error('Error removing user:', error);
+      toast.error('Failed to remove user');
+      return false;
+    }
+  };
+
   useEffect(() => {
     refreshUsers();
   }, []);
@@ -147,7 +201,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       logout,
       refreshUsers,
-      updateUser
+      updateUser,
+      addUser,
+      removeUser
     }}>
       {children}
     </AuthContext.Provider>

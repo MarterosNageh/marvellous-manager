@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ShiftsProvider } from '@/context/ShiftsContext';
@@ -23,7 +24,6 @@ const ShiftsScheduleContent = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const isAdmin = currentUser?.isAdmin;
   const isManager = (currentUser?.role === 'manager') || currentUser?.isAdmin;
@@ -67,9 +67,9 @@ const ShiftsScheduleContent = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -151,28 +151,10 @@ const ShiftsScheduleContent = () => {
 
             {/* Schedule View */}
             <TabsContent value="schedule" className="space-y-6">
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                {viewMode === 'day' && (
-                  <DailyScheduleView 
-                    selectedDate={selectedDate}
-                    searchTerm={searchTerm}
-                    filterRole={filterRole}
-                  />
-                )}
-                {viewMode === 'week' && (
-                  <WeeklyScheduleView 
-                    selectedDate={selectedDate}
-                    searchTerm={searchTerm}
-                    filterRole={filterRole}
-                  />
-                )}
-                {viewMode === 'month' && (
-                  <MonthlyScheduleView 
-                    selectedDate={selectedDate}
-                    searchTerm={searchTerm}
-                    filterRole={filterRole}
-                  />
-                )}
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                {viewMode === 'day' && <DailyScheduleView />}
+                {viewMode === 'week' && <WeeklyScheduleView />}
+                {viewMode === 'month' && <MonthlyScheduleView />}
               </div>
             </TabsContent>
 
