@@ -143,13 +143,13 @@ export const DailyScheduleView = () => {
                         <div>
                           <h4 className="font-medium text-gray-900">{shift.title}</h4>
                           <p className="text-sm text-gray-600">{user?.username}</p>
-                          {shift.description && (
-                            <p className="text-xs text-gray-500 mt-1">{shift.description}</p>
+                          {shift.notes && (
+                            <p className="text-xs text-gray-500 mt-1">{shift.notes}</p>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant={shift.shift_type === 'regular' ? 'default' : 'secondary'}>
+                        <Badge variant={shift.shift_type === 'morning' ? 'default' : 'secondary'}>
                           {shift.shift_type}
                         </Badge>
                         {isCurrentlyWorking && (

@@ -5,9 +5,17 @@ import { useAuth } from './AuthContext';
 import { Shift, ShiftRequest, ShiftWithUser, ShiftRequestWithUser, ShiftFormData } from '@/types/shiftTypes';
 import { toast } from 'sonner';
 
+interface User {
+  id: string;
+  username: string;
+  role?: string;
+  isAdmin?: boolean;
+}
+
 interface ShiftsContextType {
   shifts: ShiftWithUser[];
   shiftRequests: ShiftRequestWithUser[];
+  users: User[];
   loading: boolean;
   refreshShifts: () => Promise<void>;
   refreshShiftRequests: () => Promise<void>;
@@ -248,6 +256,7 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <ShiftsContext.Provider value={{
       shifts,
       shiftRequests,
+      users,
       loading,
       refreshShifts,
       refreshShiftRequests,

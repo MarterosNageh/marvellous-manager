@@ -8,7 +8,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { supabase } from "@/integrations/supabase/client";
-import { HardDrive, Calendar, Users, Clock, AlertTriangle, CheckCircle, BarChart } from "lucide-react";
+import { HardDrive, Calendar, Users, Clock, AlertTriangle, CheckCircle, BarChart, FolderOpen } from "lucide-react";
+import { format, isToday, isSameDay } from 'date-fns';
 
 interface DashboardShift {
   id: string;
@@ -40,6 +41,7 @@ interface ProjectData {
   name: string;
   description?: string;
   status: string;
+  created_at: string;
   hardDrives: Array<{
     id: string;
     name: string;
@@ -55,12 +57,22 @@ interface ProjectData {
   }>;
 }
 
+interface UserUtilization {
+  userId: string;
+  username: string;
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  completionRate: number;
+}
+
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const { projects: dataProjects, hardDrives } = useData();
   const [currentShifts, setCurrentShifts] = useState<DashboardShift[]>([]);
-  const [timeOffRequests, setTimeOffRequests] = useState<ShiftRequest[]>([]);
+  const [todayTimeOffRequests, setTodayTimeOffRequests] = useState<ShiftRequest[]>([]);
   const [projectsData, setProjectsData] = useState<ProjectData[]>([]);
+  const [userUtilization, setUserUtilization] = useState<UserUtilization[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -82,7 +94,12 @@ const Dashboard = () => {
 
         setCurrentShifts(currentShiftsData || []);
 
-        // Fetch time-off requests (only show if there are any)
+        // Fetch today's time-off requests only
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
         const { data: requestsData } = await supabase
           .from('shift_requests')
           .select(`
@@ -90,9 +107,10 @@ const Dashboard = () => {
             user:auth_users(username)
           `)
           .eq('request_type', 'time_off')
-          .eq('status', 'pending');
+          .gte('start_date', todayStart.toISOString())
+          .lte('start_date', todayEnd.toISOString());
 
-        setTimeOffRequests(requestsData || []);
+        setTodayTimeOffRequests(requestsData || []);
 
         // Fetch projects with their hard drives and tasks
         const { data: projectsWithData } = await supabase
@@ -101,7 +119,9 @@ const Dashboard = () => {
             *,
             hard_drives(*),
             tasks(*)
-          `);
+          `)
+          .order('created_at', { ascending: false })
+          .limit(5);
 
         if (projectsWithData) {
           const processedProjects = projectsWithData.map(project => ({
@@ -110,6 +130,42 @@ const Dashboard = () => {
             tasks: project.tasks || []
           }));
           setProjectsData(processedProjects);
+        }
+
+        // Fetch user utilization data
+        const { data: usersData } = await supabase
+          .from('auth_users')
+          .select('id, username');
+
+        const { data: tasksData } = await supabase
+          .from('tasks')
+          .select(`
+            *,
+            task_assignments(user_id)
+          `);
+
+        if (usersData && tasksData) {
+          const utilization = usersData.map(user => {
+            const userTasks = tasksData.filter(task => 
+              task.task_assignments?.some((assignment: any) => assignment.user_id === user.id)
+            );
+            
+            const totalTasks = userTasks.length;
+            const completedTasks = userTasks.filter(task => task.status === 'completed').length;
+            const inProgressTasks = userTasks.filter(task => task.status === 'in_progress').length;
+            const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+            return {
+              userId: user.id,
+              username: user.username,
+              totalTasks,
+              completedTasks,
+              inProgressTasks,
+              completionRate: Math.round(completionRate)
+            };
+          }).filter(user => user.totalTasks > 0);
+
+          setUserUtilization(utilization);
         }
 
       } catch (error) {
@@ -122,15 +178,18 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // Calculate low space alerts by project (only for latest backup drive)
-  const getProjectLowSpaceAlerts = () => {
+  // Calculate low space alerts for backup drives containing "BK"
+  const getBackupDriveAlerts = () => {
     return projectsData.map(project => {
-      // Find the latest hard drive by creation date
-      const latestBackup = project.hardDrives
-        .filter(hd => hd.status === 'available')
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      // Find backup drives containing "BK" in the name
+      const backupDrives = project.hardDrives
+        .filter(hd => hd.name.includes('BK') && hd.status === 'available')
+        .filter(hd => hd.free_space && hd.free_space !== 'N/A' && hd.free_space.trim() !== '')
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      if (!latestBackup) return null;
+      if (backupDrives.length === 0) return null;
+
+      const latestBackup = backupDrives[0];
 
       const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
         const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
@@ -151,26 +210,7 @@ const Dashboard = () => {
     }).filter(Boolean);
   };
 
-  const lowSpaceAlerts = getProjectLowSpaceAlerts();
-
-  // Project utilization data
-  const getProjectUtilization = () => {
-    return projectsData.map(project => {
-      const totalTasks = project.tasks.length;
-      const completedTasks = project.tasks.filter(task => task.status === 'completed').length;
-      const completion = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-      return {
-        name: project.name,
-        totalTasks,
-        completedTasks,
-        completion: Math.round(completion),
-        status: project.status
-      };
-    });
-  };
-
-  const projectUtilization = getProjectUtilization();
+  const backupDriveAlerts = getBackupDriveAlerts();
 
   if (loading) {
     return (
@@ -195,18 +235,23 @@ const Dashboard = () => {
         </div>
 
         {/* Currently Working Section */}
-        {currentShifts.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-green-600" />
-                Currently Working ({currentShifts.length})
-              </CardTitle>
-              <CardDescription>
-                Team members currently on shift
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-green-600" />
+              Currently Working ({currentShifts.length})
+            </CardTitle>
+            <CardDescription>
+              Team members currently on shift
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {currentShifts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No one is currently working</p>
+              </div>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {currentShifts.map((shift) => (
                   <div key={shift.id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
@@ -219,32 +264,32 @@ const Dashboard = () => {
                       <p className="font-medium text-gray-900">{shift.user?.username}</p>
                       <p className="text-sm text-gray-600">{shift.title}</p>
                       <p className="text-xs text-gray-500">
-                        Until {new Date(shift.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Until {format(new Date(shift.end_time), 'HH:mm')}
                       </p>
                     </div>
                     <Badge className="bg-green-100 text-green-800">Active</Badge>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Time Off Requests - Only show if there are any */}
-        {timeOffRequests.length > 0 && (
+        {/* Today's Time Off Requests */}
+        {todayTimeOffRequests.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-orange-600" />
-                Pending Time Off Requests ({timeOffRequests.length})
+                Today's Time Off Requests ({todayTimeOffRequests.length})
               </CardTitle>
               <CardDescription>
-                Time off requests requiring attention
+                Time off requests for today
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {timeOffRequests.map((request) => (
+                {todayTimeOffRequests.map((request) => (
                   <div key={request.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
                     <div className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
@@ -255,8 +300,8 @@ const Dashboard = () => {
                       <div>
                         <p className="font-medium text-gray-900">{request.user?.username}</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(request.start_date).toLocaleDateString()} 
-                          {request.end_date && ` - ${new Date(request.end_date).toLocaleDateString()}`}
+                          {format(new Date(request.start_date), 'MMM d, yyyy')}
+                          {request.end_date && ` - ${format(new Date(request.end_date), 'MMM d, yyyy')}`}
                         </p>
                         {request.reason && (
                           <p className="text-xs text-gray-500">{request.reason}</p>
@@ -264,7 +309,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-orange-600">
-                      Pending
+                      {request.status}
                     </Badge>
                   </div>
                 ))}
@@ -273,27 +318,27 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Low Space Alerts by Project */}
-        {lowSpaceAlerts.length > 0 && (
+        {/* Backup Drive Storage Alerts */}
+        {backupDriveAlerts.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
-                Storage Alerts ({lowSpaceAlerts.length})
+                Backup Drive Storage Alerts ({backupDriveAlerts.length})
               </CardTitle>
               <CardDescription>
-                Latest backup drives with low storage space by project
+                Backup drives (BK) with low storage space
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {lowSpaceAlerts.map((alert, index) => (
+                {backupDriveAlerts.map((alert, index) => (
                   <div key={index} className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                     <div className="flex items-center space-x-3">
                       <HardDrive className="h-8 w-8 text-red-600" />
                       <div>
                         <p className="font-medium text-gray-900">{alert.project}</p>
-                        <p className="text-sm text-gray-600">Latest backup: {alert.hardDrive}</p>
+                        <p className="text-sm text-gray-600">Backup drive: {alert.hardDrive}</p>
                         <p className="text-xs text-gray-500">
                           {alert.freeSpace} free of {alert.capacity}
                         </p>
@@ -312,43 +357,89 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Project & Task Utilization */}
+        {/* Recent Projects */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart className="h-5 w-5" />
-              Project Task Progress
+              <FolderOpen className="h-5 w-5" />
+              Recent Projects
             </CardTitle>
             <CardDescription>
-              Task completion progress across all projects
+              Latest 5 projects in the system
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {projectUtilization.map((project) => (
-                <div key={project.name} className="space-y-2">
+              {projectsData.map((project) => (
+                <div key={project.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <FolderOpen className="h-8 w-8 text-blue-600" />
+                    <div>
+                      <p className="font-medium text-gray-900">{project.name}</p>
+                      <p className="text-sm text-gray-600">{project.description || 'No description'}</p>
+                      <p className="text-xs text-gray-500">
+                        Created {format(new Date(project.created_at), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                      {project.status}
+                    </Badge>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {project.tasks.length} tasks, {project.hardDrives.length} drives
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {projectsData.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  No projects available
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* User Utilization */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart className="h-5 w-5" />
+              User Task Utilization
+            </CardTitle>
+            <CardDescription>
+              Task completion rates by user
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {userUtilization.map((user) => (
+                <div key={user.userId} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-2">
-                      <h4 className="font-medium">{project.name}</h4>
-                      <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
-                        {project.status}
-                      </Badge>
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                          {user.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <h4 className="font-medium">{user.username}</h4>
                     </div>
                     <div className="text-sm text-gray-600">
-                      {project.completedTasks}/{project.totalTasks} tasks
+                      {user.completedTasks}/{user.totalTasks} completed ({user.inProgressTasks} in progress)
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <Progress value={project.completion} className="flex-1" />
+                    <Progress value={user.completionRate} className="flex-1" />
                     <span className="text-sm font-medium w-12 text-right">
-                      {project.completion}%
+                      {user.completionRate}%
                     </span>
                   </div>
                 </div>
               ))}
-              {projectUtilization.length === 0 && (
+              {userUtilization.length === 0 && (
                 <div className="text-center py-4 text-gray-500">
-                  No projects available
+                  No user task data available
                 </div>
               )}
             </div>
