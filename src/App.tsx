@@ -1,11 +1,9 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { TaskProvider } from '@/context/TaskContext';
-import { ShiftsProvider } from '@/context/ShiftsContext';
 
 // Pages
 import Index from '@/pages/Index';
@@ -39,37 +37,35 @@ function App() {
       <AuthProvider>
         <DataProvider>
           <TaskProvider>
-            <ShiftsProvider>
-              <Router>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/hard-drives" element={<HardDrives />} />
-                  <Route path="/hard-drives/new" element={<HardDriveForm />} />
-                  <Route path="/hard-drives/:id" element={<HardDriveDetail />} />
-                  <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
-                  <Route path="/hard-drives/:id/print" element={<PrintPage />} />
-                  <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
-                  <Route path="/public/hard-drive/:id" element={<PublicHardDriveView />} />
-                  <Route path="/projects" element={<Projects />} />
-                  <Route path="/projects/new" element={<ProjectForm />} />
-                  <Route path="/projects/:id" element={<ProjectDetail />} />
-                  <Route path="/projects/:id/edit" element={<ProjectForm />} />
-                  <Route path="/projects/:id/print" element={<PrintPage />} />
-                  <Route path="/task-manager" element={<TaskManager />} />
-                  <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
-                  <Route path="/user-management" element={<UserManagement />} />
-                  <Route path="/print" element={<PrintPage />} />
-                  <Route path="/qr-code/:id" element={<QRCodePage />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/knowledge-base" element={<KnowledgeBase />} />
-                  <Route path="/fcm-debug" element={<FCMDebug />} />
-                  <Route path="/notes" element={<Notes />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Router>
-            </ShiftsProvider>
+            <Router>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/hard-drives" element={<HardDrives />} />
+                <Route path="/hard-drives/new" element={<HardDriveForm />} />
+                <Route path="/hard-drives/:id" element={<HardDriveDetail />} />
+                <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
+                <Route path="/hard-drives/:id/print" element={<PrintPage />} />
+                <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
+                <Route path="/public/hard-drive/:id" element={<PublicHardDriveView />} />
+                <Route path="/projects" element={<Projects />} />
+                <Route path="/projects/new" element={<ProjectForm />} />
+                <Route path="/projects/:id" element={<ProjectDetail />} />
+                <Route path="/projects/:id/edit" element={<ProjectForm />} />
+                <Route path="/projects/:id/print" element={<PrintPage />} />
+                <Route path="/task-manager" element={<TaskManager />} />
+                <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
+                <Route path="/user-management" element={<UserManagement />} />
+                <Route path="/print" element={<PrintPage />} />
+                <Route path="/qr-code/:id" element={<QRCodePage />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/knowledge-base" element={<KnowledgeBase />} />
+                <Route path="/fcm-debug" element={<FCMDebug />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Router>
             <Toaster />
           </TaskProvider>
         </DataProvider>
