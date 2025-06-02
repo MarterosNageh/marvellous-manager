@@ -2,24 +2,27 @@
 import React, { useState } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Clock, Plus, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { ShiftRequest } from '@/types/shiftTypes';
 
 interface ShiftRequestDialogProps {
-  children: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({ children }) => {
+export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({ 
+  open, 
+  onOpenChange 
+}) => {
   const { createShiftRequest } = useShifts();
   const { currentUser } = useAuth();
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [requestData, setRequestData] = useState<Omit<ShiftRequest, 'id' | 'created_at' | 'updated_at'>>({
     user_id: currentUser?.id || '',
@@ -69,7 +72,7 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({ children
           }
         }
       });
-      setOpen(false);
+      onOpenChange(false);
     }
     setLoading(false);
   };
@@ -102,11 +105,7 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({ children
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -274,7 +273,7 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({ children
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => onOpenChange(false)}
               disabled={loading}
             >
               Cancel

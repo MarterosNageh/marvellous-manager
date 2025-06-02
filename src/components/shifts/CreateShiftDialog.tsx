@@ -8,9 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { ShiftFormData } from '@/types/shiftTypes';
 import { Calendar, Clock, Repeat, User } from 'lucide-react';
 
@@ -28,6 +27,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [showCustomHours, setShowCustomHours] = useState(false);
   const [showRepeatOptions, setShowRepeatOptions] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<ShiftFormData>({
     user_id: '',
@@ -47,6 +47,16 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
       break_duration: 60
     }
   });
+
+  const weekDays = [
+    { value: 'monday', label: 'Monday' },
+    { value: 'tuesday', label: 'Tuesday' },
+    { value: 'wednesday', label: 'Wednesday' },
+    { value: 'thursday', label: 'Thursday' },
+    { value: 'friday', label: 'Friday' },
+    { value: 'saturday', label: 'Saturday' },
+    { value: 'sunday', label: 'Sunday' }
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +87,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
       });
       setShowCustomHours(false);
       setShowRepeatOptions(false);
+      setSelectedDays([]);
       onOpenChange(false);
     }
     setLoading(false);
@@ -93,6 +104,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
       setShowRepeatOptions(true);
     } else if (field === 'repeat_pattern' && value === 'none') {
       setShowRepeatOptions(false);
+      setSelectedDays([]);
     }
     
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -107,6 +119,17 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
       }
     }));
   };
+
+  const handleDayToggle = (day: string) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
+  // Auto-fill role from user data
+  const selectedUser = users.find(u => u.id === formData.user_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -137,7 +160,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                   <SelectContent>
                     {users.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
-                        {user.username} {user.isAdmin ? '(Admin)' : '(Employee)'}
+                        {user.username} {user.isAdmin ? '(Admin)' : `(${user.role || 'Employee'})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -155,15 +178,16 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role/Position</Label>
-                <Input
-                  id="role"
-                  value={formData.role}
-                  onChange={(e) => handleInputChange('role', e.target.value)}
-                  placeholder="e.g., Supervisor, Cashier"
-                />
-              </div>
+              {selectedUser && (
+                <div className="space-y-2">
+                  <Label>Role/Position (from user profile)</Label>
+                  <Input
+                    value={selectedUser.role || selectedUser.title || 'Employee'}
+                    disabled
+                    className="bg-gray-100"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -254,7 +278,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="start_time">Start Time *</Label>
+                  <Label htmlFor="start_time">Start Date & Time *</Label>
                   <Input
                     id="start_time"
                     type="datetime-local"
@@ -264,7 +288,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="end_time">End Time *</Label>
+                  <Label htmlFor="end_time">End Date & Time *</Label>
                   <Input
                     id="end_time"
                     type="datetime-local"
@@ -303,14 +327,36 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
               </div>
 
               {showRepeatOptions && (
-                <div className="space-y-2">
-                  <Label htmlFor="repeat_end_date">Repeat Until</Label>
-                  <Input
-                    id="repeat_end_date"
-                    type="date"
-                    value={formData.repeat_end_date}
-                    onChange={(e) => handleInputChange('repeat_end_date', e.target.value)}
-                  />
+                <div className="space-y-4">
+                  {formData.repeat_pattern === 'weekly' && (
+                    <div className="space-y-2">
+                      <Label>Select Days of the Week</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {weekDays.map((day) => (
+                          <div key={day.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={day.value}
+                              checked={selectedDays.includes(day.value)}
+                              onCheckedChange={() => handleDayToggle(day.value)}
+                            />
+                            <Label htmlFor={day.value} className="text-sm">
+                              {day.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="repeat_end_date">Repeat Until</Label>
+                    <Input
+                      id="repeat_end_date"
+                      type="date"
+                      value={formData.repeat_end_date}
+                      onChange={(e) => handleInputChange('repeat_end_date', e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>

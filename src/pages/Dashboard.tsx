@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, User, AlertTriangle, HardDrive } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useShifts } from '@/context/ShiftsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -16,24 +17,6 @@ interface HardDrive {
   free_space: string;
   status: string;
   created_at: string;
-}
-
-interface Shift {
-  id: string;
-  title: string;
-  start_time: string;
-  end_time: string;
-  user_id: string;
-  status: string;
-}
-
-interface ShiftRequest {
-  id: string;
-  request_type: string;
-  status: string;
-  start_date: string;
-  end_date: string | null;
-  user_id: string;
 }
 
 interface TaskUtilization {
@@ -48,51 +31,24 @@ interface TaskUtilization {
 
 const Dashboard = () => {
   const { currentUser, users } = useAuth();
-  const [currentlyWorking, setCurrentlyWorking] = useState<(Shift & { username: string })[]>([]);
-  const [todayTimeOff, setTodayTimeOff] = useState<(ShiftRequest & { username: string })[]>([]);
+  const { shifts, shiftRequests, getCurrentShifts, getTodayShifts } = useShifts();
   const [storageAlerts, setStorageAlerts] = useState<HardDrive[]>([]);
   const [recentHards, setRecentHards] = useState<HardDrive[]>([]);
   const [taskUtilization, setTaskUtilization] = useState<TaskUtilization[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Get current shifts and today's time off from ShiftsContext
+  const currentlyWorking = getCurrentShifts();
+  const todayTimeOff = shiftRequests.filter(request => {
+    if (request.status !== 'approved') return false;
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const requestDate = new Date(request.start_date).toISOString().split('T')[0];
+    return requestDate === todayStr;
+  });
+
   const fetchDashboardData = async () => {
     try {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-
-      // Fetch currently working shifts
-      const { data: shifts } = await supabase
-        .from('shifts')
-        .select('*, auth_users!shifts_user_id_fkey(username)')
-        .eq('status', 'scheduled')
-        .lte('start_time', now.toISOString())
-        .gte('end_time', now.toISOString());
-
-      if (shifts) {
-        const workingShifts = shifts.map(shift => ({
-          ...shift,
-          username: shift.auth_users?.username || 'Unknown'
-        }));
-        setCurrentlyWorking(workingShifts);
-      }
-
-      // Fetch today's time off requests
-      const { data: timeOffData } = await supabase
-        .from('shift_requests')
-        .select('*, auth_users!shift_requests_user_id_fkey(username)')
-        .eq('status', 'approved')
-        .gte('start_date', today.toISOString())
-        .lt('start_date', tomorrow.toISOString());
-
-      if (timeOffData) {
-        const timeOffRequests = timeOffData.map(request => ({
-          ...request,
-          username: request.auth_users?.username || 'Unknown'
-        }));
-        setTodayTimeOff(timeOffRequests);
-      }
-
       // Fetch hard drives for storage alerts and recent drives
       const { data: hardDrives } = await supabase
         .from('hard_drives')
@@ -100,7 +56,7 @@ const Dashboard = () => {
         .order('created_at', { ascending: false });
 
       if (hardDrives) {
-        // Filter and sort drives for storage alerts
+        // Process storage alerts for BK drives
         const bkDrives = hardDrives
           .filter(drive => 
             drive.name.includes('BK') && 
@@ -202,7 +158,7 @@ const Dashboard = () => {
 
         {/* Top Row - 2 Cards Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Welcome & Shifts */}
+          {/* Left: Today's Shifts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -219,17 +175,20 @@ const Dashboard = () => {
                     <p className="text-sm text-gray-500">No one is currently working</p>
                   ) : (
                     <div className="space-y-2">
-                      {currentlyWorking.map(shift => (
-                        <div key={shift.id} className="flex items-center justify-between p-2 bg-green-50 rounded">
-                          <div>
-                            <p className="font-medium text-sm">{shift.username}</p>
-                            <p className="text-xs text-gray-600">{shift.title}</p>
+                      {currentlyWorking.map(shift => {
+                        const user = users.find(u => u.id === shift.user_id);
+                        return (
+                          <div key={shift.id} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                            <div>
+                              <p className="font-medium text-sm">{user?.username}</p>
+                              <p className="text-xs text-gray-600">{shift.title}</p>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -239,15 +198,18 @@ const Dashboard = () => {
                   <div>
                     <h4 className="font-medium text-sm mb-2">Time Off Today</h4>
                     <div className="space-y-2">
-                      {todayTimeOff.map(request => (
-                        <div key={request.id} className="flex items-center justify-between p-2 bg-blue-50 rounded">
-                          <div>
-                            <p className="font-medium text-sm">{request.username}</p>
-                            <p className="text-xs text-gray-600 capitalize">{request.request_type.replace('_', ' ')}</p>
+                      {todayTimeOff.map(request => {
+                        const user = users.find(u => u.id === request.user_id);
+                        return (
+                          <div key={request.id} className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                            <div>
+                              <p className="font-medium text-sm">{user?.username}</p>
+                              <p className="text-xs text-gray-600 capitalize">{request.request_type.replace('_', ' ')}</p>
+                            </div>
+                            <Badge variant="secondary">Day Off</Badge>
                           </div>
-                          <Badge variant="secondary">Day Off</Badge>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
