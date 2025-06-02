@@ -1,112 +1,169 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
-import { ArrowLeft, Edit, Trash2, HardDrive as HardDriveIcon, Printer, AlertTriangle } from "lucide-react";
-import { useData } from "@/context/DataContext";
-import type { Project, HardDrive, PrintHistory } from "@/types";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { 
+  ArrowLeft, 
+  Edit, 
+  Save, 
+  X, 
+  HardDrive, 
+  Calendar,
+  AlertTriangle,
+  Printer
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-const formatDate = (dateString: string) => {
-  return format(new Date(dateString), 'PPpp');
-};
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+  status: string;
+  created_at: string;
+}
+
+interface HardDrive {
+  id: string;
+  name: string;
+  serial_number: string;
+  capacity?: string;
+  free_space?: string;
+  data?: string;
+  project_id?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { projects, hardDrives, deleteProject, printHistory } = useData();
-  
   const [project, setProject] = useState<Project | null>(null);
-  const [projectHardDrives, setProjectHardDrives] = useState<HardDrive[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [hardDrives, setHardDrives] = useState<HardDrive[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editedProject, setEditedProject] = useState<Partial<Project>>({});
 
   useEffect(() => {
-    if (!id) {
-      navigate('/projects');
-      return;
+    if (id) {
+      fetchProject();
+      fetchHardDrives();
     }
+  }, [id]);
 
-    const foundProject = projects.find(p => p.id === id);
-    if (!foundProject) {
-      toast({
-        title: "Project Not Found",
-        description: "The requested project could not be found.",
-        variant: "destructive"
-      });
-      navigate('/projects');
-      return;
-    }
+  const fetchProject = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    setProject(foundProject);
-    
-    // Find hard drives associated with this project
-    const associatedHardDrives = hardDrives.filter(hd => hd.projectId === id);
-    setProjectHardDrives(associatedHardDrives);
-    
-    setLoading(false);
-  }, [id, projects, hardDrives, navigate, toast]);
-
-  const handleDelete = async () => {
-    if (!project) return;
-    
-    if (window.confirm('Are you sure you want to delete this project? This will not delete associated hard drives.')) {
-      try {
-        await deleteProject(project.id);
-        toast({
-          title: "Project Deleted",
-          description: "The project has been successfully deleted."
-        });
-        navigate('/projects');
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete the project.",
-          variant: "destructive"
-        });
-      }
+      if (error) throw error;
+      setProject(data);
+      setEditedProject(data);
+    } catch (error) {
+      console.error('Error fetching project:', error);
+      toast.error('Failed to load project');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handlePrint = () => {
-    if (!project) return;
+  const fetchHardDrives = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hard_drives')
+        .select('*')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setHardDrives(data || []);
+    } catch (error) {
+      console.error('Error fetching hard drives:', error);
+      toast.error('Failed to load hard drives');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!project || !editedProject.name?.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update(editedProject)
+        .eq('id', project.id);
+
+      if (error) throw error;
+
+      setProject({ ...project, ...editedProject });
+      setIsEditing(false);
+      toast.success('Project updated successfully');
+    } catch (error) {
+      console.error('Error updating project:', error);
+      toast.error('Failed to update project');
+    }
+  };
+
+  const handleCancel = () => {
+    setEditedProject(project || {});
+    setIsEditing(false);
+  };
+
+  // Parse storage capacity and free space
+  const parseStorageSize = (sizeStr: string): number => {
+    if (!sizeStr || sizeStr === 'N/A' || sizeStr === '' || sizeStr === '0') return 0;
     
-    // Navigate to project print page with all hard drives
-    navigate(`/projects/${project.id}/print`, { 
+    const cleanStr = sizeStr.replace(/[^0-9.]/g, '');
+    const num = parseFloat(cleanStr);
+    
+    if (sizeStr.toUpperCase().includes('TB')) return num * 1000;
+    if (sizeStr.toUpperCase().includes('GB')) return num;
+    return num;
+  };
+
+  // Check if drive has low space
+  const hasLowSpace = (drive: HardDrive): boolean => {
+    const capacity = parseStorageSize(drive.capacity || '');
+    const freeSpace = parseStorageSize(drive.free_space || '');
+    
+    if (capacity > 0 && freeSpace > 0) {
+      const usedSpace = capacity - freeSpace;
+      const usagePercent = (usedSpace / capacity) * 100;
+      return usagePercent > 85; // More than 85% used = low space
+    }
+    
+    return false;
+  };
+
+  const handlePrintProject = () => {
+    navigate('/print', { 
       state: { 
-        type: 'all-hards',
-        project,
-        hardDrives: projectHardDrives
-      } 
+        type: 'project_drives',
+        projectId: id,
+        projectName: project?.name
+      }
     });
   };
 
-  // Check for low space drives
-  const getLowSpaceStatus = (hardDrive: HardDrive) => {
-    if (!hardDrive.freeSpace || hardDrive.freeSpace === 'N/A' || hardDrive.freeSpace.trim() === '') {
-      return null;
-    }
-    
-    const getFreeSpacePercentage = (freeSpace: string, capacity: string) => {
-      const free = parseFloat(freeSpace.replace(/[^\d.]/g, '')) || 0;
-      const total = parseFloat(capacity?.replace(/[^\d.]/g, '') || '1') || 1;
-      return (free / total) * 100;
-    };
-
-    const freeSpacePercent = getFreeSpacePercentage(hardDrive.freeSpace, hardDrive.capacity || '1TB');
-    return freeSpacePercent < 20;
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <MainLayout>
-        <div className="p-6">
-          <div className="text-center">Loading...</div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">Loading project...</div>
         </div>
       </MainLayout>
     );
@@ -115,214 +172,227 @@ const ProjectDetail = () => {
   if (!project) {
     return (
       <MainLayout>
-        <div className="p-6">
-          <div className="text-center">Project not found</div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-600">Project not found</div>
         </div>
       </MainLayout>
     );
   }
 
-  // Filter and transform print history for this project
-  const projectPrintHistory = printHistory
-    .filter(history => history.projectId === project.id)
-    .map(history => {
-      const hardDrive = hardDrives.find(hd => hd.id === history.hardDriveId);
-      return {
-        id: history.id,
-        type: history.type,
-        hard_drive_id: history.hardDriveId,
-        printed_at: history.timestamp,
-        printed_by: history.operatorName,
-        hardDriveName: hardDrive?.name || 'Unknown Hard Drive'
-      };
-    });
-
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => navigate('/projects')}
-            >
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" onClick={() => navigate('/projects')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Projects
             </Button>
-            <h1 className="text-3xl font-bold">{project.name}</h1>
+            <Separator orientation="vertical" className="h-6" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+              <p className="text-muted-foreground">
+                Created on {format(new Date(project.created_at), 'PPP')}
+              </p>
+            </div>
           </div>
-          
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePrint}
-            >
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={handlePrintProject}>
               <Printer className="h-4 w-4 mr-2" />
-              Print All Hard Drives
+              Print All Drives
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate(`/projects/${project.id}/edit`)}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={handleDelete}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+            {isEditing ? (
+              <>
+                <Button onClick={handleSave}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button variant="outline" onClick={handleCancel}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Project
+              </Button>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Project Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Name</label>
-                <p className="text-lg">{project.name}</p>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-500">Type</label>
-                <Badge variant="secondary">{project.type || 'Not specified'}</Badge>
-              </div>
-              
-              {project.description && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Description</label>
-                  <p className="text-sm text-gray-700">{project.description}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="text-sm font-medium text-gray-500">Created</label>
-                <p className="text-sm">{formatDate(project.createdAt)}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Statistics */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Statistics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <HardDriveIcon className="h-8 w-8 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Hard Drives</p>
-                    <p className="text-2xl font-bold text-blue-600">{projectHardDrives.length}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Printer className="h-8 w-8 text-green-600" />
-                  <div>
-                    <p className="text-sm font-medium text-green-900">Print Operations</p>
-                    <p className="text-2xl font-bold text-green-600">{projectPrintHistory.length}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Associated Hard Drives Table */}
+        {/* Project Details */}
         <Card>
           <CardHeader>
-            <CardTitle>Associated Hard Drives ({projectHardDrives.length})</CardTitle>
+            <CardTitle>Project Information</CardTitle>
           </CardHeader>
-          <CardContent>
-            {projectHardDrives.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-4 font-medium">Name</th>
-                      <th className="text-left py-2 px-4 font-medium">Serial Number</th>
-                      <th className="text-center py-2 px-4 font-medium">Capacity</th>
-                      <th className="text-center py-2 px-4 font-medium">Free Space</th>
-                      <th className="text-center py-2 px-4 font-medium">Status</th>
-                      <th className="text-center py-2 px-4 font-medium">Alerts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projectHardDrives.map((hardDrive) => {
-                      const isLowSpace = getLowSpaceStatus(hardDrive);
-                      return (
-                        <tr 
-                          key={hardDrive.id} 
-                          className="border-b hover:bg-gray-50 cursor-pointer"
-                          onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
-                        >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <HardDriveIcon className="h-4 w-4 text-gray-600" />
-                              <span className="font-medium">{hardDrive.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{hardDrive.serialNumber}</td>
-                          <td className="text-center py-3 px-4 text-sm">{hardDrive.capacity || 'Unknown'}</td>
-                          <td className="text-center py-3 px-4 text-sm">{hardDrive.freeSpace || 'Unknown'}</td>
-                          <td className="text-center py-3 px-4">
-                            <Badge variant={hardDrive.status === 'available' ? 'default' : 'secondary'}>
-                              {hardDrive.status}
-                            </Badge>
-                          </td>
-                          <td className="text-center py-3 px-4">
-                            {isLowSpace && (
-                              <Badge variant="destructive" className="flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Low Space
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Project Name</Label>
+                {isEditing ? (
+                  <Input
+                    id="name"
+                    value={editedProject.name || ''}
+                    onChange={(e) => setEditedProject(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter project name"
+                  />
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">{project.name}</div>
+                )}
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <HardDriveIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500">No hard drives associated with this project</p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-4"
-                  onClick={() => navigate('/hard-drives/new', { state: { projectId: project.id } })}
-                >
-                  Add Hard Drive
-                </Button>
+
+              <div className="space-y-2">
+                <Label htmlFor="type">Project Type</Label>
+                {isEditing ? (
+                  <Select
+                    value={editedProject.type || ''}
+                    onValueChange={(value) => setEditedProject(prev => ({ ...prev, type: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select project type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="data_recovery">Data Recovery</SelectItem>
+                      <SelectItem value="backup">Backup</SelectItem>
+                      <SelectItem value="migration">Data Migration</SelectItem>
+                      <SelectItem value="forensics">Digital Forensics</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    {project.type || 'Not specified'}
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                {isEditing ? (
+                  <Select
+                    value={editedProject.status || ''}
+                    onValueChange={(value) => setEditedProject(prev => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="on_hold">On Hold</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <Badge 
+                      variant={
+                        project.status === 'active' ? 'default' :
+                        project.status === 'completed' ? 'secondary' :
+                        project.status === 'on_hold' ? 'outline' : 'destructive'
+                      }
+                    >
+                      {project.status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="created">Created Date</Label>
+                <div className="p-3 bg-gray-50 rounded-md flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                  {format(new Date(project.created_at), 'PPP')}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              {isEditing ? (
+                <Textarea
+                  id="description"
+                  value={editedProject.description || ''}
+                  onChange={(e) => setEditedProject(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Enter project description"
+                  rows={4}
+                />
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-md min-h-[100px]">
+                  {project.description || 'No description provided'}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Separator />
-
-        {/* Print History */}
+        {/* Associated Hard Drives */}
         <Card>
           <CardHeader>
-            <CardTitle>Print History</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Associated Hard Drives ({hardDrives.length})
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <PrintHistoryTable data={projectPrintHistory} />
+            {hardDrives.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <HardDrive className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No hard drives associated with this project</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-3 font-medium">Name</th>
+                      <th className="text-left p-3 font-medium">Serial Number</th>
+                      <th className="text-center p-3 font-medium">Capacity</th>
+                      <th className="text-center p-3 font-medium">Free Space</th>
+                      <th className="text-left p-3 font-medium">Data</th>
+                      <th className="text-center p-3 font-medium">Status</th>
+                      <th className="text-center p-3 font-medium">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hardDrives.map((drive) => (
+                      <tr key={drive.id} className="border-b hover:bg-gray-50">
+                        <td className="p-3">
+                          <div className="flex items-center space-x-2">
+                            <HardDrive className="h-4 w-4 text-gray-500" />
+                            <span className="font-medium">{drive.name}</span>
+                            {hasLowSpace(drive) && (
+                              <Badge variant="destructive" className="text-xs">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Low Space
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 font-mono text-xs">{drive.serial_number}</td>
+                        <td className="text-center p-3">{drive.capacity || 'N/A'}</td>
+                        <td className="text-center p-3">{drive.free_space || 'N/A'}</td>
+                        <td className="p-3">
+                          <div className="max-w-xs truncate" title={drive.data || ''}>
+                            {drive.data || 'No data specified'}
+                          </div>
+                        </td>
+                        <td className="text-center p-3">
+                          <Badge variant="outline">
+                            Available
+                          </Badge>
+                        </td>
+                        <td className="text-center p-3 text-gray-500">
+                          {format(new Date(drive.created_at), 'MMM d, yyyy')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
