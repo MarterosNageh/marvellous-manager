@@ -58,19 +58,6 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
     { value: 'sunday', label: 'Sunday' }
   ];
 
-  const getShiftTimes = (shiftType: string) => {
-    switch (shiftType) {
-      case 'morning':
-        return { start: '06:00', end: '14:00' };
-      case 'evening':
-        return { start: '14:00', end: '22:00' };
-      case 'night':
-        return { start: '22:00', end: '06:00' };
-      default:
-        return { start: '09:00', end: '17:00' };
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.user_id || !formData.title || !formData.start_time || !formData.end_time) {
@@ -107,39 +94,20 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
   };
 
   const handleInputChange = (field: keyof ShiftFormData, value: any) => {
-    if (field === 'shift_type') {
-      const times = getShiftTimes(value);
-      const today = new Date().toISOString().split('T')[0];
-      
-      setFormData(prev => ({ 
-        ...prev, 
-        [field]: value,
-        start_time: `${today}T${times.start}`,
-        end_time: value === 'night' 
-          ? `${new Date(new Date().getTime() + 24*60*60*1000).toISOString().split('T')[0]}T${times.end}`
-          : `${today}T${times.end}`
-      }));
-
-      if (value === 'custom') {
-        setShowCustomHours(true);
-      } else {
-        setShowCustomHours(false);
-      }
-    } else if (field === 'repeat_pattern') {
-      setShowRepeatOptions(value !== 'none');
-      if (value === 'none') {
-        setSelectedDays([]);
-      }
-      setFormData(prev => ({ ...prev, [field]: value }));
-    } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'shift_type' && value === 'custom') {
+      setShowCustomHours(true);
+    } else if (field === 'shift_type' && value !== 'custom') {
+      setShowCustomHours(false);
     }
-  };
-
-  const handleTimeChange = (field: 'start_time' | 'end_time', time: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    const datetime = `${today}T${time}`;
-    setFormData(prev => ({ ...prev, [field]: datetime }));
+    
+    if (field === 'repeat_pattern' && value !== 'none') {
+      setShowRepeatOptions(true);
+    } else if (field === 'repeat_pattern' && value === 'none') {
+      setShowRepeatOptions(false);
+      setSelectedDays([]);
+    }
+    
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCustomScheduleChange = (field: string, value: number) => {
@@ -209,6 +177,17 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                   required
                 />
               </div>
+
+              {selectedUser && (
+                <div className="space-y-2">
+                  <Label>Role/Position (from user profile)</Label>
+                  <Input
+                    value={selectedUser.role || selectedUser.title || 'Employee'}
+                    disabled
+                    className="bg-gray-100"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -299,22 +278,22 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="start_time">Start Time</Label>
+                  <Label htmlFor="start_time">Start Date & Time *</Label>
                   <Input
                     id="start_time"
-                    type="time"
-                    value={formData.start_time ? formData.start_time.split('T')[1]?.substring(0, 5) : ''}
-                    onChange={(e) => handleTimeChange('start_time', e.target.value)}
+                    type="datetime-local"
+                    value={formData.start_time}
+                    onChange={(e) => handleInputChange('start_time', e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="end_time">End Time</Label>
+                  <Label htmlFor="end_time">End Date & Time *</Label>
                   <Input
                     id="end_time"
-                    type="time"
-                    value={formData.end_time ? formData.end_time.split('T')[1]?.substring(0, 5) : ''}
-                    onChange={(e) => handleTimeChange('end_time', e.target.value)}
+                    type="datetime-local"
+                    value={formData.end_time}
+                    onChange={(e) => handleInputChange('end_time', e.target.value)}
                     required
                   />
                 </div>
@@ -351,7 +330,7 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                 <div className="space-y-4">
                   {formData.repeat_pattern === 'weekly' && (
                     <div className="space-y-2">
-                      <Label>Select Days of the Week ({selectedDays.length} selected)</Label>
+                      <Label>Select Days of the Week</Label>
                       <div className="grid grid-cols-2 gap-2">
                         {weekDays.map((day) => (
                           <div key={day.value} className="flex items-center space-x-2">

@@ -1,176 +1,172 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Users, Calendar, Clock, ChevronRight } from 'lucide-react';
+import { Clock, Calendar, User, Filter } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
-import { format, isToday, isThisWeek } from 'date-fns';
+import { 
+  isToday, 
+  isThisWeek, 
+  format 
+} from 'date-fns';
 
-export const EmployeeShiftsList = () => {
+type FilterType = 'all' | 'today' | 'week' | 'upcoming';
+
+interface EmployeeShiftsListProps {
+  searchTerm?: string;
+  filterRole?: string;
+}
+
+export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({ 
+  searchTerm = '', 
+  filterRole = 'all' 
+}) => {
   const { shifts, users } = useShifts();
   const { currentUser } = useAuth();
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [filter, setFilter] = useState<FilterType>('all');
 
-  // Get shifts for each user
-  const getUserShifts = (userId: string) => {
-    return shifts.filter(shift => shift.user_id === userId);
+  // Filter shifts based on selected filter
+  const getFilteredShifts = () => {
+    const now = new Date();
+    
+    switch (filter) {
+      case 'today':
+        return shifts.filter(shift => {
+          const shiftDate = new Date(shift.start_time);
+          return isToday(shiftDate) && shift.status === 'scheduled';
+        });
+      case 'week':
+        return shifts.filter(shift => {
+          const shiftDate = new Date(shift.start_time);
+          return isThisWeek(shiftDate) && shift.status === 'scheduled';
+        });
+      case 'upcoming':
+        return shifts.filter(shift => {
+          const shiftStart = new Date(shift.start_time);
+          return shiftStart > now && shift.status === 'scheduled';
+        });
+      default:
+        return shifts.filter(shift => shift.status === 'scheduled');
+    }
   };
 
-  // Get today's shifts for a user
-  const getTodayShifts = (userId: string) => {
-    return shifts.filter(shift => 
-      shift.user_id === userId && 
-      isToday(new Date(shift.start_time)) && 
-      shift.status === 'scheduled'
-    );
-  };
+  const filteredShifts = getFilteredShifts().filter(shift => {
+    const user = users.find(u => u.id === shift.user_id);
+    const matchesSearch = !searchTerm || user?.username.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || user?.role === filterRole;
+    return matchesSearch && matchesRole;
+  });
 
-  // Get this week's shifts for a user
-  const getThisWeekShifts = (userId: string) => {
-    return shifts.filter(shift => 
-      shift.user_id === userId && 
-      isThisWeek(new Date(shift.start_time)) && 
-      shift.status === 'scheduled'
-    );
-  };
+  // Sort shifts by start time
+  const sortedShifts = filteredShifts.sort((a, b) => 
+    new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
 
-  // Calculate total hours for a user
-  const calculateTotalHours = (userShifts: any[]) => {
-    return userShifts.reduce((total, shift) => {
-      const start = new Date(shift.start_time);
-      const end = new Date(shift.end_time);
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      return total + hours;
-    }, 0);
-  };
-
-  const filteredUsers = selectedUserId ? users.filter(u => u.id === selectedUserId) : users;
+  const filterButtons = [
+    { key: 'all' as FilterType, label: 'All Shifts', count: shifts.filter(s => s.status === 'scheduled').length },
+    { key: 'today' as FilterType, label: 'Today', count: shifts.filter(s => isToday(new Date(s.start_time)) && s.status === 'scheduled').length },
+    { key: 'week' as FilterType, label: 'This Week', count: shifts.filter(s => isThisWeek(new Date(s.start_time)) && s.status === 'scheduled').length },
+    { key: 'upcoming' as FilterType, label: 'Upcoming', count: shifts.filter(s => new Date(s.start_time) > new Date() && s.status === 'scheduled').length },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Employee Shifts</h3>
-          <p className="text-sm text-gray-600">View shifts for all employees</p>
-        </div>
-        
-        {/* User Filter */}
-        <div className="flex items-center space-x-2">
-          <select 
-            value={selectedUserId} 
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="">All Employees</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.username}
-              </option>
+      {/* Header with Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Employee Shifts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {filterButtons.map((button) => (
+              <Button
+                key={button.key}
+                variant={filter === button.key ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter(button.key)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                {button.label}
+                <Badge variant="secondary" className="ml-1">
+                  {button.count}
+                </Badge>
+              </Button>
             ))}
-          </select>
-        </div>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Employee Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredUsers.map((user) => {
-          const userShifts = getUserShifts(user.id);
-          const todayShifts = getTodayShifts(user.id);
-          const weekShifts = getThisWeekShifts(user.id);
-          const totalHours = calculateTotalHours(weekShifts);
-          const isCurrentlyWorking = todayShifts.some(shift => {
-            const now = new Date();
-            const shiftStart = new Date(shift.start_time);
-            const shiftEnd = new Date(shift.end_time);
-            return shiftStart <= now && shiftEnd >= now;
-          });
-
-          return (
-            <Card key={user.id} className="relative">
-              <CardHeader className="pb-3">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                      {user.username.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h4 className="font-medium">{user.username}</h4>
-                    <p className="text-sm text-gray-600">{user.role || 'Employee'}</p>
-                  </div>
-                  {isCurrentlyWorking && (
-                    <Badge className="bg-green-100 text-green-700 text-xs">
-                      Working
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-lg font-semibold text-blue-600">{todayShifts.length}</p>
-                    <p className="text-xs text-gray-600">Today</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-green-600">{weekShifts.length}</p>
-                    <p className="text-xs text-gray-600">This Week</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-orange-600">{Math.round(totalHours)}h</p>
-                    <p className="text-xs text-gray-600">Total Hours</p>
-                  </div>
-                </div>
-
-                {/* Recent Shifts */}
-                <div className="space-y-2">
-                  <h5 className="text-sm font-medium">Recent Shifts</h5>
-                  {userShifts.slice(0, 3).map((shift) => (
-                    <div key={shift.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div>
-                        <p className="text-xs font-medium">{shift.title}</p>
-                        <p className="text-xs text-gray-600">
-                          {format(new Date(shift.start_time), 'MMM d')} • {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                        </p>
+      {/* Shifts List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            {filter === 'all' ? 'All Scheduled Shifts' : 
+             filter === 'today' ? 'Today\'s Shifts' :
+             filter === 'week' ? 'This Week\'s Shifts' : 'Upcoming Shifts'}
+            <Badge variant="secondary">{sortedShifts.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sortedShifts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No shifts found for the selected filter</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sortedShifts.map((shift) => {
+                const user = users.find(u => u.id === shift.user_id);
+                
+                return (
+                  <div 
+                    key={shift.id} 
+                    className="p-4 rounded-lg border bg-white border-gray-200"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="text-sm font-medium bg-blue-100 text-blue-600">
+                            {user?.username?.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{user?.username}</h4>
+                          <p className="text-sm text-gray-600">{shift.title}</p>
+                          <div className="flex items-center space-x-4 mt-1">
+                            <div className="flex items-center space-x-1 text-xs text-gray-500">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                {format(new Date(shift.start_time), 'MMM d, HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                              </span>
+                            </div>
+                            <Badge variant="outline">
+                              {shift.shift_type}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {isToday(new Date(shift.start_time)) && (
-                          <Badge variant="outline" className="text-xs">Today</Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">{format(new Date(shift.start_time), 'EEE')}</Badge>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">
+                          {isToday(new Date(shift.start_time)) ? 'Today' : 
+                           format(new Date(shift.start_time), 'MMM d, yyyy')}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                  
-                  {userShifts.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500">
-                      <Calendar className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-xs">No shifts assigned</p>
-                    </div>
-                  ) : userShifts.length > 3 && (
-                    <Button variant="outline" size="sm" className="w-full">
-                      <span className="text-xs">View All {userShifts.length} Shifts</span>
-                      <ChevronRight className="h-3 w-3 ml-1" />
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {filteredUsers.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">No employees found</p>
-        </div>
-      )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
