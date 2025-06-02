@@ -14,14 +14,27 @@ import {
   Clock
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useShifts } from '@/context/ShiftsContext';
+import { ShiftsProvider } from '@/context/ShiftsContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday } from 'date-fns';
 
-const Dashboard = () => {
+const DashboardContent = () => {
   const { currentUser, users } = useAuth();
-  const { shifts, users: shiftUsers } = useShifts();
+
+  // Fetch shifts for dashboard
+  const { data: shifts = [] } = useQuery({
+    queryKey: ['shifts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shifts')
+        .select('*')
+        .order('start_time', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    }
+  });
 
   // Fetch hard drives
   const { data: hardDrives = [] } = useQuery({
@@ -74,7 +87,7 @@ const Dashboard = () => {
   // Get employees on day off (not scheduled today)
   const getEmployeesOnDayOff = () => {
     const scheduledUserIds = todayShifts.map(shift => shift.user_id);
-    return shiftUsers.filter(user => !scheduledUserIds.includes(user.id));
+    return users.filter(user => !scheduledUserIds.includes(user.id));
   };
 
   const employeesOnDayOff = getEmployeesOnDayOff();
@@ -184,7 +197,7 @@ const Dashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {todayShifts.slice(0, 3).map((shift) => {
-                    const user = shiftUsers.find(u => u.id === shift.user_id);
+                    const user = users.find(u => u.id === shift.user_id);
                     return (
                       <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -240,7 +253,7 @@ const Dashboard = () => {
                   ) : (
                     <div className="space-y-2">
                       {currentShifts.slice(0, 2).map((shift) => {
-                        const user = shiftUsers.find(u => u.id === shift.user_id);
+                        const user = users.find(u => u.id === shift.user_id);
                         return (
                           <div key={shift.id} className="flex items-center space-x-2">
                             <Avatar className="h-6 w-6">
@@ -316,7 +329,7 @@ const Dashboard = () => {
                           {format(new Date(drive.created_at), 'MMM d')}
                         </p>
                         <Badge variant="outline" className="text-xs">
-                          {drive.status || 'Available'}
+                          Available
                         </Badge>
                       </div>
                     </div>
@@ -432,6 +445,14 @@ const Dashboard = () => {
         </Card>
       </div>
     </MainLayout>
+  );
+};
+
+const Dashboard = () => {
+  return (
+    <ShiftsProvider>
+      <DashboardContent />
+    </ShiftsProvider>
   );
 };
 
