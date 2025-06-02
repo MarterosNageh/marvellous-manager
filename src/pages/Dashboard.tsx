@@ -14,27 +14,14 @@ import {
   Clock
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { ShiftsProvider } from '@/context/ShiftsContext';
+import { useShifts } from '@/context/ShiftsContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday } from 'date-fns';
 
-const DashboardContent = () => {
+const Dashboard = () => {
   const { currentUser, users } = useAuth();
-
-  // Fetch shifts for dashboard
-  const { data: shifts = [] } = useQuery({
-    queryKey: ['shifts'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shifts')
-        .select('*')
-        .order('start_time', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    }
-  });
+  const { shifts, getCurrentShifts, getTodayShifts } = useShifts();
 
   // Fetch hard drives
   const { data: hardDrives = [] } = useQuery({
@@ -66,22 +53,10 @@ const DashboardContent = () => {
     }
   });
 
-  // Get today's shifts
-  const todayShifts = shifts.filter(shift => {
-    const shiftDate = new Date(shift.start_time);
-    return isToday(shiftDate) && shift.status === 'scheduled';
-  });
+  // Get today's shifts from context
+  const todayShifts = getTodayShifts();
 
-  // Get current working employees
-  const getCurrentShifts = () => {
-    const now = new Date();
-    return shifts.filter(shift => {
-      const shiftStart = new Date(shift.start_time);
-      const shiftEnd = new Date(shift.end_time);
-      return shiftStart <= now && shiftEnd >= now && shift.status === 'scheduled';
-    });
-  };
-
+  // Get current working employees from context
   const currentShifts = getCurrentShifts();
 
   // Get employees on day off (not scheduled today)
@@ -445,14 +420,6 @@ const DashboardContent = () => {
         </Card>
       </div>
     </MainLayout>
-  );
-};
-
-const Dashboard = () => {
-  return (
-    <ShiftsProvider>
-      <DashboardContent />
-    </ShiftsProvider>
   );
 };
 
