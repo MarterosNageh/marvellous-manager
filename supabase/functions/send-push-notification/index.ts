@@ -350,17 +350,17 @@ serve(async (req: Request) => {
       throw new Error('Request body is empty');
     }
 
-    const httpRequestPayload = JSON.parse(requestBody);
-    console.log('📱 FCM v1 Notification Request:', JSON.stringify(httpRequestPayload, null, 2));
+    const httpRequestData = JSON.parse(requestBody);
+    console.log('📱 FCM v1 Notification Request:', JSON.stringify(httpRequestData, null, 2));
     
-    if (!httpRequestPayload) {
+    if (!httpRequestData) {
       throw new Error('Failed to parse request body as JSON');
     }
 
-    userIds = httpRequestPayload.userIds || [];
-    title = httpRequestPayload.title || title;
-    body = httpRequestPayload.body || body;
-    data = httpRequestPayload.data || {};
+    userIds = httpRequestData.userIds || [];
+    title = httpRequestData.title || title;
+    body = httpRequestData.body || body;
+    data = httpRequestData.data || {};
 
     if (!Array.isArray(userIds)) {
       throw new Error('userIds must be an array');
