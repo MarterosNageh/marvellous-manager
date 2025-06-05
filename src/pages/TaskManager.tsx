@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TaskProvider } from "@/context/TaskContext";
@@ -26,18 +25,18 @@ const TaskManager = () => {
   useEffect(() => {
     // Initialize notification service and check permission
     const initNotifications = async () => {
-      console.log('🚀 Initializing Enhanced TaskManager notifications...');
+      console.log('🚀 Initializing Enhanced TaskManager with FCM...');
       await notificationService.init();
       setNotificationPermission(Notification.permission);
       setRealtimeActive(true); // Real-time is automatically active after init
       
       console.log('TaskManager: Notification permission on load:', Notification.permission);
       
-      // Check if push notifications are already set up
+      // Check if FCM notifications are already set up
       if (Notification.permission === 'granted') {
         const pushStatus = await pushNotificationService.getSubscriptionStatus();
         setPushSetupComplete(pushStatus);
-        console.log('🔍 Push setup status:', pushStatus);
+        console.log('🔍 FCM setup status:', pushStatus);
         
         // Check database subscription count
         await checkDatabaseSubscriptions();
@@ -70,13 +69,13 @@ const TaskManager = () => {
   };
 
   const handleTestNotification = async () => {
-    console.log('🧪 === ENHANCED TEST ALL NOTIFICATION TYPES ===');
+    console.log('🧪 === TESTING FCM NOTIFICATION SYSTEM ===');
     console.log('🔔 Current permission:', Notification.permission);
     
     if (Notification.permission !== 'granted') {
       toast({
         title: "❌ Permission Required",
-        description: "Please enable notifications first using the 'Enable Notifications' button.",
+        description: "Please enable notifications first using the 'Enable FCM Notifications' button.",
         variant: "destructive",
       });
       return;
@@ -85,45 +84,24 @@ const TaskManager = () => {
     setIsSettingUpPush(true);
     
     try {
-      // Test all notification types
-      console.log('🧪 Testing enhanced notification system...');
+      // Test FCM notification system
+      console.log('🧪 Testing FCM notification system...');
       const testResult = await notificationService.sendTestNotification();
       
       if (testResult) {
-        // Also test external push notification
-        const currentUser = localStorage.getItem('currentUser');
-        if (currentUser) {
-          const user = JSON.parse(currentUser);
-          
-          console.log('📤 Testing external push notification...');
-          await pushNotificationService.sendPushNotification(
-            [user.id],
-            '🌐 External Push Test',
-            'This is an external push notification test from the server!',
-            { 
-              test: true, 
-              type: 'external-test',
-              timestamp: Date.now(),
-              tag: 'external-test',
-              requireInteraction: true,
-              url: '/task-manager'
-            }
-          );
-        }
-
         toast({
-          title: "🎉 All Tests Sent!",
-          description: "Check for browser notification, service worker notification, and external push notification!",
+          title: "🎉 FCM Test Sent!",
+          description: "Check for Firebase Cloud Messaging notification!",
         });
       } else {
-        throw new Error('Enhanced test notifications failed');
+        throw new Error('FCM test notifications failed');
       }
       
     } catch (error) {
-      console.error('❌ Enhanced test failed:', error);
+      console.error('❌ FCM test failed:', error);
       toast({
         title: "❌ Test Failed",
-        description: `Enhanced test failed: ${(error as Error).message}`,
+        description: `FCM test failed: ${(error as Error).message}`,
         variant: "destructive",
       });
     } finally {
@@ -133,7 +111,7 @@ const TaskManager = () => {
 
   const handleRequestPermission = async () => {
     setIsSettingUpPush(true);
-    console.log('🚀 === ENHANCED NOTIFICATION SETUP ===');
+    console.log('🚀 === FCM NOTIFICATION SETUP ===');
     
     try {
       // Check browser support first
@@ -144,7 +122,7 @@ const TaskManager = () => {
       // First check current database state
       await pushNotificationService.checkAllSubscriptions();
       
-      console.log('Step 1: Setting up enhanced notifications...');
+      console.log('Step 1: Setting up FCM notifications...');
       const pushSetup = await pushNotificationService.requestPermissionAndSubscribe();
       
       if (pushSetup) {
@@ -160,22 +138,22 @@ const TaskManager = () => {
         setRealtimeActive(true);
         
         toast({
-          title: "✅ Enhanced Notifications Enabled!",
-          description: "All notification types are now active: browser, push, and real-time!",
+          title: "✅ FCM Notifications Enabled!",
+          description: "Firebase Cloud Messaging notifications are now active for task updates!",
         });
         
       } else {
         toast({
           title: "⚠️ Setup Failed",
-          description: "Enhanced notification setup failed. Check console logs and try again.",
+          description: "FCM notification setup failed. Check console logs and try again.",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('❌ Enhanced setup error:', error);
+      console.error('❌ FCM setup error:', error);
       toast({
         title: "❌ Setup Failed",
-        description: `Enhanced setup failed: ${(error as Error).message}`,
+        description: `FCM setup failed: ${(error as Error).message}`,
         variant: "destructive",
       });
     } finally {
@@ -198,7 +176,7 @@ const TaskManager = () => {
                   className="flex items-center gap-2"
                 >
                   <Bell className="h-4 w-4" />
-                  {isSettingUpPush ? 'Setting up...' : 'Enable All Notifications'}
+                  {isSettingUpPush ? 'Setting up...' : 'Enable FCM Notifications'}
                 </Button>
               )}
               {notificationPermission === 'granted' && (
@@ -209,7 +187,7 @@ const TaskManager = () => {
                   className="flex items-center gap-2 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                 >
                   <BellRing className="h-4 w-4" />
-                  {isSettingUpPush ? 'Testing...' : '🧪 Test All Notifications'}
+                  {isSettingUpPush ? 'Testing...' : '🧪 Test FCM Notifications'}
                 </Button>
               )}
               <CreateTaskDialog>
@@ -221,20 +199,20 @@ const TaskManager = () => {
             </div>
           </div>
 
-          {/* Enhanced notification status info */}
+          {/* FCM notification status info */}
           {notificationPermission === 'granted' && pushSetupComplete && realtimeActive && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-green-700">
                 <CheckCircle className="h-4 w-4" />
-                <span className="font-medium">🎉 All Notifications Active</span>
+                <span className="font-medium">🎉 FCM Notifications Active</span>
               </div>
               <div className="text-sm text-green-600 mt-1 space-y-1">
-                <p>✅ Browser Notifications: Enabled</p>
+                <p>✅ Firebase Cloud Messaging: Enabled</p>
                 <p>✅ Push Notifications: {subscriptionCount} device(s)</p>
                 <p>✅ Real-time Updates: Active</p>
               </div>
               <p className="text-xs text-green-500 mt-2">
-                You'll receive instant notifications for task assignments and updates across all your devices!
+                You'll receive instant FCM notifications for task assignments and updates across all your devices!
               </p>
             </div>
           )}
@@ -243,11 +221,11 @@ const TaskManager = () => {
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-yellow-700">
                 <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">Partial Notification Setup</span>
+                <span className="font-medium">Partial FCM Setup</span>
               </div>
               <div className="text-sm text-yellow-600 mt-1">
-                <p>Browser: ✅ | Push: {pushSetupComplete ? '✅' : '❌'} | Real-time: {realtimeActive ? '✅' : '❌'}</p>
-                <p className="mt-1">Click "Test All Notifications" to complete setup.</p>
+                <p>Browser: ✅ | FCM: {pushSetupComplete ? '✅' : '❌'} | Real-time: {realtimeActive ? '✅' : '❌'}</p>
+                <p className="mt-1">Click "Test FCM Notifications" to complete setup.</p>
               </div>
             </div>
           )}
@@ -259,7 +237,7 @@ const TaskManager = () => {
                 <span className="font-medium">Notifications Blocked</span>
               </div>
               <p className="text-sm text-red-600 mt-1">
-                All notifications are blocked. Please enable them manually in your browser settings and refresh the page.
+                FCM notifications are blocked. Please enable them manually in your browser settings and refresh the page.
               </p>
               <p className="text-xs text-red-500 mt-1">
                 Look for a bell/notification icon in your browser's address bar or check Site Settings.
@@ -271,10 +249,10 @@ const TaskManager = () => {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-blue-700">
                 <Bell className="h-4 w-4" />
-                <span className="font-medium">Enable Complete Notification System</span>
+                <span className="font-medium">Enable Firebase Cloud Messaging</span>
               </div>
               <p className="text-sm text-blue-600 mt-1">
-                Get browser notifications, push notifications, and real-time updates for all task activities!
+                Get Firebase Cloud Messaging notifications for all task activities across all your devices!
               </p>
             </div>
           )}

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { pushNotificationService } from "./pushNotificationService";
 
@@ -19,32 +20,17 @@ class NotificationService {
   async init() {
     if ('serviceWorker' in navigator) {
       try {
-        // Get the ready service worker registration (should be /firebase-messaging-sw.js from main.tsx)
-        this.registration = await navigator.serviceWorker.ready;
-        if (this.registration) {
-          console.log('🔧 Service Worker already registered and ready:', this.registration.scope);
-        } else {
-          console.error('❌ Service Worker not found or not ready. FCM might not work.');
-          // Attempt to re-register /firebase-messaging-sw.js if not found, though main.tsx should handle it.
-          // This is a fallback, ideally main.tsx handles the primary registration.
-          try {
-            this.registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-            console.log('🔧 Fallback: Registered /firebase-messaging-sw.js');
-            await navigator.serviceWorker.ready; // wait for it to be ready
-            console.log('✅ Fallback: Service Worker is ready');
-          } catch (fbSwRegError) {
-            console.error('❌ Fallback: Failed to register /firebase-messaging-sw.js:', fbSwRegError);
-            return; // Exit if SW registration fails
-          }
-        }
+        // Register Firebase messaging service worker
+        this.registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('🔧 Firebase messaging service worker registered:', this.registration.scope);
         
         // Auto-setup push notifications if permission is already granted
         if (Notification.permission === 'granted') {
-          console.log('🔄 Auto-setting up push notifications...');
+          console.log('🔄 Auto-setting up FCM notifications...');
           await this.setupPushNotifications();
         }
 
-        // Setup real-time notifications
+        // Setup real-time notifications for task changes
         await this.setupRealtimeNotifications();
       } catch (error) {
         console.error('❌ Service Worker registration failed:', error);
@@ -53,7 +39,7 @@ class NotificationService {
   }
 
   async setupRealtimeNotifications() {
-    console.log('🔔 Setting up real-time notifications...');
+    console.log('🔔 Setting up real-time task notifications...');
     
     try {
       // Get current user
@@ -92,14 +78,12 @@ class NotificationService {
               .single();
 
             if (task) {
-              // Show browser notification
-              await this.showBrowserNotification({
-                title: '🎯 New Task Assigned (Real-time)',
-                body: `You have been assigned to: "${task.title}"`,
-                icon: '/favicon.ico',
-                tag: `realtime-task-${payload.new.task_id}`,
-                data: { taskId: payload.new.task_id, type: 'realtime_assignment' }
-              });
+              // Send FCM notification
+              await this.sendTaskAssignmentNotifications(
+                [user.id],
+                task.title,
+                payload.new.task_id
+              );
             }
           }
         )
@@ -122,73 +106,24 @@ class NotificationService {
               .single();
 
             if (assignment && payload.new.title) {
-              // Show browser notification for task updates
-              await this.showBrowserNotification({
-                title: '📝 Task Updated (Real-time)',
-                body: `Task "${payload.new.title}" has been updated`,
-                icon: '/favicon.ico',
-                tag: `realtime-update-${payload.new.id}`,
-                data: { taskId: payload.new.id, type: 'realtime_update' }
-              });
+              // Send FCM notification for task updates
+              await this.sendTaskUpdateNotifications(
+                [user.id],
+                payload.new.title,
+                payload.new.id
+              );
             }
           }
         )
         .subscribe((status) => {
           console.log('🔔 Real-time subscription status:', status);
           if (status === 'SUBSCRIBED') {
-            console.log('✅ Real-time notifications active');
+            console.log('✅ Real-time task notifications active');
           }
         });
 
     } catch (error) {
       console.error('❌ Error setting up real-time notifications:', error);
-    }
-  }
-
-  async showBrowserNotification(payload: NotificationPayload) {
-    console.log('🖥️ Showing browser notification:', payload.title);
-    
-    // Check permission
-    if (Notification.permission !== 'granted') {
-      console.log('❌ Browser notification permission not granted');
-      return false;
-    }
-
-    try {
-      // Show native browser notification
-      const notification = new Notification(payload.title, {
-        body: payload.body,
-        icon: payload.icon || '/favicon.ico',
-        badge: payload.badge || '/favicon.ico',
-        tag: payload.tag,
-        data: payload.data,
-        requireInteraction: payload.requireInteraction || true,
-        silent: false
-      });
-
-      // Add click handler
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-        
-        // Navigate to task manager if data contains taskId
-        if (payload.data?.taskId) {
-          window.location.href = '/task-manager';
-        }
-      };
-
-      // Auto close after 5 seconds unless requireInteraction is true
-      if (!payload.requireInteraction) {
-        setTimeout(() => {
-          notification.close();
-        }, 5000);
-      }
-
-      console.log('✅ Browser notification shown successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to show browser notification:', error);
-      return false;
     }
   }
 
@@ -221,7 +156,7 @@ class NotificationService {
   }
 
   async setupPushNotifications(): Promise<boolean> {
-    console.log('🚀 Setting up push notifications...');
+    console.log('🚀 Setting up FCM push notifications...');
     
     if (Notification.permission !== 'granted') {
       console.log('❌ Cannot setup push notifications: permission not granted');
@@ -229,98 +164,24 @@ class NotificationService {
     }
 
     try {
-      console.log('📱 Requesting push subscription...');
+      console.log('📱 Requesting FCM subscription...');
       const subscribed = await pushNotificationService.requestPermissionAndSubscribe();
-      console.log('📱 Push subscription result:', subscribed);
+      console.log('📱 FCM subscription result:', subscribed);
       
       if (subscribed) {
-        console.log('✅ Push notifications setup completed successfully');
+        console.log('✅ FCM push notifications setup completed successfully');
         
         // Verify subscription status
         const hasSubscription = await pushNotificationService.getSubscriptionStatus();
-        console.log('🔍 Subscription verification:', hasSubscription);
+        console.log('🔍 FCM subscription verification:', hasSubscription);
         
         return hasSubscription;
       } else {
-        console.log('❌ Push notifications setup failed');
+        console.log('❌ FCM push notifications setup failed');
         return false;
       }
     } catch (error) {
-      console.error('❌ Error setting up push notifications:', error);
-      return false;
-    }
-  }
-
-  async showLocalNotificationViaServiceWorker(payload: NotificationPayload) {
-    console.log('📱 Sending local notification via Service Worker:', payload.title);
-    
-    if (Notification.permission !== 'granted') {
-      console.log('❌ Cannot send notification: permission not granted');
-      return null;
-    }
-
-    if (!this.registration) {
-      console.log('❌ Service worker not available');
-      return null;
-    }
-
-    try {
-      // Send notification via service worker for proper push notification behavior
-      // This displays a notification locally using the SW, it does not send a message to FCM server.
-      await this.registration.showNotification(payload.title, {
-        body: payload.body,
-        icon: payload.icon || '/favicon.ico',
-        badge: payload.badge || '/favicon.ico',
-        tag: payload.tag,
-        data: payload.data,
-        requireInteraction: payload.requireInteraction || true,
-        silent: false
-      });
-
-      // Add vibration for mobile devices
-      if ('vibrate' in navigator) {
-        navigator.vibrate([200, 100, 200]);
-      }
-
-      console.log('✅ Local notification sent successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to show local notification:', error);
-      return null;
-    }
-  }
-
-  async sendLocalNotification(payload: NotificationPayload) {
-    return this.showLocalNotificationViaServiceWorker(payload);
-  }
-
-  async sendMobileNotification(title: string, body: string, data?: any) {
-    // This should use the actual push mechanism to send a notification via FCM server.
-    console.log('📱 sendMobileNotification: Triggering server-side push.');
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      if (!currentUser || !currentUser.id) {
-        console.error('❌ sendMobileNotification: Current user not found. Cannot determine target for mobile push.');
-        return false;
-      }
-      // Assuming the mobile notification is for the current user.
-      // Adjust userIds if it's for other users.
-      return await pushNotificationService.sendPushNotification(
-        [currentUser.id], 
-        title, 
-        body, 
-        {
-         ...data,
-         type: data?.type || 'mobile_notification', // Add a type for clarity
-         requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true,
-         icon: data?.icon || '/marvellous-logo-black.png',
-         badge: data?.badge || '/marvellous-logo-black.png',
-         url: data?.url || '/',
-         tag: data?.tag || `mobile-notif-${Date.now()}`
-        }
-      );
-    } catch (error) {
-      console.error('❌ Error in sendMobileNotification:', error);
+      console.error('❌ Error setting up FCM push notifications:', error);
       return false;
     }
   }
@@ -331,15 +192,14 @@ class NotificationService {
     taskId: string,
     createdBy?: string
   ) {
-    console.log('📋 === ENHANCED CROSS-DEVICE TASK ASSIGNMENT NOTIFICATIONS ===');
+    console.log('📋 === SENDING TASK ASSIGNMENT NOTIFICATIONS ===');
     console.log('👥 Target assignee IDs:', assigneeIds);
     console.log('📝 Task Title:', taskTitle);
     console.log('🆔 Task ID:', taskId);
     console.log('👤 Created By:', createdBy);
     
-    // Step 1: Send external push notifications to ALL devices for ALL assigned users
-    console.log('📱 === SENDING EXTERNAL PUSH TO ALL DEVICES ===');
-    console.log('🌐 This will reach ALL registered devices for each assigned user');
+    // Send FCM notifications to ALL devices for ALL assigned users
+    console.log('📱 === SENDING FCM NOTIFICATIONS ===');
     
     try {
       // Send push notifications with detailed tracking
@@ -360,12 +220,12 @@ class NotificationService {
         }
       );
       
-      console.log('📱 External push notification result:', pushResult);
+      console.log('📱 FCM notification result:', pushResult);
     } catch (error) {
-      console.error('❌ Error sending external push notifications:', error);
+      console.error('❌ Error sending FCM notifications:', error);
     }
 
-    // Step 2: Send admin notifications (excluding the creator)
+    // Send admin notifications (excluding the creator)
     console.log('👑 === SENDING ADMIN NOTIFICATIONS ===');
     await this.sendNotificationToAdmins(
       '📋 New Task Created',
@@ -373,68 +233,27 @@ class NotificationService {
       taskId,
       createdBy
     );
-
-    // Step 3: Verify notification delivery
-    console.log('🔍 === VERIFYING NOTIFICATION DELIVERY ===');
-    await this.verifyNotificationDelivery(assigneeIds, taskTitle);
     
-    console.log('✅ === CROSS-DEVICE NOTIFICATIONS PROCESS COMPLETE ===');
+    console.log('✅ === TASK ASSIGNMENT NOTIFICATIONS COMPLETE ===');
   }
 
-  async verifyNotificationDelivery(userIds: string[], taskTitle: string) {
-    try {
-      console.log('🔍 Verifying notification delivery for users:', userIds);
-      
-      // Check how many devices each user has registered
-      for (const userId of userIds) {
-        const { data: subscriptions, error } = await supabase
-          .from('push_subscriptions')
-          .select('*')
-          .eq('user_id', userId);
-
-        if (error) {
-          console.error(`❌ Error checking subscriptions for user ${userId}:`, error);
-        } else {
-          console.log(`📊 User ${userId} has ${subscriptions?.length || 0} registered device(s)`);
-          if (subscriptions && subscriptions.length > 0) {
-            subscriptions.forEach((sub, index) => {
-              console.log(`  Device ${index + 1}: ${sub.endpoint.substring(0, 50)}...`);
-            });
-          } else {
-            console.log(`⚠️ User ${userId} has no registered devices for push notifications`);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error verifying notification delivery:', error);
-    }
-  }
-
-  async sendNotificationToUser(
-    userId: string,
-    title: string,
-    body: string,
-    taskId?: string,
-    type: string = 'general'
+  async sendTaskUpdateNotifications(
+    assigneeIds: string[],
+    taskTitle: string,
+    taskId: string
   ) {
+    console.log('📝 === SENDING TASK UPDATE NOTIFICATIONS ===');
+    
     try {
-      console.log(`📤 === SENDING ENHANCED NOTIFICATION TO USER ${userId} ===`);
-      console.log('📢 Title:', title);
-      console.log('💬 Body:', body);
-      console.log('🆔 Task ID:', taskId);
-      console.log('📱 Type:', type);
-
-      // Send external push notification to ALL devices for this user
-      console.log('📱 === SENDING TO ALL DEVICES FOR USER ===');
       await pushNotificationService.sendPushNotification(
-        [userId],
-        title,
-        body,
+        assigneeIds,
+        '📝 Task Updated',
+        `Task "${taskTitle}" has been modified`,
         { 
           taskId, 
-          type, 
+          type: 'task_update', 
           requireInteraction: true,
-          tag: `task-${taskId}`,
+          tag: `task-update-${taskId}`,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
           url: '/task-manager',
@@ -442,10 +261,9 @@ class NotificationService {
         }
       );
       
-      console.log('📱 Cross-device push notification sent to user:', userId);
-      console.log(`✅ Notification processing completed for user ${userId}`);
+      console.log('✅ Task update notifications sent');
     } catch (error) {
-      console.error('❌ Error sending notification to user:', error);
+      console.error('❌ Error sending task update notifications:', error);
     }
   }
 
@@ -472,13 +290,26 @@ class NotificationService {
       console.log('👑 Found admins:', admins);
 
       if (admins) {
-        for (const admin of admins) {
-          if (admin.id !== excludeUserId) {
-            console.log(`📤 Sending admin notification to: ${admin.id}`);
-            await this.sendNotificationToUser(admin.id, title, body, taskId, 'admin');
-          } else {
-            console.log(`⏭️ Skipping admin notification for creator: ${admin.id}`);
-          }
+        const adminIds = admins
+          .filter(admin => admin.id !== excludeUserId)
+          .map(admin => admin.id);
+
+        if (adminIds.length > 0) {
+          await pushNotificationService.sendPushNotification(
+            adminIds,
+            title,
+            body,
+            { 
+              taskId, 
+              type: 'admin_notification',
+              requireInteraction: true,
+              tag: `admin-${taskId}`,
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              url: '/task-manager',
+              timestamp: Date.now()
+            }
+          );
         }
       }
     } catch (error) {
@@ -487,7 +318,7 @@ class NotificationService {
   }
 
   async sendTestNotification() {
-    console.log('🧪 === SENDING ENHANCED TEST NOTIFICATION ===');
+    console.log('🧪 === SENDING FCM TEST NOTIFICATION ===');
     console.log('🔔 Current permission status:', Notification.permission);
     
     if (Notification.permission !== 'granted') {
@@ -499,37 +330,39 @@ class NotificationService {
       }
     }
 
-    // Setup push notifications if not already done
-    const pushSetup = await this.setupPushNotifications();
-    console.log('📱 Push notification setup result:', pushSetup);
+    // Setup FCM notifications if not already done
+    const fcmSetup = await this.setupPushNotifications();
+    console.log('📱 FCM notification setup result:', fcmSetup);
 
-    if (!pushSetup) {
-      console.log('❌ Push notifications not properly set up');
+    if (!fcmSetup) {
+      console.log('❌ FCM notifications not properly set up');
       return false;
     }
 
-    console.log('🧪 Sending enhanced test notifications...');
+    console.log('🧪 Sending FCM test notification...');
 
-    // Send browser notification
-    await this.showBrowserNotification({
-      title: '🖥️ Browser Test Notification',
-      body: 'This is a browser-based test notification! Click to focus the window.',
-      tag: 'browser-test',
-      data: { test: true, type: 'browser', timestamp: Date.now() },
-      requireInteraction: true
-    });
+    // Send test FCM notification
+    const currentUser = localStorage.getItem('currentUser');
+    if (currentUser) {
+      const user = JSON.parse(currentUser);
+      
+      await pushNotificationService.sendPushNotification(
+        [user.id],
+        '🧪 FCM Test Notification',
+        'This is a test notification from Firebase Cloud Messaging!',
+        { 
+          test: true, 
+          type: 'fcm_test', 
+          timestamp: Date.now(),
+          tag: 'fcm-test',
+          requireInteraction: true,
+          url: '/task-manager'
+        }
+      );
+    }
 
-    // Send push notification via service worker
-    const result = await this.showLocalNotificationViaServiceWorker({
-      title: '📱 Service Worker Test Notification',
-      body: 'This is a service worker push notification test!',
-      tag: 'sw-test-notification',
-      data: { test: true, type: 'service-worker', timestamp: Date.now() },
-      requireInteraction: true
-    });
-
-    console.log('🧪 Enhanced test notifications result:', result);
-    return !!result;
+    console.log('🧪 FCM test notification sent');
+    return true;
   }
 
   cleanup() {

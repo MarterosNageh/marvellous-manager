@@ -1,9 +1,10 @@
+
 import { useEffect, useState } from 'react';
 import { messaging, getToken, onMessage } from '../config/firebase';
 import { supabase } from '@/integrations/supabase/client';
 
-// Correct VAPID key for marvellous-manager project
-const VAPID_KEY = 'BL7ELSlram2dAgx2Hm1BTEKD9EjvCcxkIqJaUNZjD1HNg_O2zzMiA5d9I5A5mPKZJVk7T2tLWS-4kzRv6fTuwS4';
+// Your VAPID key
+const VAPID_KEY = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
 
 export const useFirebaseMessaging = () => {
   const [token, setToken] = useState(null);
@@ -49,8 +50,11 @@ export const useFirebaseMessaging = () => {
         });
         
         if (currentToken) {
-          console.log('FCM Token obtained by useFirebaseMessaging:', currentToken);
+          console.log('FCM Token obtained:', currentToken);
           setToken(currentToken);
+          
+          // Save token to Supabase
+          await saveTokenToDatabase(currentToken);
         } else {
           const error = 'No registration token available. Firebase SDK could not get a token.';
           console.error(error);
@@ -64,6 +68,38 @@ export const useFirebaseMessaging = () => {
     } catch (error) {
       console.error('Error initializing messaging:', error);
       setError(error.message);
+    }
+  };
+
+  const saveTokenToDatabase = async (fcmToken) => {
+    try {
+      const currentUser = localStorage.getItem('currentUser');
+      if (!currentUser) {
+        console.error('No user logged in');
+        return;
+      }
+
+      const user = JSON.parse(currentUser);
+      
+      // Save or update the FCM token in Supabase
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: fcmToken,
+          p256dh_key: '', // FCM handles this internally
+          auth_key: ''    // FCM handles this internally
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('Error saving FCM token:', error);
+      } else {
+        console.log('FCM token saved successfully');
+      }
+    } catch (error) {
+      console.error('Error saving token to database:', error);
     }
   };
 

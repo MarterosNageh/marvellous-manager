@@ -1,16 +1,17 @@
+
 // public/firebase-messaging-sw.js
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-// Firebase configuration will be injected by the build process
-const firebaseConfig = self.__FIREBASE_CONFIG__ || {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
-  measurementId: ""
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
+  authDomain: "marvellous-manager.firebaseapp.com",
+  projectId: "marvellous-manager",
+  storageBucket: "marvellous-manager.firebasestorage.app",
+  messagingSenderId: "368753443778",
+  appId: "1:368753443778:web:91898578c1af5b04184c5b",
+  measurementId: "G-7PVGNBPXZ7"
 };
 
 firebase.initializeApp(firebaseConfig);
