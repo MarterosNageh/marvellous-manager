@@ -1,17 +1,11 @@
-
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
+import { format, isSameDay, addDays, subDays } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  isSameDay, 
-  format, 
-  addDays, 
-  subDays 
-} from 'date-fns';
 
 export const DailyScheduleView = () => {
   const [currentDate, setCurrentDate] = useState(new Date());

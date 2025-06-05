@@ -1,16 +1,14 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"; // Standard Deno serve
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SignJWT, importPKCS8 } from 'https://deno.land/x/jose@v5.6.3/index.ts'; // For JWT signing
-// Note: web-push is not used if directly calling FCM HTTP v1 API with a token.
-// import webpush from 'https://deno.land/x/webpush@0.2.0/mod.ts';
 
-const FCM_API_KEY = Deno.env.get('FCM_SERVER_KEY'); // Legacy Server Key, used if not using OAuth
-const FIREBASE_PROJECT_ID = Deno.env.get('FIREBASE_PROJECT_ID') || 'YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER'; // Ensure this is set in Supabase secrets
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SignJWT, importPKCS8 } from 'https://deno.land/x/jose@v5.6.3/index.ts';
+
+const FCM_API_KEY = Deno.env.get('FCM_SERVER_KEY');
+const FIREBASE_PROJECT_ID = Deno.env.get('FIREBASE_PROJECT_ID') || 'marvellous-manager';
 
 console.log('Function send-push-notification started');
 console.log(`Using FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}`);
 
-// Interface for the result objects stored in the results array
 interface NotificationResult {
   userId: string;
   endpoint: string;
@@ -20,17 +18,13 @@ interface NotificationResult {
   error?: string;
 }
 
-// Helper to get Firebase Service Account from Supabase Vault or Env Var
-// This is for generating OAuth 2.0 access tokens for FCM API v1
 async function getFirebaseServiceAccount() {
   try {
     console.log('🔐 Starting Firebase service account retrieval...');
     
-    // First try getting from vault
     let serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON_VAULT');
     console.log('Checking vault path:', serviceAccountJson ? 'Found' : 'Not found');
     
-    // If not in vault, try direct environment variable
     if (!serviceAccountJson || serviceAccountJson.startsWith('VAULT:')) {
       serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
       console.log('Checking direct environment variable:', serviceAccountJson ? 'Found' : 'Not found');
@@ -43,7 +37,6 @@ async function getFirebaseServiceAccount() {
     try {
       const parsedAccount = JSON.parse(serviceAccountJson);
       
-      // Log partial values for verification (being careful with sensitive data)
       console.log('Service Account Details:');
       console.log('- type:', parsedAccount.type);
       console.log('- project_id:', parsedAccount.project_id);
@@ -51,7 +44,6 @@ async function getFirebaseServiceAccount() {
       console.log('- private_key_id:', parsedAccount.private_key_id ? '✓ Present' : '✗ Missing');
       console.log('- private_key:', parsedAccount.private_key ? '✓ Present' : '✗ Missing');
       
-      // Verify the structure of the private key
       if (parsedAccount.private_key) {
         const keyLines = parsedAccount.private_key.split('\n');
         console.log('Private key format check:');
@@ -60,7 +52,6 @@ async function getFirebaseServiceAccount() {
         console.log('- Number of lines:', keyLines.length);
       }
       
-      // Verify required fields
       const requiredFields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email', 'client_id'];
       const missingFields = requiredFields.filter(field => !parsedAccount[field]);
       
@@ -68,7 +59,6 @@ async function getFirebaseServiceAccount() {
         throw new Error(`Service account JSON is missing required fields: ${missingFields.join(', ')}`);
       }
 
-      // Verify project ID matches
       const configuredProjectId = Deno.env.get('FIREBASE_PROJECT_ID');
       if (configuredProjectId && configuredProjectId !== parsedAccount.project_id) {
         console.warn('⚠️ Warning: FIREBASE_PROJECT_ID environment variable does not match service account project_id');
@@ -92,7 +82,6 @@ async function getFirebaseServiceAccount() {
   }
 }
 
-// Get OAuth 2.0 Access Token for FCM API v1
 async function getAccessToken() {
   try {
     console.log('🔐 Getting Firebase service account...');
@@ -100,7 +89,7 @@ async function getAccessToken() {
     
     console.log('🔐 Generating JWT claims...');
     const iat = Math.floor(Date.now() / 1000);
-    const exp = iat + 3600; // Token expires in 1 hour
+    const exp = iat + 3600;
 
     const claims = {
       iss: serviceAccount.client_email,
@@ -168,20 +157,15 @@ async function getAccessToken() {
   }
 }
 
-// Helper to extract raw FCM token from endpoint URL
 function extractFcmToken(endpoint: string): string | null {
   if (endpoint && endpoint.includes('fcm.googleapis.com/fcm/')) {
     const token = endpoint.substring(endpoint.lastIndexOf('/') + 1);
-    // Basic validation: FCM tokens are typically long and don't contain certain characters like '?' or '#'
-    // A more robust validation might be needed depending on observed endpoint variations.
     if (token && token.length > 50 && !token.includes('?') && !token.includes('#')) {
         return token;
     }
     console.warn(`Extracted token from "${endpoint}" seems invalid or short: "${token.substring(0,30)}...". Endpoint might not be a standard FCM device token URL.`);
-    return null; // Return null if extracted token looks suspicious
+    return null;
   }
-  // If it doesn't look like a standard FCM endpoint URL, assume it might already be a raw token
-  // but log a warning. This path should ideally not be hit if clients store full endpoint URLs.
   if (endpoint && endpoint.length > 50 && !endpoint.includes('/') && !endpoint.includes('?') && !endpoint.includes('#')) {
     console.warn(`Endpoint "${endpoint.substring(0,30)}..." does not look like an FCM URL but is treated as a raw token.`);
     return endpoint; 
@@ -189,7 +173,6 @@ function extractFcmToken(endpoint: string): string | null {
   console.error(`Cannot extract a valid FCM token from endpoint: "${endpoint}". It will be skipped.`);
   return null;
 }
-
 
 async function cleanupInvalidToken(supabaseAdmin: any, endpoint: string, userId: string) {
   console.log(`Cleaning up invalid token for user ${userId}, endpoint: ${endpoint.substring(0,50)}...`);
@@ -208,7 +191,6 @@ async function cleanupInvalidToken(supabaseAdmin: any, endpoint: string, userId:
   }
 }
 
-// Send notification using FCM HTTP v1 API
 async function sendFCMNotificationV1(fcmToken: string, title: string, body: string, data: any, supabaseAdmin: any, userId: string, originalEndpoint: string): Promise<Omit<NotificationResult, 'userId' | 'endpoint'>> {
   if (!fcmToken) {
     console.error('FCM token is null or empty for sendFCMNotificationV1, cannot send notification.');
@@ -219,6 +201,7 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
     const accessToken = await getAccessToken();
     const fcmV1Endpoint = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
 
+    // Fix the payload structure - this was the issue!
     const messagePayload = {
       message: {
         token: fcmToken,
@@ -226,7 +209,9 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
           title: title || 'Notification',
           body: body || 'You have a new notification',
         },
-        data: data || {}, // Ensure data is never undefined
+        data: data ? Object.fromEntries(
+          Object.entries(data).map(([key, value]) => [key, String(value)])
+        ) : {},
         webpush: {
           notification: {
             icon: (data?.icon || '/marvellous-logo-black.png'),
@@ -317,7 +302,6 @@ async function sendFCMNotificationV1(fcmToken: string, title: string, body: stri
   }
 }
 
-// Main Supabase Edge Function handler
 serve(async (req: Request) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -325,7 +309,6 @@ serve(async (req: Request) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  // Handle OPTIONS request for CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -334,7 +317,6 @@ serve(async (req: Request) => {
   console.log('🔗 Request URL:', req.url);
   console.log('🔗 Request method:', req.method);
 
-  // Verify required environment variables
   const requiredEnvVars = [
     'FIREBASE_SERVICE_ACCOUNT_JSON',
     'FIREBASE_PROJECT_ID',
@@ -409,14 +391,8 @@ serve(async (req: Request) => {
 
   if (FIREBASE_PROJECT_ID === 'YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER') {
     console.error('FIREBASE_PROJECT_ID is not set in environment variables. Push notifications will likely fail.');
-    // Optionally, return an error if it's critical
-    // return new Response(JSON.stringify({ error: 'Server configuration error: FIREBASE_PROJECT_ID not set' }), {
-    //   status: 500,
-    //   headers: { 'Content-Type': 'application/json' },
-    // });
   }
 
-  // Initialize Supabase client
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -427,7 +403,6 @@ serve(async (req: Request) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // Test Firebase authentication before proceeding
     try {
       console.log('🔐 Testing Firebase authentication...');
       await getAccessToken();
@@ -554,20 +529,3 @@ serve(async (req: Request) => {
     });
   }
 });
-
-/* 
-Example payload to this function:
-{
-  "userIds": ["user_uuid_1", "user_uuid_2"],
-  "title": "New Message",
-  "body": "You have a new message from John Doe.",
-  "data": {
-    "url": "/messages/123",
-    "customKey": "customValue",
-    "icon": "/my-custom-icon.png", // Optional: Override default icon
-    "badge": "/my-custom-badge.png", // Optional: Override default badge
-    "tag": "new-message-group" // Optional: Tag for replacing notifications
-  }
-}
-*/
-

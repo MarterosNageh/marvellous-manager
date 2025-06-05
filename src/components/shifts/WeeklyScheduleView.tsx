@@ -1,19 +1,11 @@
-
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
+import { format, isSameDay, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
-  isSameDay, 
-  format, 
-  addWeeks, 
-  subWeeks 
-} from 'date-fns';
 
 export const WeeklyScheduleView = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());

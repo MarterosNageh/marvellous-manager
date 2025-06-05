@@ -1,172 +1,137 @@
-
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Clock, Calendar, User, Filter } from 'lucide-react';
 import { useShifts } from '@/context/ShiftsContext';
-import { useAuth } from '@/context/AuthContext';
-import { 
-  isToday, 
-  isThisWeek, 
-  format 
-} from 'date-fns';
+import { format, isToday, isThisWeek } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, Clock, User, MapPin } from 'lucide-react';
 
-type FilterType = 'all' | 'today' | 'week' | 'upcoming';
+const EmployeeShiftsList = () => {
+  const { shifts, employees } = useShifts();
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
-interface EmployeeShiftsListProps {
-  searchTerm?: string;
-  filterRole?: string;
-}
+  const today = new Date();
 
-export const EmployeeShiftsList: React.FC<EmployeeShiftsListProps> = ({ 
-  searchTerm = '', 
-  filterRole = 'all' 
-}) => {
-  const { shifts, users } = useShifts();
-  const { currentUser } = useAuth();
-  const [filter, setFilter] = useState<FilterType>('all');
+  const employeeShifts = selectedEmployeeId
+    ? shifts?.filter(shift => shift.employee_id === selectedEmployeeId)
+    : [];
 
-  // Filter shifts based on selected filter
-  const getFilteredShifts = () => {
-    const now = new Date();
-    
-    switch (filter) {
-      case 'today':
-        return shifts.filter(shift => {
-          const shiftDate = new Date(shift.start_time);
-          return isToday(shiftDate) && shift.status === 'scheduled';
-        });
-      case 'week':
-        return shifts.filter(shift => {
-          const shiftDate = new Date(shift.start_time);
-          return isThisWeek(shiftDate) && shift.status === 'scheduled';
-        });
-      case 'upcoming':
-        return shifts.filter(shift => {
-          const shiftStart = new Date(shift.start_time);
-          return shiftStart > now && shift.status === 'scheduled';
-        });
-      default:
-        return shifts.filter(shift => shift.status === 'scheduled');
-    }
-  };
+  const upcomingShifts = employeeShifts?.filter(shift => new Date(shift.start_time) >= today)
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-  const filteredShifts = getFilteredShifts().filter(shift => {
-    const user = users.find(u => u.id === shift.user_id);
-    const matchesSearch = !searchTerm || user?.username.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user?.role === filterRole;
-    return matchesSearch && matchesRole;
-  });
-
-  // Sort shifts by start time
-  const sortedShifts = filteredShifts.sort((a, b) => 
-    new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-  );
-
-  const filterButtons = [
-    { key: 'all' as FilterType, label: 'All Shifts', count: shifts.filter(s => s.status === 'scheduled').length },
-    { key: 'today' as FilterType, label: 'Today', count: shifts.filter(s => isToday(new Date(s.start_time)) && s.status === 'scheduled').length },
-    { key: 'week' as FilterType, label: 'This Week', count: shifts.filter(s => isThisWeek(new Date(s.start_time)) && s.status === 'scheduled').length },
-    { key: 'upcoming' as FilterType, label: 'Upcoming', count: shifts.filter(s => new Date(s.start_time) > new Date() && s.status === 'scheduled').length },
-  ];
+  const pastShifts = employeeShifts?.filter(shift => new Date(shift.start_time) < today)
+    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
   return (
-    <div className="space-y-6">
-      {/* Header with Filters */}
+    <div>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Employee Shifts
-          </CardTitle>
+          <CardTitle>Employee Shifts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {filterButtons.map((button) => (
-              <Button
-                key={button.key}
-                variant={filter === button.key ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter(button.key)}
-                className="flex items-center gap-2"
+          <Tabs defaultValue="upcoming">
+            <TabsList>
+              <TabsTrigger value="upcoming">Upcoming Shifts</TabsTrigger>
+              <TabsTrigger value="past">Past Shifts</TabsTrigger>
+            </TabsList>
+            <div className="mb-4">
+              <label htmlFor="employee" className="block text-sm font-medium text-gray-700">
+                Select Employee:
+              </label>
+              <select
+                id="employee"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                value={selectedEmployeeId || ''}
+                onChange={(e) => setSelectedEmployeeId(e.target.value === '' ? null : e.target.value)}
               >
-                <Filter className="h-4 w-4" />
-                {button.label}
-                <Badge variant="secondary" className="ml-1">
-                  {button.count}
-                </Badge>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Shifts List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            {filter === 'all' ? 'All Scheduled Shifts' : 
-             filter === 'today' ? 'Today\'s Shifts' :
-             filter === 'week' ? 'This Week\'s Shifts' : 'Upcoming Shifts'}
-            <Badge variant="secondary">{sortedShifts.length}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {sortedShifts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No shifts found for the selected filter</p>
+                <option value="">All Employees</option>
+                {employees?.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {sortedShifts.map((shift) => {
-                const user = users.find(u => u.id === shift.user_id);
-                
-                return (
-                  <div 
-                    key={shift.id} 
-                    className="p-4 rounded-lg border bg-white border-gray-200"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarFallback className="text-sm font-medium bg-blue-100 text-blue-600">
-                            {user?.username?.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{user?.username}</h4>
-                          <p className="text-sm text-gray-600">{shift.title}</p>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <div className="flex items-center space-x-1 text-xs text-gray-500">
-                              <Clock className="h-3 w-3" />
-                              <span>
-                                {format(new Date(shift.start_time), 'MMM d, HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                              </span>
-                            </div>
-                            <Badge variant="outline">
-                              {shift.shift_type}
-                            </Badge>
+            <TabsContent value="upcoming">
+              {upcomingShifts && upcomingShifts.length > 0 ? (
+                <div className="grid gap-4">
+                  {upcomingShifts.map((shift) => (
+                    <Card key={shift.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          {format(new Date(shift.start_time), 'EEE, MMM dd, yyyy')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          {employees?.find(emp => emp.id === shift.employee_id)?.name}
+                        </div>
+                        {shift.location && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            {shift.location}
                           </div>
+                        )}
+                        {isToday(new Date(shift.start_time)) && (
+                          <Badge variant="secondary">Today</Badge>
+                        )}
+                        {isThisWeek(new Date(shift.start_time)) && !isToday(new Date(shift.start_time)) && (
+                          <Badge variant="outline">This Week</Badge>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p>No upcoming shifts for the selected employee.</p>
+              )}
+            </TabsContent>
+            <TabsContent value="past">
+              {pastShifts && pastShifts.length > 0 ? (
+                <div className="grid gap-4">
+                  {pastShifts.map((shift) => (
+                    <Card key={shift.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          {format(new Date(shift.start_time), 'EEE, MMM dd, yyyy')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-gray-500">
-                          {isToday(new Date(shift.start_time)) ? 'Today' : 
-                           format(new Date(shift.start_time), 'MMM d, yyyy')}
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          {employees?.find(emp => emp.id === shift.employee_id)?.name}
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                        {shift.location && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            {shift.location}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p>No past shifts for the selected employee.</p>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
   );
 };
+
+export default EmployeeShiftsList;
