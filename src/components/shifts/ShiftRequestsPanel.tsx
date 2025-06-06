@@ -87,7 +87,7 @@ export const ShiftRequestsPanel = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700">Requested Date:</span>
-                    <p>{format(new Date(request.requested_date), 'PPP')}</p>
+                    <p>{format(new Date(request.created_at), 'PPP')}</p>
                   </div>
                   {request.reason && (
                     <div>

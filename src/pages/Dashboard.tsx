@@ -48,7 +48,7 @@ const Dashboard = () => {
   const recentHardDrives = hardDrives
     ?.sort((a, b) => {
       try {
-        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       } catch {
         return 0;
       }
@@ -194,12 +194,12 @@ const Dashboard = () => {
                   {recentHardDrives.map((drive) => (
                     <div key={drive.id} className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">{drive.serial_number}</p>
+                        <p className="font-medium">{drive.serialNumber}</p>
                         <p className="text-sm text-muted-foreground">{drive.capacity}</p>
                       </div>
                       <div className="text-right">
-                        <Badge variant={drive.status === 'active' ? 'default' : 'secondary'}>
-                          {drive.status}
+                        <Badge variant="default">
+                          Active
                         </Badge>
                       </div>
                     </div>
