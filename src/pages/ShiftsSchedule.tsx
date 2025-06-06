@@ -24,18 +24,14 @@ const ShiftsSchedule = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Shifts Schedule</h1>
             <div className="flex gap-2">
-              <ShiftRequestDialog open={requestShiftOpen} onOpenChange={setRequestShiftOpen}>
-                <Button variant="outline" onClick={() => setRequestShiftOpen(true)}>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Request Shift
-                </Button>
-              </ShiftRequestDialog>
-              <CreateShiftDialog open={createShiftOpen} onOpenChange={setCreateShiftOpen}>
-                <Button onClick={() => setCreateShiftOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Shift
-                </Button>
-              </CreateShiftDialog>
+              <Button variant="outline" onClick={() => setRequestShiftOpen(true)}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Request Shift
+              </Button>
+              <Button onClick={() => setCreateShiftOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Shift
+              </Button>
             </div>
           </div>
 
@@ -83,6 +79,9 @@ const ShiftsSchedule = () => {
               <ShiftRequestsPanel />
             </TabsContent>
           </Tabs>
+
+          <CreateShiftDialog open={createShiftOpen} onOpenChange={setCreateShiftOpen} />
+          <ShiftRequestDialog open={requestShiftOpen} onOpenChange={setRequestShiftOpen} />
         </div>
       </MainLayout>
     </ShiftsProvider>

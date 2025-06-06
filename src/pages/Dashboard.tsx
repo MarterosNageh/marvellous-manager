@@ -44,7 +44,7 @@ const Dashboard = () => {
     })
     .slice(0, 5) || [];
 
-  // Get recent hard drive activities (last 5)
+  // Get recent hard drives (last 5)
   const recentHardDrives = hardDrives
     ?.sort((a, b) => {
       try {

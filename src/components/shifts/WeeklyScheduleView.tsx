@@ -5,11 +5,11 @@ import { format, isSameDay, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks,
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const WeeklyScheduleView = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
-  const { shifts } = useShifts();
+  const { shifts, users } = useShifts();
 
   const startOfWeekDate = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const endOfWeekDate = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -19,7 +19,14 @@ const WeeklyScheduleView = () => {
   });
 
   const getShiftsForDay = (day: Date) => {
-    return shifts.filter(shift => isSameDay(new Date(shift.start_time), day));
+    return shifts?.filter(shift => {
+      if (!shift.start_time) return false;
+      try {
+        return isSameDay(new Date(shift.start_time), day);
+      } catch {
+        return false;
+      }
+    }) || [];
   };
 
   const goToPreviousWeek = () => {
@@ -51,15 +58,21 @@ const WeeklyScheduleView = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-2 space-y-1">
-                {dayShifts.map((shift) => (
-                  <div key={shift.id} className="text-xs p-1 bg-blue-100 rounded">
-                    <div className="font-medium">{shift.title}</div>
-                    <div className="text-gray-600">
-                      {format(new Date(shift.start_time), 'HH:mm')} - 
-                      {format(new Date(shift.end_time), 'HH:mm')}
+                {dayShifts.map((shift) => {
+                  const user = users?.find(u => u.id === shift.user_id);
+                  return (
+                    <div key={shift.id} className="text-xs p-1 bg-blue-100 rounded">
+                      <div className="font-medium">{shift.title}</div>
+                      <div className="text-gray-600">
+                        {shift.start_time && format(new Date(shift.start_time), 'HH:mm')} - 
+                        {shift.end_time && format(new Date(shift.end_time), 'HH:mm')}
+                      </div>
+                      {user && (
+                        <div className="text-gray-500">{user.username}</div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           );

@@ -62,7 +62,7 @@ export const ShiftRequestsPanel = () => {
       <CardContent>
         <div className="space-y-4">
           {shiftRequests.map((request) => {
-            const user = users.find(u => u.id === request.user_id);
+            const user = users?.find(u => u.id === request.user_id);
             return (
               <div
                 key={request.id}
@@ -87,7 +87,7 @@ export const ShiftRequestsPanel = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700">Requested Date:</span>
-                    <p>{format(new Date(request.created_at), 'PPP')}</p>
+                    <p>{request.created_at && format(new Date(request.created_at), 'PPP')}</p>
                   </div>
                   {request.reason && (
                     <div>
@@ -111,7 +111,7 @@ export const ShiftRequestsPanel = () => {
                 )}
 
                 <div className="text-xs text-gray-500 pt-2">
-                  Submitted: {format(new Date(request.created_at), 'PPP')}
+                  Submitted: {request.created_at && format(new Date(request.created_at), 'PPP')}
                 </div>
               </div>
             );

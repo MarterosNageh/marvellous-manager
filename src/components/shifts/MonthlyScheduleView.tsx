@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const MonthlyScheduleView = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const { shifts } = useShifts();
+  const { shifts, users } = useShifts();
 
   const startOfMonthDate = startOfMonth(currentMonth);
   const endOfMonthDate = endOfMonth(currentMonth);
@@ -42,7 +42,14 @@ const MonthlyScheduleView = () => {
         ))}
         {calendarDays.map((day) => {
           const isCurrentMonth = isSameMonth(day, currentMonth);
-          const shiftForDay = shifts?.find(shift => isSameDay(new Date(shift.start_time), day));
+          const shiftForDay = shifts?.find(shift => {
+            if (!shift.start_time) return false;
+            try {
+              return isSameDay(new Date(shift.start_time), day);
+            } catch {
+              return false;
+            }
+          });
           return (
             <Card key={day.toISOString()} className={`shadow-sm ${isCurrentMonth ? '' : 'opacity-50'}`}>
               <CardHeader className="p-1">
@@ -51,7 +58,7 @@ const MonthlyScheduleView = () => {
               <CardContent className="p-2">
                 {shiftForDay && (
                   <Badge variant="secondary">
-                    {format(new Date(shiftForDay.start_time), 'HH:mm')} - {format(new Date(shiftForDay.end_time), 'HH:mm')}
+                    {shiftForDay.start_time && format(new Date(shiftForDay.start_time), 'HH:mm')} - {shiftForDay.end_time && format(new Date(shiftForDay.end_time), 'HH:mm')}
                   </Badge>
                 )}
               </CardContent>
