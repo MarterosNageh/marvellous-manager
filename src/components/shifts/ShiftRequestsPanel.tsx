@@ -1,123 +1,146 @@
 
 import React from 'react';
-import { useShifts } from '@/context/ShiftsContext';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Clock, User, CheckCircle, XCircle } from 'lucide-react';
 
 export const ShiftRequestsPanel = () => {
-  const { shiftRequests, users } = useShifts();
+  // Mock data for shift requests
+  const mockRequests = [
+    {
+      id: '1',
+      user_name: 'John Doe',
+      shift_title: 'Morning Shift',
+      requested_date: '2024-01-15',
+      status: 'pending',
+      message: 'Would like to work this shift as I am available',
+    },
+    {
+      id: '2',
+      user_name: 'Jane Smith',
+      shift_title: 'Evening Shift',
+      requested_date: '2024-01-16',
+      status: 'approved',
+      message: 'Can cover this shift for overtime',
+    },
+  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
       case 'approved':
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'bg-green-100 text-green-800';
       case 'rejected':
-        return 'text-red-600 bg-red-50 border-red-200';
+        return 'bg-red-100 text-red-800';
       default:
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+        return 'bg-gray-100 text-gray-800';
     }
   };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'rejected':
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return <Clock className="h-4 w-4" />;
-    }
-  };
-
-  if (!shiftRequests || shiftRequests.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Shift Requests
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No shift requests at this time</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Shift Requests ({shiftRequests.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Shift Requests</h2>
+        
         <div className="space-y-4">
-          {shiftRequests.map((request) => {
-            const user = users?.find(u => u.id === request.user_id);
-            return (
-              <div
-                key={request.id}
-                className="border rounded-lg p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-blue-600" />
+          {mockRequests.length === 0 ? (
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-gray-500 text-center">No shift requests at this time</p>
+              </CardContent>
+            </Card>
+          ) : (
+            mockRequests.map((request) => (
+              <Card key={request.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{request.shift_title}</CardTitle>
+                    <Badge className={getStatusColor(request.status)}>
+                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm">{request.user_name}</span>
                     </div>
-                    <div>
-                      <h4 className="font-medium">{user?.username || 'Unknown User'}</h4>
-                      <p className="text-sm text-gray-600">{request.request_type}</p>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm">
+                        Requested for: {format(new Date(request.requested_date), 'MMMM d, yyyy')}
+                      </span>
                     </div>
+                    
+                    {request.message && (
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <p className="text-sm text-gray-700">"{request.message}"</p>
+                      </div>
+                    )}
+                    
+                    {request.status === 'pending' && (
+                      <div className="flex space-x-2 pt-2">
+                        <Button size="sm" className="flex items-center space-x-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Approve</span>
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                          <XCircle className="h-4 w-4" />
+                          <span>Reject</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border ${getStatusColor(request.status)}`}>
-                    {getStatusIcon(request.status)}
-                    <span className="text-sm font-medium capitalize">{request.status}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-700">Requested Date:</span>
-                    <p>{request.created_at && format(new Date(request.created_at), 'PPP')}</p>
-                  </div>
-                  {request.reason && (
-                    <div>
-                      <span className="font-medium text-gray-700">Reason:</span>
-                      <p className="text-gray-600">{request.reason}</p>
-                    </div>
-                  )}
-                </div>
-
-                {request.status === 'pending' && (
-                  <div className="flex space-x-2 pt-2">
-                    <Button size="sm" variant="outline" className="text-green-600 border-green-300 hover:bg-green-50">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50">
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Reject
-                    </Button>
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-500 pt-2">
-                  Submitted: {request.created_at && format(new Date(request.created_at), 'PPP')}
-                </div>
-              </div>
-            );
-          })}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Request Summary</h2>
+        
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-yellow-600">
+                  {mockRequests.filter(r => r.status === 'pending').length}
+                </p>
+                <p className="text-sm text-gray-600">Pending Requests</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">
+                  {mockRequests.filter(r => r.status === 'approved').length}
+                </p>
+                <p className="text-sm text-gray-600">Approved Requests</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-red-600">
+                  {mockRequests.filter(r => r.status === 'rejected').length}
+                </p>
+                <p className="text-sm text-gray-600">Rejected Requests</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 };
