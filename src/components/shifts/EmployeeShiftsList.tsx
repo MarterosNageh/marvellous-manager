@@ -4,7 +4,7 @@ import { useShifts } from '@/context/ShiftsContext';
 import { format, isToday, isThisWeek } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { User, Clock, MapPin } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 
 export const EmployeeShiftsList = () => {
   const { shifts, users } = useShifts();
