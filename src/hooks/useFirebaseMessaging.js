@@ -35,12 +35,12 @@ export const useFirebaseMessaging = () => {
     try {
       // Check if service worker is registered
       const registration = await navigator.serviceWorker.ready;
-      console.log('Service Worker ready:', registration);
+      console.log('🔧 Service Worker ready:', registration);
 
       // Request permission
       const permission = await Notification.requestPermission();
       setPermission(permission);
-      console.log('Notification permission:', permission);
+      console.log('🔔 Notification permission:', permission);
       
       if (permission === 'granted') {
         // Get FCM token
@@ -50,23 +50,24 @@ export const useFirebaseMessaging = () => {
         });
         
         if (currentToken) {
-          console.log('FCM Token obtained:', currentToken);
+          console.log('🎉 FCM Token obtained:', currentToken);
+          console.log('📱 FCM Token for testing:', currentToken);
           setToken(currentToken);
           
           // Save token to Supabase
           await saveTokenToDatabase(currentToken);
         } else {
           const error = 'No registration token available. Firebase SDK could not get a token.';
-          console.error(error);
+          console.error('❌', error);
           setError(error);
         }
       } else {
         const error = `Notification permission ${permission}`;
-        console.error(error);
+        console.error('❌', error);
         setError(error);
       }
     } catch (error) {
-      console.error('Error initializing messaging:', error);
+      console.error('❌ Error initializing messaging:', error);
       setError(error.message);
     }
   };
@@ -75,14 +76,16 @@ export const useFirebaseMessaging = () => {
     try {
       const currentUser = localStorage.getItem('currentUser');
       if (!currentUser) {
-        console.error('No user logged in');
+        console.error('❌ No user logged in');
         return;
       }
 
       const user = JSON.parse(currentUser);
+      console.log('💾 Saving FCM token to database for user:', user.id);
+      console.log('💾 FCM Token being saved:', fcmToken.substring(0, 50) + '...');
       
       // Save or update the FCM token in Supabase
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('push_subscriptions')
         .upsert({
           user_id: user.id,
@@ -94,12 +97,26 @@ export const useFirebaseMessaging = () => {
         });
 
       if (error) {
-        console.error('Error saving FCM token:', error);
+        console.error('❌ Error saving FCM token:', error);
+        setError('Failed to save FCM token to database');
       } else {
-        console.log('FCM token saved successfully');
+        console.log('✅ FCM token saved successfully to push_subscriptions table');
+        console.log('✅ Database response:', data);
+        
+        // Verify the save by querying the table
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('push_subscriptions')
+          .select('*')
+          .eq('user_id', user.id);
+          
+        if (!verifyError && verifyData) {
+          console.log('✅ FCM token verification - records found:', verifyData.length);
+          console.log('✅ FCM token verification data:', verifyData);
+        }
       }
     } catch (error) {
-      console.error('Error saving token to database:', error);
+      console.error('❌ Error saving token to database:', error);
+      setError('Failed to save FCM token');
     }
   };
 
@@ -107,6 +124,7 @@ export const useFirebaseMessaging = () => {
     try {
       const permission = await Notification.requestPermission();
       setPermission(permission);
+      console.log('🔔 Permission result:', permission);
       
       if (permission === 'granted') {
         await initializeMessaging();
@@ -114,7 +132,7 @@ export const useFirebaseMessaging = () => {
       
       return permission;
     } catch (error) {
-      console.error('Error requesting permission:', error);
+      console.error('❌ Error requesting permission:', error);
       setError(error.message);
       return 'denied';
     }
@@ -124,7 +142,7 @@ export const useFirebaseMessaging = () => {
   useEffect(() => {
     if (messaging && permission === 'granted') {
       const unsubscribe = onMessage(messaging, (payload) => {
-        console.log('Message received in foreground:', payload);
+        console.log('📨 Message received in foreground:', payload);
         
         // Display notification manually for foreground messages
         if (Notification.permission === 'granted') {

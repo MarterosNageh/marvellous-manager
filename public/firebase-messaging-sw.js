@@ -8,12 +8,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compa
 
 // Your Firebase configuration
 firebase.initializeApp({
-  apiKey: 'AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc',
-  authDomain: 'marvellous-manager.firebaseapp.com',
-  projectId: 'marvellous-manager',
-  storageBucket: 'marvellous-manager.appspot.com',
-  messagingSenderId: '1234567890',
-  appId: '1:1234567890:web:abcdef1234567890',
+  apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
+  authDomain: "marvellous-manager.firebaseapp.com",
+  projectId: "marvellous-manager",
+  storageBucket: "marvellous-manager.firebasestorage.app",
+  messagingSenderId: "368753443778",
+  appId: "1:368753443778:web:91898578c1af5b04184c5b",
+  measurementId: "G-7PVGNBPXZ7"
 });
 
 // Retrieve an instance of Firebase Messaging so that it can handle background
@@ -22,7 +23,7 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message:', payload);
+  console.log('📨 Received background message:', payload);
 
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
@@ -37,7 +38,7 @@ messaging.onBackgroundMessage((payload) => {
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('Notification clicked:', event);
+  console.log('🖱️ Notification clicked:', event);
 
   event.notification.close();
 

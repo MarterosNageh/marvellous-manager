@@ -62,7 +62,7 @@ export const DailyScheduleView = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {shift.description && <p className="text-gray-600 mb-2">{shift.description}</p>}
+                  {shift.notes && <p className="text-gray-600 mb-2">{shift.notes}</p>}
                   {user && (
                     <p className="text-sm text-gray-500">Assigned to: {user.username}</p>
                   )}

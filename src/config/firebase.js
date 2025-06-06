@@ -1,8 +1,12 @@
 
-// firebase.js
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBIw7y43dseUoKSeRjxZ3FC0JwqQvDkPdc",
   authDomain: "marvellous-manager.firebaseapp.com",
