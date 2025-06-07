@@ -1,205 +1,214 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
-import { format, isToday, isThisWeek } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Clock, User, MapPin } from 'lucide-react';
+import { 
+  format, 
+  isToday, 
+  isThisWeek 
+} from 'date-fns';
+import { Clock, Calendar, User, MapPin } from 'lucide-react';
 
 export const EmployeeShiftsList = () => {
   const { shifts, users } = useShifts();
-  const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser } = useAuth();
+  const [filter, setFilter] = useState<'all' | 'today' | 'week'>('all');
 
-  useEffect(() => {
-    const user = localStorage.getItem('currentUser');
-    if (user) {
-      setCurrentUser(JSON.parse(user));
-    }
-  }, []);
+  // Get shifts for current user
+  const userShifts = shifts?.filter(shift => shift.user_id === currentUser?.id) || [];
 
-  const userShifts = shifts?.filter(shift => 
-    currentUser && shift.user_id === currentUser.id
-  ) || [];
-
-  const todayShifts = userShifts.filter(shift => {
+  // Filter shifts based on selected filter
+  const filteredShifts = userShifts.filter(shift => {
     if (!shift.start_time) return false;
-    try {
-      return isToday(new Date(shift.start_time));
-    } catch {
-      return false;
-    }
-  });
-
-  const thisWeekShifts = userShifts.filter(shift => {
-    if (!shift.start_time) return false;
-    try {
-      return isThisWeek(new Date(shift.start_time));
-    } catch {
-      return false;
-    }
-  });
-
-  const upcomingShifts = userShifts.filter(shift => {
-    if (!shift.start_time) return false;
+    
     try {
       const shiftDate = new Date(shift.start_time);
-      return shiftDate > new Date() && !isThisWeek(shiftDate);
+      
+      switch (filter) {
+        case 'today':
+          return isToday(shiftDate);
+        case 'week':
+          return isThisWeek(shiftDate);
+        default:
+          return true;
+      }
     } catch {
       return false;
     }
   });
 
-  const renderShiftCard = (shift: any) => {
-    const user = users?.find(u => u.id === shift.user_id);
-    
-    return (
-      <Card key={shift.id} className="mb-4">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">{shift.title}</CardTitle>
-            <Badge 
-              variant={shift.status === 'completed' ? 'default' : 
-                      shift.status === 'cancelled' ? 'destructive' : 'secondary'}
-            >
-              {shift.status}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <span className="text-sm">
-                {shift.start_time && format(new Date(shift.start_time), 'EEEE, MMMM d, yyyy')}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <span className="text-sm">
-                {shift.start_time && format(new Date(shift.start_time), 'HH:mm')} - 
-                {shift.end_time && format(new Date(shift.end_time), 'HH:mm')}
-              </span>
-            </div>
-          </div>
-          
-          {shift.description && (
-            <p className="text-sm text-gray-600">{shift.description}</p>
-          )}
-          
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${
-              isToday(new Date(shift.start_time)) ? 'bg-green-500' : 'bg-blue-500'
-            }`} />
-            <span className="text-xs text-gray-500">
-              {isToday(new Date(shift.start_time)) ? 'Today' : 'Scheduled'}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
+  // Sort shifts by start time
+  const sortedShifts = filteredShifts.sort((a, b) => {
+    if (!a.start_time || !b.start_time) return 0;
+    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+  });
 
-  if (!currentUser) {
-    return (
-      <div className="text-center p-6">
-        <User className="mx-auto h-12 w-12 text-muted-foreground" />
-        <h3 className="mt-4 text-lg font-medium">Please log in</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Log in to view your assigned shifts.
-        </p>
-      </div>
-    );
-  }
+  // Get upcoming shifts
+  const upcomingShifts = sortedShifts.filter(shift => {
+    if (!shift.start_time) return false;
+    try {
+      return new Date(shift.start_time) > new Date();
+    } catch {
+      return false;
+    }
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-800';
+      case 'in_progress':
+        return 'bg-green-100 text-green-800';
+      case 'completed':
+        return 'bg-gray-100 text-gray-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">My Shifts</h2>
-        <p className="text-muted-foreground">
-          View and manage your assigned shifts
-        </p>
+      {/* Filter buttons */}
+      <div className="flex gap-2">
+        <Button
+          variant={filter === 'all' ? 'default' : 'outline'}
+          onClick={() => setFilter('all')}
+          size="sm"
+        >
+          All Shifts
+        </Button>
+        <Button
+          variant={filter === 'today' ? 'default' : 'outline'}
+          onClick={() => setFilter('today')}
+          size="sm"
+        >
+          Today
+        </Button>
+        <Button
+          variant={filter === 'week' ? 'default' : 'outline'}
+          onClick={() => setFilter('week')}
+          size="sm"
+        >
+          This Week
+        </Button>
       </div>
 
-      <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="today">
-            Today ({todayShifts.length})
-          </TabsTrigger>
-          <TabsTrigger value="week">
-            This Week ({thisWeekShifts.filter(shift => 
-              !isThisWeek(new Date(shift.start_time)) || 
-              !isToday(new Date(shift.start_time))
-            ).length})
-          </TabsTrigger>
-          <TabsTrigger value="upcoming">
-            Upcoming ({upcomingShifts.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="today" className="mt-6">
-          {todayShifts.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <h3 className="mt-4 text-lg font-medium">No shifts today</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    You don't have any shifts scheduled for today.
-                  </p>
+      {/* Next shift card */}
+      {upcomingShifts.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              Next Shift
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const nextShift = upcomingShifts[0];
+              return (
+                <div className="space-y-2">
+                  <div className="font-medium text-lg">{nextShift.title}</div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      {nextShift.start_time && format(new Date(nextShift.start_time), 'MMM d, yyyy')}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {nextShift.start_time && nextShift.end_time && 
+                        `${format(new Date(nextShift.start_time), 'HH:mm')} - ${format(new Date(nextShift.end_time), 'HH:mm')}`}
+                    </div>
+                  </div>
+                  {nextShift.description && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      {nextShift.description}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    <Badge className={getStatusColor(nextShift.status)}>
+                      {nextShift.status.replace('_', ' ')}
+                    </Badge>
+                    {nextShift.shift_type && (
+                      <Badge variant="outline">{nextShift.shift_type}</Badge>
+                    )}
+                  </div>
+                  {(isThisWeek(new Date(nextShift.start_time!)) && isToday(new Date(nextShift.start_time!))) && (
+                    <div className="flex gap-2 mt-3">
+                      <Badge className="bg-orange-100 text-orange-800">Today</Badge>
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All shifts list */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            My Shifts ({sortedShifts.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sortedShifts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No shifts found for the selected filter.
+            </div>
           ) : (
-            <div>
-              {todayShifts.map(renderShiftCard)}
+            <div className="space-y-4">
+              {sortedShifts.map((shift) => (
+                <Card key={shift.id} className="border-l-4 border-l-blue-500">
+                  <CardContent className="pt-4">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-2 flex-1">
+                        <div className="font-medium">{shift.title}</div>
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {shift.start_time && format(new Date(shift.start_time), 'MMM d, yyyy')}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {shift.start_time && shift.end_time && 
+                              `${format(new Date(shift.start_time), 'HH:mm')} - ${format(new Date(shift.end_time), 'HH:mm')}`}
+                          </div>
+                        </div>
+
+                        {shift.description && (
+                          <div className="text-sm text-gray-600">
+                            {shift.description}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Badge className={getStatusColor(shift.status)}>
+                            {shift.status.replace('_', ' ')}
+                          </Badge>
+                          {shift.shift_type && (
+                            <Badge variant="outline">{shift.shift_type}</Badge>
+                          )}
+                          {shift.start_time && isToday(new Date(shift.start_time)) && (
+                            <Badge className="bg-orange-100 text-orange-800">Today</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="week" className="mt-6">
-          {thisWeekShifts.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <h3 className="mt-4 text-lg font-medium">No shifts this week</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    You don't have any shifts scheduled for this week.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div>
-              {thisWeekShifts
-                .filter(shift => !isToday(new Date(shift.start_time)))
-                .map(renderShiftCard)}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="upcoming" className="mt-6">
-          {upcomingShifts.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <h3 className="mt-4 text-lg font-medium">No upcoming shifts</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    You don't have any shifts scheduled beyond this week.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div>
-              {upcomingShifts.map(renderShiftCard)}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };
