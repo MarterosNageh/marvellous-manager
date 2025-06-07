@@ -42,3 +42,4 @@ bun-debug.log*
 **/supabase/.branches
 **/supabase/.temp
 **/supabase/.env
+Firebase_Key/*.json
