@@ -49,29 +49,59 @@ export class NotificationService {
     });
   }
 
-  static async sendTaskAssignmentNotification(userIds: string[], taskTitle: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  static async sendTaskAssignmentNotification(
+    userIds: string[], 
+    taskTitle: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
     return this.sendNotification({
       userIds,
-      title: '📝 New Task Assigned',
-      body: `You have been assigned a new task: ${taskTitle}`,
+      title: '📝 New Task Assignment',
+      body: `You have been assigned to task: "${taskTitle}"`,
       data: {
         type: 'task_assignment',
         taskTitle,
-        url: '/tasks'
+        url: '/tasks',
+        timestamp: new Date().toISOString()
       }
     });
   }
 
-  static async sendTaskStatusNotification(userIds: string[], taskTitle: string, status: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  static async sendTaskStatusNotification(
+    userIds: string[], 
+    taskTitle: string, 
+    oldStatus: string, 
+    newStatus: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
     return this.sendNotification({
       userIds,
       title: '📋 Task Status Updated',
-      body: `Task "${taskTitle}" status changed to ${status}`,
+      body: `Task "${taskTitle}" status changed from ${oldStatus} to ${newStatus}`,
       data: {
         type: 'task_status',
         taskTitle,
-        status,
-        url: '/tasks'
+        oldStatus,
+        newStatus,
+        url: '/tasks',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendTaskModifiedNotification(
+    userIds: string[], 
+    taskTitle: string,
+    changes: string[]
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: '✏️ Task Updated',
+      body: `Task "${taskTitle}" has been updated: ${changes.join(', ')}`,
+      data: {
+        type: 'task_modified',
+        taskTitle,
+        changes,
+        url: '/tasks',
+        timestamp: new Date().toISOString()
       }
     });
   }

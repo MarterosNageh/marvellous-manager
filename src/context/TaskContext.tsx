@@ -347,6 +347,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     try {
+      // Get the original task
+      const originalTask = tasks.find(t => t.id === taskId);
+      if (!originalTask) {
+        throw new Error('Task not found');
+      }
+
       // Check if trying to update status to completed and user is not admin
       if (updates.status === 'completed' && currentUser && !currentUser.isAdmin) {
         toast({
@@ -361,14 +367,36 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       // Only send the fields that can be updated in the database
       const updateData: any = {};
+      const changes: string[] = [];
       
-      if (updates.title !== undefined) updateData.title = updates.title;
-      if (updates.description !== undefined) updateData.description = updates.description;
-      if (updates.priority !== undefined) updateData.priority = updates.priority;
-      if (updates.status !== undefined) updateData.status = updates.status;
-      if (updates.due_date !== undefined) updateData.due_date = updates.due_date;
-      if (updates.supervisor_comments !== undefined) updateData.supervisor_comments = updates.supervisor_comments;
-      if (updates.project_id !== undefined) updateData.project_id = updates.project_id;
+      if (updates.title !== undefined && updates.title !== originalTask.title) {
+        updateData.title = updates.title;
+        changes.push('title');
+      }
+      if (updates.description !== undefined && updates.description !== originalTask.description) {
+        updateData.description = updates.description;
+        changes.push('description');
+      }
+      if (updates.priority !== undefined && updates.priority !== originalTask.priority) {
+        updateData.priority = updates.priority;
+        changes.push('priority');
+      }
+      if (updates.status !== undefined && updates.status !== originalTask.status) {
+        updateData.status = updates.status;
+        changes.push('status');
+      }
+      if (updates.due_date !== undefined && updates.due_date !== originalTask.due_date) {
+        updateData.due_date = updates.due_date;
+        changes.push('due date');
+      }
+      if (updates.supervisor_comments !== undefined && updates.supervisor_comments !== originalTask.supervisor_comments) {
+        updateData.supervisor_comments = updates.supervisor_comments;
+        changes.push('supervisor comments');
+      }
+      if (updates.project_id !== undefined && updates.project_id !== originalTask.project_id) {
+        updateData.project_id = updates.project_id;
+        changes.push('project');
+      }
 
       const { error } = await supabase
         .from('tasks')
@@ -381,6 +409,35 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log('✅ Task updated successfully');
+
+      // Send notifications to assigned users
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        
+        // Get assignees to notify
+        const assigneeIds = originalTask.assignees.map(a => a.id);
+        
+        if (assigneeIds.length > 0) {
+          if (updates.status !== undefined && updates.status !== originalTask.status) {
+            // Send status change notification
+            await NotificationService.sendTaskStatusNotification(
+              assigneeIds,
+              originalTask.title,
+              originalTask.status,
+              updates.status
+            );
+          } else if (changes.length > 0) {
+            // Send general update notification
+            await NotificationService.sendTaskModifiedNotification(
+              assigneeIds,
+              originalTask.title,
+              changes
+            );
+          }
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending task update notifications:', notificationError);
+      }
       
       toast({
         title: "Success",
@@ -433,6 +490,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignTask = async (taskId: string, userIds: string[]) => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) {
+        throw new Error('Task not found');
+      }
+
+      // Get current assignees
+      const currentAssignees = task.assignees.map(a => a.id);
+      
+      // Find new assignees (users who weren't previously assigned)
+      const newAssignees = userIds.filter(id => !currentAssignees.includes(id));
+
       // Delete existing assignments
       const { error: deleteError } = await supabase
         .from('task_assignments')
@@ -453,26 +521,26 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       if (createError) throw createError;
 
-      // Fetch updated task data
-      const { data: taskData, error: taskError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('id', taskId)
-        .single();
-
-      if (taskError) throw taskError;
-
-      if (taskData) {
-        console.log('✅ Task assignments created successfully');
-
-        toast({
-          title: "Success",
-          description: "Task assignments updated successfully",
-        });
-
-        // Refresh task data
-        await fetchData();
+      // Send notifications to newly assigned users
+      if (newAssignees.length > 0) {
+        try {
+          const { NotificationService } = await import('@/services/notificationService');
+          await NotificationService.sendTaskAssignmentNotification(
+            newAssignees,
+            task.title
+          );
+        } catch (notificationError) {
+          console.warn('⚠️ Error sending task assignment notifications:', notificationError);
+        }
       }
+
+      toast({
+        title: "Success",
+        description: "Task assignments updated successfully",
+      });
+
+      // Refresh task data
+      await fetchData();
     } catch (error) {
       console.error('❌ Error assigning task:', error);
       toast({
@@ -480,6 +548,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         description: "Failed to update task assignments",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
