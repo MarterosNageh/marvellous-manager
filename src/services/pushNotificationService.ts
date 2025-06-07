@@ -30,7 +30,7 @@ class PushNotificationService {
         return false;
       }
 
-      // Check database subscription in new fcm_tokens table
+      // Check database subscription in fcm_tokens table
       const currentUser = localStorage.getItem('currentUser');
       if (!currentUser) {
         console.log('❌ No current user found');
@@ -247,6 +247,62 @@ class PushNotificationService {
       return true;
     } catch (error) {
       console.error('❌ FCM unsubscription failed:', error);
+      return false;
+    }
+  }
+
+  // Manual save token method for testing
+  async saveTokenManually(fcmToken: string, userId: string): Promise<boolean> {
+    console.log('💾 === MANUALLY SAVING FCM TOKEN ===');
+    console.log('👤 User ID:', userId);
+    console.log('🔑 FCM Token:', fcmToken.substring(0, 50) + '...');
+    
+    try {
+      // Get device info
+      const deviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        timestamp: new Date().toISOString(),
+        manual_save: true
+      };
+      
+      // Save to fcm_tokens table
+      const { data, error } = await supabase
+        .from('fcm_tokens')
+        .upsert({
+          user_id: userId,
+          fcm_token: fcmToken,
+          device_info: deviceInfo,
+          is_active: true
+        }, {
+          onConflict: 'user_id,fcm_token'
+        });
+
+      if (error) {
+        console.error('❌ Error manually saving FCM token:', error);
+        return false;
+      }
+
+      console.log('✅ FCM token manually saved successfully');
+      console.log('✅ Database response:', data);
+      
+      // Verify the save
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('fcm_tokens')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('fcm_token', fcmToken)
+        .eq('is_active', true);
+        
+      if (!verifyError && verifyData) {
+        console.log('✅ Manual FCM token verification - records found:', verifyData.length);
+        console.log('✅ Manual FCM token verification data:', verifyData);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error manually saving FCM token:', error);
       return false;
     }
   }

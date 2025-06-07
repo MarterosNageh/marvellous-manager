@@ -54,7 +54,7 @@ export const useFirebaseMessaging = () => {
           console.log('📱 FCM Token for testing:', currentToken);
           setToken(currentToken);
           
-          // Save token to new fcm_tokens table
+          // Save token to fcm_tokens table
           await saveTokenToDatabase(currentToken);
         } else {
           const error = 'No registration token available. Firebase SDK could not get a token.';
@@ -92,7 +92,7 @@ export const useFirebaseMessaging = () => {
         timestamp: new Date().toISOString()
       };
       
-      // Save to new fcm_tokens table
+      // Save to fcm_tokens table
       const { data, error } = await supabase
         .from('fcm_tokens')
         .upsert({
