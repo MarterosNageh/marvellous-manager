@@ -1,14 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-interface PushSubscriptionData {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-}
-
 class PushNotificationService {
   // Your VAPID key
   private vapidPublicKey = 'BFlGrK9GG-1qvkGEBhu_HLHLJLrBGvucnrixb4vDX3BLhVP6xoBmaGQTnNh3Kc_Vp_R_1OIyHf-b0aNLXNgqTqc';
@@ -38,7 +30,7 @@ class PushNotificationService {
         return false;
       }
 
-      // Check database subscription
+      // Check database subscription in new fcm_tokens table
       const currentUser = localStorage.getItem('currentUser');
       if (!currentUser) {
         console.log('❌ No current user found');
@@ -48,19 +40,20 @@ class PushNotificationService {
       const user = JSON.parse(currentUser);
       console.log('👤 Checking database for user:', user.id);
       
-      // Check push_subscriptions table for FCM tokens
-      const { data: pushSubs, error } = await supabase
-        .from('push_subscriptions')
+      // Check fcm_tokens table for active tokens
+      const { data: fcmTokens, error } = await supabase
+        .from('fcm_tokens')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
       if (error) {
         console.error('❌ Database query error:', error);
         return false;
       }
 
-      console.log('📊 Database subscriptions found:', pushSubs?.length || 0);
-      const hasDbSubscription = pushSubs && pushSubs.length > 0;
+      console.log('📊 FCM tokens found:', fcmTokens?.length || 0);
+      const hasDbSubscription = fcmTokens && fcmTokens.length > 0;
       
       const isFullySubscribed = !!(browserSubscription && hasDbSubscription);
       console.log('🔍 Full subscription status:', isFullySubscribed);
@@ -183,23 +176,25 @@ class PushNotificationService {
       const user = JSON.parse(currentUser);
       console.log('👤 Checking FCM subscriptions for user:', user.id);
 
-      // Get all database subscriptions for this user
+      // Get all database subscriptions for this user from fcm_tokens table
       const { data: dbSubscriptions, error } = await supabase
-        .from('push_subscriptions')
+        .from('fcm_tokens')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
       if (error) {
         console.error('❌ Database query failed:', error);
         return;
       }
 
-      console.log('📊 FCM subscriptions found:', dbSubscriptions?.length || 0);
+      console.log('📊 FCM tokens found:', dbSubscriptions?.length || 0);
       
       if (dbSubscriptions && dbSubscriptions.length > 0) {
-        console.log('📋 FCM subscription details:');
+        console.log('📋 FCM token details:');
         dbSubscriptions.forEach((sub, index) => {
-          console.log(`  ${index + 1}. Token: ${sub.endpoint.substring(0, 50)}...`);
+          console.log(`  ${index + 1}. Token: ${sub.fcm_token.substring(0, 50)}...`);
+          console.log(`     Device: ${sub.device_info?.platform || 'Unknown'}`);
           console.log(`     Created: ${sub.created_at}`);
           console.log(`     Updated: ${sub.updated_at}`);
         });
@@ -236,11 +231,11 @@ class PushNotificationService {
         }
       }
 
-      // Remove from database
-      console.log('🗑️ Removing FCM token from database...');
+      // Remove from fcm_tokens table
+      console.log('🗑️ Removing FCM tokens from database...');
       const { error } = await supabase
-        .from('push_subscriptions')
-        .delete()
+        .from('fcm_tokens')
+        .update({ is_active: false })
         .eq('user_id', user.id);
 
       if (error) {

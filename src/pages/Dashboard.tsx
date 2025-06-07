@@ -1,334 +1,522 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { format, isToday } from 'date-fns';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, CheckCircle, Clock, Users, HardDrive, FileText, Bell, Plus } from "lucide-react";
-import { TaskUtilizationTable } from "@/components/dashboard/TaskUtilizationTable";
-import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line
+} from 'recharts';
+import { 
+  HardDrive, 
+  Package, 
+  Users, 
+  TrendingUp, 
+  AlertTriangle, 
+  CheckCircle,
+  Clock,
+  Calendar,
+  Activity,
+  FileText,
+  Settings
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, isToday } from 'date-fns';
-import { ShiftsProvider } from "@/context/ShiftsContext";
 
-const Dashboard = () => {
-  const [stats, setStats] = useState({
-    totalTasks: 0,
-    completedTasks: 0,
-    pendingTasks: 0,
-    totalUsers: 0,
-    totalHardDrives: 0,
-    totalNotes: 0,
-    activeShifts: 0
-  });
+interface HardDriveData {
+  id: string;
+  name: string;
+  capacity_gb: number;
+  available_gb: number;
+  status: 'active' | 'inactive' | 'error';
+  project_id: string | null;
+}
 
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [tasksByStatus, setTasksByStatus] = useState([]);
-  const [tasksByPriority, setTasksByPriority] = useState([]);
-  const { toast } = useToast();
+interface ProjectData {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive' | 'completed';
+  start_date: string;
+  end_date: string | null;
+}
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+interface TaskData {
+  id: string;
+  title: string;
+  status: 'open' | 'in progress' | 'completed' | 'blocked';
+  priority: 'high' | 'medium' | 'low';
+  project_id: string;
+  created_at: string;
+}
 
-  const fetchDashboardData = async () => {
-    try {
-      // Fetch tasks
-      const { data: tasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*');
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-      if (tasksError) throw tasksError;
-
-      // Fetch users
-      const { data: users, error: usersError } = await supabase
-        .from('auth_users')
-        .select('*');
-
-      if (usersError) throw usersError;
-
-      // Fetch hard drives
-      const { data: hardDrives, error: hardDrivesError } = await supabase
-        .from('hard_drives')
-        .select('*');
-
-      if (hardDrivesError) throw hardDrivesError;
-
-      // Fetch notes
-      const { data: notes, error: notesError } = await supabase
-        .from('notes')
-        .select('*');
-
-      if (notesError) throw notesError;
-
-      // Fetch shifts for today
-      const { data: shifts, error: shiftsError } = await supabase
-        .from('shifts')
-        .select('*');
-
-      if (shiftsError) throw shiftsError;
-
-      // Calculate stats
-      const completedTasks = tasks?.filter(task => task.status === 'completed').length || 0;
-      const pendingTasks = tasks?.filter(task => task.status === 'pending').length || 0;
-      const activeShifts = shifts?.filter(shift => {
-        if (!shift.start_time) return false;
-        try {
-          return isToday(new Date(shift.start_time));
-        } catch {
-          return false;
-        }
-      }).length || 0;
-
-      setStats({
-        totalTasks: tasks?.length || 0,
-        completedTasks,
-        pendingTasks,
-        totalUsers: users?.length || 0,
-        totalHardDrives: hardDrives?.length || 0,
-        totalNotes: notes?.length || 0,
-        activeShifts
-      });
-
-      // Group tasks by status for chart
-      const statusGroups = tasks?.reduce((acc, task) => {
-        acc[task.status] = (acc[task.status] || 0) + 1;
-        return acc;
-      }, {}) || {};
-
-      const statusData = Object.entries(statusGroups).map(([status, count]) => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1),
-        value: count,
-        color: getStatusColor(status)
-      }));
-
-      setTasksByStatus(statusData);
-
-      // Group tasks by priority for chart
-      const priorityGroups = tasks?.reduce((acc, task) => {
-        acc[task.priority] = (acc[task.priority] || 0) + 1;
-        return acc;
-      }, {}) || {};
-
-      const priorityData = Object.entries(priorityGroups).map(([priority, count]) => ({
-        name: priority.charAt(0).toUpperCase() + priority.slice(1),
-        value: count,
-        color: getPriorityColor(priority)
-      }));
-
-      setTasksByPriority(priorityData);
-
-      // Recent activity (last 10 tasks)
-      const recentTasks = tasks?.slice(-10).reverse().map(task => ({
-        id: task.id,
-        title: task.title,
-        status: task.status,
-        created_at: task.created_at,
-        type: 'task'
-      })) || [];
-
-      setRecentActivity(recentTasks);
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return '#10b981';
-      case 'in_progress': return '#f59e0b';
-      case 'pending': return '#ef4444';
-      default: return '#6b7280';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return '#ef4444';
-      case 'medium': return '#f59e0b';
-      case 'low': return '#10b981';
-      default: return '#6b7280';
-    }
-  };
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const RADIAN = Math.PI / 180;
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: any) => {
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
   return (
-    <ShiftsProvider>
-      <MainLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <Button onClick={() => window.location.href = '/task-manager'}>
-              <Plus className="mr-2 h-4 w-4" />
-              Quick Actions
-            </Button>
+    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
+const Dashboard = () => {
+  const { currentUser } = useAuth();
+  const [stats, setStats] = useState({
+    totalHardDrives: 0,
+    availableHardDrives: 0,
+    totalProjects: 0,
+    activeProjects: 0,
+    totalUsers: 0,
+    completedTasks: 0
+  });
+
+  // Hard drives query
+  const { data: hardDrives } = useQuery({
+    queryKey: ['hardDrives'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('hard_drives')
+        .select('*');
+      if (error) throw error;
+      return data as HardDriveData[];
+    }
+  });
+
+  // Projects query
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*');
+      if (error) throw error;
+      return data as ProjectData[];
+    }
+  });
+
+  // Users query
+  const { data: users } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('*');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Tasks query
+  const { data: tasks } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*');
+      if (error) throw error;
+      return data as TaskData[];
+    }
+  });
+
+  // Today's shifts query
+  const { data: todayShifts } = useQuery({
+    queryKey: ['todayShifts'],
+    queryFn: async () => {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+      
+      const { data, error } = await supabase
+        .from('shifts')
+        .select(`
+          *,
+          auth_users!shifts_user_id_fkey(username)
+        `)
+        .gte('start_time', startOfDay)
+        .lt('start_time', endOfDay)
+        .eq('status', 'scheduled');
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  useEffect(() => {
+    if (hardDrives && projects && users && tasks) {
+      const totalCapacity = hardDrives.reduce((sum, drive) => sum + drive.capacity_gb, 0);
+      const availableCapacity = hardDrives.reduce((sum, drive) => sum + drive.available_gb, 0);
+      const activeProjectsCount = projects.filter(project => project.status === 'active').length;
+      const completedTasksCount = tasks.filter(task => task.status === 'completed').length;
+
+      setStats({
+        totalHardDrives: hardDrives.length,
+        availableHardDrives: availableCapacity,
+        totalProjects: projects.length,
+        activeProjects: activeProjectsCount,
+        totalUsers: users.length,
+        completedTasks: completedTasksCount
+      });
+    }
+  }, [hardDrives, projects, users, tasks]);
+
+  const renderShiftCard = (shift: any) => {
+    const shiftStart = new Date(shift.start_time);
+    const isCurrentShift = isToday(shiftStart);
+    
+    return (
+      <Card key={shift.id} className="mb-3">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium">{shift.title}</h4>
+            <Badge variant={shift.status === 'completed' ? 'default' : 'secondary'}>
+              {shift.status}
+            </Badge>
           </div>
-
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalTasks}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.completedTasks} completed, {stats.pendingTasks} pending
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalUsers}</div>
-                <p className="text-xs text-muted-foreground">
-                  Registered users in system
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Hard Drives</CardTitle>
-                <HardDrive className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalHardDrives}</div>
-                <p className="text-xs text-muted-foreground">
-                  Total drives tracked
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.activeShifts}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active shifts today
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Charts and Recent Activity */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="tasks">Task Analytics</TabsTrigger>
-              <TabsTrigger value="activity">Recent Activity</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
-                  <CardHeader>
-                    <CardTitle>Task Status Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pl-2">
-                    <ResponsiveContainer width="100%" height={350}>
-                      <BarChart data={tasksByStatus}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" fill="#8884d8" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="col-span-3">
-                  <CardHeader>
-                    <CardTitle>Task Priority Breakdown</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={350}>
-                      <PieChart>
-                        <Pie
-                          data={tasksByPriority}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {tasksByPriority.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+          <div className="text-sm text-gray-600 space-y-1">
+            <div className="flex items-center gap-2">
+              <Users className="h-3 w-3" />
+              <span>{shift.auth_users?.username || 'Unassigned'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-3 w-3" />
+              <span>
+                {format(new Date(shift.start_time), 'HH:mm')} - 
+                {format(new Date(shift.end_time), 'HH:mm')}
+              </span>
+            </div>
+            {shift.description && (
+              <div className="flex items-start gap-2">
+                <FileText className="h-3 w-3 mt-0.5" />
+                <span>{shift.description}</span>
               </div>
-            </TabsContent>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
-            <TabsContent value="tasks" className="space-y-4">
-              <TaskUtilizationTable />
-            </TabsContent>
+  const hardDriveStatusData = hardDrives?.reduce((acc: any, drive: HardDriveData) => {
+    const status = drive.status;
+    if (acc[status]) {
+      acc[status]++;
+    } else {
+      acc[status] = 1;
+    }
+    return acc;
+  }, {}) || {};
 
-            <TabsContent value="activity" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>
-                    Latest updates across the system
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity) => (
-                      <div key={activity.id} className="flex items-center space-x-4">
-                        <div className="flex-shrink-0">
-                          {activity.type === 'task' && <CheckCircle className="h-4 w-4 text-blue-500" />}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm font-medium leading-none">
-                            {activity.title}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {activity.created_at && format(new Date(activity.created_at), 'MMM d, yyyy at h:mm a')}
-                          </p>
-                        </div>
-                        <Badge variant={activity.status === 'completed' ? 'default' : 'secondary'}>
-                          {activity.status}
-                        </Badge>
-                      </div>
-                    ))}
-                    {recentActivity.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No recent activity to display
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+  const hardDriveStatusPieData = Object.entries(hardDriveStatusData).map(([name, value]) => ({
+    name,
+    value: value as number
+  }));
+
+  const taskStatusData = tasks?.reduce((acc: any, task: TaskData) => {
+    const status = task.status;
+    if (acc[status]) {
+      acc[status]++;
+    } else {
+      acc[status] = 1;
+    }
+    return acc;
+  }, {}) || {};
+
+  const taskStatusPieData = Object.entries(taskStatusData).map(([name, value]) => ({
+    name,
+    value: value as number
+  }));
+
+  const projectStatusData = projects?.reduce((acc: any, project: ProjectData) => {
+    const status = project.status;
+    if (acc[status]) {
+      acc[status]++;
+    } else {
+      acc[status] = 1;
+    }
+    return acc;
+  }, {}) || {};
+
+  const projectStatusPieData = Object.entries(projectStatusData).map(([name, value]) => ({
+    name,
+    value: value as number
+  }));
+
+  const taskPriorityData = tasks?.reduce((acc: any, task: TaskData) => {
+    const priority = task.priority;
+    if (acc[priority]) {
+      acc[priority]++;
+    } else {
+      acc[priority] = 1;
+    }
+    return acc;
+  }, {}) || {};
+
+  const taskPriorityPieData = Object.entries(taskPriorityData).map(([name, value]) => ({
+    name,
+    value: value as number
+  }));
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back, {currentUser?.username}! Here's what's happening today.
+          </p>
         </div>
-      </MainLayout>
-    </ShiftsProvider>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5" />
+                Total Hard Drives
+              </CardTitle>
+              <CardDescription>
+                Total number of hard drives in the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalHardDrives}</div>
+              <p className="text-sm text-muted-foreground">
+                {hardDrives && hardDrives.length > 0 ? 'Click to view details' : 'No hard drives found'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Available Capacity
+              </CardTitle>
+              <CardDescription>
+                Total available storage capacity
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.availableHardDrives} GB</div>
+              <p className="text-sm text-muted-foreground">
+                {hardDrives && hardDrives.length > 0 ? 'Click to manage storage' : 'No storage devices found'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Total Users
+              </CardTitle>
+              <CardDescription>
+                Number of registered users
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <p className="text-sm text-muted-foreground">
+                {users && users.length > 0 ? 'Click to manage users' : 'No users registered'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Completed Tasks
+              </CardTitle>
+              <CardDescription>
+                Number of tasks completed
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.completedTasks}</div>
+              <p className="text-sm text-muted-foreground">
+                {tasks && tasks.length > 0 ? 'Click to view task details' : 'No tasks found'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Today's Schedule Section */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Today's Schedule
+              </CardTitle>
+              <CardDescription>
+                Shifts scheduled for today
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {todayShifts && todayShifts.length > 0 ? (
+                <div className="space-y-2">
+                  {todayShifts.slice(0, 3).map(renderShiftCard)}
+                  {todayShifts.length > 3 && (
+                    <p className="text-sm text-gray-500 text-center pt-2">
+                      +{todayShifts.length - 3} more shifts
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No shifts scheduled for today</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5" />
+                Hard Drive Status
+              </CardTitle>
+              <CardDescription>
+                Status of hard drives in the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hardDriveStatusPieData && hardDriveStatusPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={hardDriveStatusPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomizedLabel}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {
+                        hardDriveStatusPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))
+                      }
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-6">
+                  <HardDrive className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No hard drive status data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Task Status
+              </CardTitle>
+              <CardDescription>
+                Status of tasks in the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {taskStatusPieData && taskStatusPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={taskStatusPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomizedLabel}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {
+                        taskStatusPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))
+                      }
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-6">
+                  <Activity className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No task status data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Project Status
+              </CardTitle>
+              <CardDescription>
+                Status of projects in the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {projectStatusPieData && projectStatusPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={projectStatusPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomizedLabel}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {
+                        projectStatusPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))
+                      }
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-6">
+                  <Settings className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No project status data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </MainLayout>
   );
 };
 

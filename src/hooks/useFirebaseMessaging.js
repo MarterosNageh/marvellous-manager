@@ -54,7 +54,7 @@ export const useFirebaseMessaging = () => {
           console.log('📱 FCM Token for testing:', currentToken);
           setToken(currentToken);
           
-          // Save token to Supabase
+          // Save token to new fcm_tokens table
           await saveTokenToDatabase(currentToken);
         } else {
           const error = 'No registration token available. Firebase SDK could not get a token.';
@@ -81,33 +81,42 @@ export const useFirebaseMessaging = () => {
       }
 
       const user = JSON.parse(currentUser);
-      console.log('💾 Saving FCM token to database for user:', user.id);
+      console.log('💾 Saving FCM token to fcm_tokens table for user:', user.id);
       console.log('💾 FCM Token being saved:', fcmToken.substring(0, 50) + '...');
       
-      // Save or update the FCM token in Supabase
+      // Get device info
+      const deviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Save to new fcm_tokens table
       const { data, error } = await supabase
-        .from('push_subscriptions')
+        .from('fcm_tokens')
         .upsert({
           user_id: user.id,
-          endpoint: fcmToken,
-          p256dh_key: '', // FCM handles this internally
-          auth_key: ''    // FCM handles this internally
+          fcm_token: fcmToken,
+          device_info: deviceInfo,
+          is_active: true
         }, {
-          onConflict: 'user_id'
+          onConflict: 'user_id,fcm_token'
         });
 
       if (error) {
         console.error('❌ Error saving FCM token:', error);
         setError('Failed to save FCM token to database');
       } else {
-        console.log('✅ FCM token saved successfully to push_subscriptions table');
+        console.log('✅ FCM token saved successfully to fcm_tokens table');
         console.log('✅ Database response:', data);
         
         // Verify the save by querying the table
         const { data: verifyData, error: verifyError } = await supabase
-          .from('push_subscriptions')
+          .from('fcm_tokens')
           .select('*')
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .eq('is_active', true);
           
         if (!verifyError && verifyData) {
           console.log('✅ FCM token verification - records found:', verifyData.length);
