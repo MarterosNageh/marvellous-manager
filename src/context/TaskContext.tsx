@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { NotificationService } from "@/services/notificationService";
 
 interface Project {
   id: string;
@@ -302,9 +303,26 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('✅ Task assignments created successfully');
 
+        // Send notifications to assigned users
+        try {
+          const { NotificationService } = await import('@/services/notificationService');
+          const notificationResult = await NotificationService.sendTaskAssignmentNotification(
+            data.assignee_ids,
+            data.title
+          );
+          
+          if (notificationResult.success) {
+            console.log('✅ Task assignment notifications sent successfully');
+          } else {
+            console.warn('⚠️ Failed to send notifications:', notificationResult.error);
+          }
+        } catch (notificationError) {
+          console.warn('⚠️ Error sending task assignment notifications:', notificationError);
+        }
+
         toast({
           title: "✅ Task Created Successfully",
-          description: `Task created and notifications are being sent to ${data.assignee_ids?.length || 0} user(s).`,
+          description: `Task created and notifications sent to ${data.assignee_ids?.length || 0} user(s).`,
         });
 
       } else {

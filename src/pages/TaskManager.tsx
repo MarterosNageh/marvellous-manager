@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TaskProvider } from "@/context/TaskContext";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Kanban } from "lucide-react";
 import { NotificationExample } from '@/components/NotificationExample';
+import { NotificationTestButton } from '@/components/NotificationTestButton';
 
 const TaskManager = () => {
   return (
@@ -18,6 +20,7 @@ const TaskManager = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Task Manager</h1>
             <div className="flex gap-2">
+              <NotificationTestButton />
               <CreateTaskDialog>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
