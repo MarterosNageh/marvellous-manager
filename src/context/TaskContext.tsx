@@ -306,18 +306,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         // Send notifications to assigned users
         try {
           const { NotificationService } = await import('@/services/notificationService');
-          const notificationResult = await NotificationService.sendTaskAssignmentNotification(
+          
+          // Send creation notification
+          await NotificationService.sendTaskCreatedNotification(
             data.assignee_ids,
             data.title
           );
-          
-          if (notificationResult.success) {
-            console.log('✅ Task assignment notifications sent successfully');
-          } else {
-            console.warn('⚠️ Failed to send notifications:', notificationResult.error);
-          }
         } catch (notificationError) {
-          console.warn('⚠️ Error sending task assignment notifications:', notificationError);
+          console.warn('⚠️ Error sending task creation notifications:', notificationError);
         }
 
         toast({
@@ -413,13 +409,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       // Send notifications to assigned users
       try {
         const { NotificationService } = await import('@/services/notificationService');
-        
-        // Get assignees to notify
         const assigneeIds = originalTask.assignees.map(a => a.id);
         
         if (assigneeIds.length > 0) {
           if (updates.status !== undefined && updates.status !== originalTask.status) {
-            // Send status change notification
+            // Status change notification
             await NotificationService.sendTaskStatusNotification(
               assigneeIds,
               originalTask.title,
@@ -427,7 +421,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
               updates.status
             );
           } else if (changes.length > 0) {
-            // Send general update notification
+            // General update notification
             await NotificationService.sendTaskModifiedNotification(
               assigneeIds,
               originalTask.title,
@@ -460,6 +454,26 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   const deleteTask = async (taskId: string) => {
     try {
       console.log('🗑️ Deleting task:', taskId);
+
+      const taskToDelete = tasks.find(t => t.id === taskId);
+      if (!taskToDelete) {
+        throw new Error('Task not found');
+      }
+
+      // Send deletion notification before deleting the task
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        const assigneeIds = taskToDelete.assignees.map(a => a.id);
+        
+        if (assigneeIds.length > 0) {
+          await NotificationService.sendTaskDeletedNotification(
+            assigneeIds,
+            taskToDelete.title
+          );
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending task deletion notifications:', notificationError);
+      }
 
       const { error } = await supabase
         .from('tasks')

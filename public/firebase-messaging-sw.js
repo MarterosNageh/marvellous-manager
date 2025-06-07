@@ -27,8 +27,8 @@ messaging.onBackgroundMessage((payload) => {
   
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/marvellous-logo-black.png',
-    badge: '/marvellous-logo-black.png',
+    icon: '/marvellous-logo-white.png',
+    badge: '/marvellous-logo-white.png',
     tag: tag, // Use consistent tag to prevent duplicates
     data: {
       ...payload.data,

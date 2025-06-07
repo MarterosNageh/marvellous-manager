@@ -15,7 +15,7 @@ export class NotificationService {
       // Add a unique tag for the notification type
       const notificationData = {
         ...payload.data,
-        tag: `${payload.data?.type || 'default'}_${Date.now()}`, // Add timestamp to make it unique
+        tag: `${payload.data?.type || 'default'}_${Date.now()}`,
       };
 
       // Call the Supabase edge function
@@ -58,14 +58,31 @@ export class NotificationService {
     });
   }
 
+  static async sendTaskCreatedNotification(
+    userIds: string[], 
+    taskTitle: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `${taskTitle} (Created)`,
+      body: `A new task has been created and assigned to you`,
+      data: {
+        type: 'task_created',
+        taskTitle,
+        url: '/tasks',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
   static async sendTaskAssignmentNotification(
     userIds: string[], 
     taskTitle: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     return this.sendNotification({
       userIds,
-      title: '📝 New Task Assignment',
-      body: `You have been assigned to task: "${taskTitle}"`,
+      title: `${taskTitle} (Assigned)`,
+      body: `You have been assigned to this task`,
       data: {
         type: 'task_assignment',
         taskTitle,
@@ -81,10 +98,17 @@ export class NotificationService {
     oldStatus: string, 
     newStatus: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
+    // Format status labels
+    const formatStatus = (status: string) => {
+      return status.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
     return this.sendNotification({
       userIds,
-      title: '📋 Task Status Updated',
-      body: `Task "${taskTitle}" status changed from ${oldStatus} to ${newStatus}`,
+      title: `${taskTitle} (Status Updated)`,
+      body: `Status changed from ${formatStatus(oldStatus)} to ${formatStatus(newStatus)}`,
       data: {
         type: 'task_status',
         taskTitle,
@@ -101,14 +125,36 @@ export class NotificationService {
     taskTitle: string,
     changes: string[]
   ): Promise<{ success: boolean; message?: string; error?: string }> {
+    // Format the changes for display
+    const formatChanges = (changes: string[]) => {
+      return changes.map(change => change.charAt(0).toUpperCase() + change.slice(1));
+    };
+
     return this.sendNotification({
       userIds,
-      title: '✏️ Task Updated',
-      body: `Task "${taskTitle}" has been updated: ${changes.join(', ')}`,
+      title: `${taskTitle} (Updated)`,
+      body: `Changes made to: ${formatChanges(changes).join(', ')}`,
       data: {
         type: 'task_modified',
         taskTitle,
         changes,
+        url: '/tasks',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendTaskDeletedNotification(
+    userIds: string[], 
+    taskTitle: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `${taskTitle} (Deleted)`,
+      body: `This task has been deleted`,
+      data: {
+        type: 'task_deleted',
+        taskTitle,
         url: '/tasks',
         timestamp: new Date().toISOString()
       }
