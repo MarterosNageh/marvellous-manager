@@ -22,16 +22,22 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
 
-  // Enhanced notification options for better mobile support
+  // Use the tag from the payload to prevent duplicates
+  const tag = payload.data?.tag || payload.data?.type || 'default';
+  
   const notificationOptions = {
     body: payload.notification?.body || '',
     icon: '/marvellous-logo-black.png',
     badge: '/marvellous-logo-black.png',
-    tag: payload.data?.tag || 'default',
-    data: payload.data || {},
-    vibrate: [100, 50, 100], // Mobile vibration pattern
+    tag: tag, // Use consistent tag to prevent duplicates
+    data: {
+      ...payload.data,
+      url: payload.data?.url || '/tasks',
+      timestamp: Date.now()
+    },
+    vibrate: [100, 50, 100],
     requireInteraction: true,
-    renotify: true, // Always notify even if using same tag
+    renotify: false, // Don't show duplicate notifications
     actions: [
       {
         action: 'open',
@@ -39,10 +45,8 @@ messaging.onBackgroundMessage((payload) => {
         icon: '/marvellous-logo-black.png'
       }
     ],
-    // Mobile specific options
     silent: false,
-    timestamp: Date.now(),
-    priority: 'high'
+    timestamp: Date.now()
   };
 
   return self.registration.showNotification(

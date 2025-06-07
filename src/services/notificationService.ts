@@ -12,9 +12,18 @@ export class NotificationService {
     try {
       console.log('🔔 Sending notification:', payload);
 
+      // Add a unique tag for the notification type
+      const notificationData = {
+        ...payload.data,
+        tag: `${payload.data?.type || 'default'}_${Date.now()}`, // Add timestamp to make it unique
+      };
+
       // Call the Supabase edge function
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
-        body: payload
+        body: {
+          ...payload,
+          data: notificationData
+        }
       });
 
       if (error) {

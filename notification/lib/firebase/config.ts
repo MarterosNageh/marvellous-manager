@@ -89,24 +89,28 @@ if (typeof window !== 'undefined') {
       onMessage(messagingInstance, (payload) => {
         console.log('Foreground message received:', payload);
         
-        // Display a notification even when app is in foreground
+        // For mobile devices, let the service worker handle notifications
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+          console.log('Mobile device: letting service worker handle notification');
+          return;
+        }
+        
+        // For desktop, show notification if app is in foreground
         if (payload.notification) {
-          // Check if browser supports notifications
           if ('Notification' in window && Notification.permission === 'granted') {
             const { title, body } = payload.notification;
             
-            // Create and show notification
             const notification = new Notification(title || 'New Notification', {
               body: body || '',
               icon: '/marvellous-logo-black.png',
-              data: payload.data
+              data: payload.data,
+              tag: payload.data?.tag || 'default', // Add tag to prevent duplicates
+              renotify: false // Don't show duplicate notifications
             });
             
-            // Handle notification click
             notification.onclick = () => {
               notification.close();
-              
-              // Focus window and navigate if URL provided
               window.focus();
               if (payload.data?.url) {
                 window.location.href = payload.data.url;

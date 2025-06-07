@@ -169,12 +169,15 @@ async function sendFCMNotificationV1(fcmToken, title, body, data, supabaseAdmin,
             priority: 'high',
             default_sound: true,
             notification_priority: 'PRIORITY_HIGH',
-            visibility: 'PUBLIC'
+            visibility: 'PUBLIC',
+            tag: data?.tag || 'default',
+            channelId: 'default'
           }
         },
         apns: {
           headers: {
             'apns-priority': '10',
+            'apns-push-type': 'alert'
           },
           payload: {
             aps: {
@@ -185,24 +188,33 @@ async function sendFCMNotificationV1(fcmToken, title, body, data, supabaseAdmin,
               sound: 'default',
               badge: 1,
               'mutable-content': 1,
-              'content-available': 1
+              'content-available': 1,
+              'thread-id': data?.tag || 'default'
             }
           }
         },
         webpush: {
           headers: {
             Urgency: 'high',
+            TTL: '86400'
           },
           notification: {
+            title: title || 'Notification',
+            body: body || 'You have a new notification',
             icon: data?.icon || '/marvellous-logo-black.png',
             badge: data?.badge || '/marvellous-logo-black.png',
-            tag: data?.tag,
+            tag: data?.tag || 'default',
             requireInteraction: true,
-            renotify: true
+            renotify: false,
+            silent: false
           },
           fcm_options: {
             link: data?.url || '/'
           }
+        },
+        data: {
+          ...data,
+          tag: data?.tag || 'default'
         }
       }
     };
