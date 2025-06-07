@@ -195,6 +195,14 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentUser.username || 'A user'
       );
 
+      // Refresh the notes list to update UI
+      await refreshNotes();
+      
+      // Update the selected note to show shared status immediately
+      if (selectedNote?.id === noteId) {
+        setSelectedNote(prev => prev ? { ...prev, is_shared: true } : null);
+      }
+
       toast.success('Note shared successfully');
       return true;
     } catch (error) {
@@ -213,6 +221,28 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .eq('shared_with_user_id', userId);
 
       if (error) throw error;
+
+      // Check if this was the last share for this note
+      const { data: remainingShares } = await supabase
+        .from('note_shares')
+        .select('id')
+        .eq('note_id', noteId);
+
+      // If no more shares exist, update the note's is_shared status
+      if (!remainingShares?.length) {
+        await supabase
+          .from('notes')
+          .update({ is_shared: false })
+          .eq('id', noteId);
+
+        // Update the selected note to remove shared status immediately
+        if (selectedNote?.id === noteId) {
+          setSelectedNote(prev => prev ? { ...prev, is_shared: false } : null);
+        }
+      }
+
+      // Refresh the notes list to update UI
+      await refreshNotes();
 
       toast.success('Note unshared successfully');
       return true;
