@@ -8,14 +8,12 @@ import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Kanban } from "lucide-react";
-import { NotificationExample } from '@/components/NotificationExample';
 import { NotificationTestButton } from '@/components/NotificationTestButton';
 
 const TaskManager = () => {
   return (
     <TaskProvider>
       <MainLayout>
-        <NotificationExample />
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Task Manager</h1>

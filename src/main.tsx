@@ -1,4 +1,3 @@
-
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
@@ -8,7 +7,7 @@ import App from "./App";
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const registration = await navigator.serviceWorker.register('/sw.js');
       console.log('FCM Service Worker registered:', registration);
     } catch (error) {
       console.error('FCM Service Worker registration failed:', error);
