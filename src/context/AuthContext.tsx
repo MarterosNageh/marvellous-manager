@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -48,12 +47,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const user = JSON.parse(storedUser);
           setCurrentUser(user);
           setIsAuthenticated(true);
-          console.log('Restored user session:', user);
         } else {
           setIsAuthenticated(false);
         }
       } catch (error) {
-        console.error('Error checking session:', error);
         setIsAuthenticated(false);
       }
     };
@@ -63,8 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      console.log('Attempting login for user:', username);
-      
       const { data, error } = await supabase
         .from('auth_users')
         .select('*')
@@ -73,7 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error || !data) {
-        console.error('Login failed:', error);
         return false;
       }
 
@@ -92,10 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Store user session in localStorage
       localStorage.setItem('currentUser', JSON.stringify(user));
       
-      console.log('Login successful:', user);
       return true;
     } catch (error) {
-      console.error('Login error:', error);
       return false;
     }
   };
@@ -104,7 +96,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('currentUser');
-    console.log('User logged out');
   };
 
   const refreshUsers = async () => {
@@ -115,7 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('username');
 
       if (error) {
-        console.error('Error fetching users:', error);
         return;
       }
 
@@ -130,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUsers(mappedUsers);
     } catch (error) {
-      console.error('Error refreshing users:', error);
+      // Error handled by caller
     }
   };
 
@@ -149,7 +139,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId);
 
       if (error) {
-        console.error('Error updating user:', error);
         return false;
       }
 
@@ -164,7 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return true;
     } catch (error) {
-      console.error('Error updating user:', error);
       return false;
     }
   };
@@ -182,7 +170,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
       if (error) {
-        console.error('Error adding user:', error);
         toast.error('Failed to add user');
         return false;
       }
@@ -191,7 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshUsers();
       return true;
     } catch (error) {
-      console.error('Error adding user:', error);
       toast.error('Failed to add user');
       return false;
     }
@@ -205,7 +191,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId);
 
       if (error) {
-        console.error('Error removing user:', error);
         toast.error('Failed to remove user');
         return false;
       }
@@ -214,7 +199,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshUsers();
       return true;
     } catch (error) {
-      console.error('Error removing user:', error);
       toast.error('Failed to remove user');
       return false;
     }

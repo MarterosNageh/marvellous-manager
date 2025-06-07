@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -123,7 +122,6 @@ const ProjectDetail = () => {
       toast.success('Project deleted successfully');
       navigate('/projects');
     } catch (error) {
-      console.error('Error deleting project:', error);
       toast.error('Failed to delete project');
     }
   };

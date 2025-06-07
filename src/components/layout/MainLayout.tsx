@@ -1,4 +1,3 @@
-
 import { ReactNode, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -6,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Header } from "@/components/layout/Header";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {fetchToken } from "../../../notification";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -18,16 +18,26 @@ export const MainLayout = ({
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    console.log('🏠 MainLayout rendered');
-    console.log('🏠 Is authenticated:', isAuthenticated);
-    console.log('🏠 Current user:', currentUser);
-    console.log('🏠 Current path:', window.location.pathname);
+    const initializeNotifications = async () => {
+      if (isAuthenticated && currentUser) {
+        try {
+          const token = await fetchToken();
+          if (token) {
+            console.log('FCM initialized successfully');
+            console.log(token);
+          }
+        } catch (error) {
+          console.error('Error initializing FCM:', error);
+        }
+      }
+    };
+
+    initializeNotifications();
   }, [isAuthenticated, currentUser]);
 
   // Don't redirect if we're still checking authentication
   // Only redirect if we're definitely not authenticated
   if (isAuthenticated === false) {
-    console.log('🚨 Not authenticated, redirecting to login');
     return <Navigate to="/login" />;
   }
 

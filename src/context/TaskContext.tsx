@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { notificationService } from "@/services/notificationService";
 
 interface Project {
   id: string;
@@ -46,8 +45,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   // Function to fetch all data
   const fetchData = async () => {
     try {
-      console.log('🔄 Fetching all data...');
-
       // Fetch users
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
@@ -122,9 +119,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       }));
 
       setTasks(transformedTasks);
-      console.log('✅ Data fetched successfully, tasks count:', transformedTasks.length);
     } catch (error) {
-      console.error('❌ Error fetching data:', error);
       toast({
         title: "Error",
         description: "Failed to load data",
@@ -145,15 +140,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       setCurrentUser(JSON.parse(storedUser));
     }
 
-    // Initialize notification service
-    const initNotifications = async () => {
-      await notificationService.init();
-    };
-    initNotifications();
-
     // Set up real-time subscriptions with better error handling
-    console.log('🔌 Setting up real-time subscriptions...');
-    
     const setupRealtimeSubscription = () => {
       const channel = supabase
         .channel(`task-updates-${Date.now()}`)
@@ -164,9 +151,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             schema: 'public',
             table: 'tasks'
           },
-          (payload) => {
-            console.log('📝 Task change detected:', payload.eventType, payload);
-            // Immediate UI update for better responsiveness
+          () => {
             fetchData();
           }
         )
@@ -177,18 +162,12 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
             schema: 'public',
             table: 'task_assignments'
           },
-          (payload) => {
-            console.log('👥 Task assignment change detected:', payload.eventType, payload);
-            // Immediate UI update for better responsiveness
+          () => {
             fetchData();
           }
         )
         .subscribe((status) => {
-          console.log('🔌 Real-time subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to real-time updates');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Real-time subscription failed, retrying in 3 seconds...');
+          if (status === 'CHANNEL_ERROR') {
             setTimeout(() => {
               channel.unsubscribe();
               setupRealtimeSubscription();
@@ -202,15 +181,89 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     const channel = setupRealtimeSubscription();
 
     return () => {
-      console.log('🧹 Cleaning up real-time subscriptions...');
       if (channel) {
         channel.unsubscribe();
       }
     };
-  }, []);
+  }, [toast]);
 
   const createTask = async (data: CreateTaskData) => {
     try {
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase
+        .from('auth_users')
+        .select('*');
+      
+      if (usersError) throw usersError;
+      
+      const transformedUsers = usersData.map(user => ({
+        id: user.id,
+        username: user.username,
+        password: user.password,
+        isAdmin: user.is_admin,
+        role: user.is_admin ? 'admin' : 'user',
+      }));
+      setUsers(transformedUsers);
+
+      // Fetch projects
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*');
+      
+      if (projectsError) throw projectsError;
+      
+      const transformedProjects = projectsData.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        created_at: project.created_at,
+      }));
+      setProjects(transformedProjects);
+
+      // Fetch tasks with assignments and subtasks
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          task_assignments(user_id),
+          subtasks(*),
+          projects(name)
+        `);
+
+      if (tasksError) throw tasksError;
+
+      const transformedTasks = tasksData.map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || "",
+        supervisor_comments: task.supervisor_comments || "",
+        priority: task.priority as TaskPriority,
+        status: task.status as TaskStatus,
+        due_date: task.due_date || "",
+        project_id: task.project_id || "",
+        created_by: task.created_by,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+        assignees: task.task_assignments?.map((assignment: any) => {
+          const user = transformedUsers.find(u => u.id === assignment.user_id);
+          return user ? { 
+            id: user.id, 
+            username: user.username,
+            role: user.role || 'user'
+          } : null;
+        }).filter(Boolean) || [],
+        tags: [],
+        subtasks: task.subtasks?.map((subtask: any) => ({
+          id: subtask.id,
+          title: subtask.title,
+          completed: subtask.completed,
+          order_index: subtask.order_index,
+        })) || [],
+        project: task.projects ? { id: task.project_id, name: task.projects.name } : null,
+      }));
+
+      setTasks(transformedTasks);
+
       console.log('📝 Creating task with fast response...');
       console.log('📝 Task title:', data.title);
       console.log('👥 Assignees:', data.assignee_ids);
@@ -249,18 +302,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('✅ Task assignments created successfully');
 
-        // Send notifications in the background - don't wait for them
-        console.log('📱 Sending notifications in background...');
-        notificationService.sendTaskAssignmentNotifications(
-          data.assignee_ids,
-          data.title,
-          taskData.id,
-          currentUser?.id
-        ).catch(error => {
-          console.error('❌ Background notification error:', error);
-          // Don't show error to user since task was created successfully
-        });
-        
         toast({
           title: "✅ Task Created Successfully",
           description: `Task created and notifications are being sent to ${data.assignee_ids?.length || 0} user(s).`,
@@ -374,48 +415,53 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const assignTask = async (taskId: string, userIds: string[]) => {
     try {
-      console.log('👥 Assigning task:', taskId, 'to users:', userIds);
-
-      // Get current task to get its title for notifications
-      const currentTask = tasks.find(task => task.id === taskId);
-      
-      await supabase
+      // Delete existing assignments
+      const { error: deleteError } = await supabase
         .from('task_assignments')
         .delete()
         .eq('task_id', taskId);
 
-      if (userIds.length > 0) {
-        const assignments = userIds.map(userId => ({
-          task_id: taskId,
-          user_id: userId,
-        }));
+      if (deleteError) throw deleteError;
 
-        const { error } = await supabase
-          .from('task_assignments')
-          .insert(assignments);
+      // Create new assignments
+      const assignments = userIds.map(userId => ({
+        task_id: taskId,
+        user_id: userId,
+      }));
 
-        if (error) throw error;
+      const { error: createError } = await supabase
+        .from('task_assignments')
+        .insert(assignments);
 
-        // Send notifications in the background - don't wait for them
-        if (currentTask) {
-          notificationService.sendTaskAssignmentNotifications(
-            userIds,
-            currentTask.title,
-            taskId,
-            currentUser?.id
-          ).catch(error => {
-            console.error('❌ Background notification error:', error);
-          });
-        }
+      if (createError) throw createError;
+
+      // Fetch updated task data
+      const { data: taskData, error: taskError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+
+      if (taskError) throw taskError;
+
+      if (taskData) {
+        console.log('✅ Task assignments created successfully');
+
+        toast({
+          title: "Success",
+          description: "Task assignments updated successfully",
+        });
+
+        // Refresh task data
+        await fetchData();
       }
-
-      console.log('✅ Task assignment completed');
-
-      // Force immediate refresh for real-time feel
-      await fetchData();
     } catch (error) {
       console.error('❌ Error assigning task:', error);
-      throw error;
+      toast({
+        title: "Error",
+        description: "Failed to update task assignments",
+        variant: "destructive",
+      });
     }
   };
 

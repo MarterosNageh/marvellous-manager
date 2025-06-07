@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { fetchToken } from "../../../notification";
+
 const LoginForm = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -15,6 +17,18 @@ const LoginForm = () => {
   const {
     toast
   } = useToast();
+
+  const initializeNotifications = async () => {
+    try {
+      const token = await fetchToken();
+      if (token) {
+        console.log('FCM initialized successfully after login');
+      }
+    } catch (error) {
+      console.error('Error initializing FCM:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
@@ -29,7 +43,11 @@ const LoginForm = () => {
     try {
       console.log(`Attempting login for user: ${username}`);
       const success = await login(username, password);
+      
       if (success) {
+        // Initialize notifications after successful login
+        await initializeNotifications();
+        
         toast({
           title: "Login Successful",
           description: "Welcome back!"

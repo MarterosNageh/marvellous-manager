@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -57,7 +56,7 @@ const UserManagement = () => {
       });
       setIsDialogOpen(false);
     } catch (error) {
-      console.error("Error adding user:", error);
+      // Remove console.error statements
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +67,7 @@ const UserManagement = () => {
     try {
       await removeUser(userId);
     } catch (error) {
-      console.error("Error removing user:", error);
+      // Remove console.error statements
     } finally {
       setIsLoading(false);
     }

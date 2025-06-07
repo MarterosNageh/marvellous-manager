@@ -1,9 +1,8 @@
-
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { notificationService } from "@/services/notificationService";
 import LoginForm from "@/components/auth/LoginForm";
+
 
 const Login = () => {
   const { isAuthenticated } = useAuth();
@@ -11,13 +10,6 @@ const Login = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Initialize notifications after successful login
-      const initNotifications = async () => {
-        await notificationService.init();
-        console.log('Notifications initialized after login');
-      };
-      
-      initNotifications();
       navigate("/dashboard");
     }
   }, [isAuthenticated, navigate]);

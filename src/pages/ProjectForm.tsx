@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -90,7 +89,6 @@ const ProjectForm = () => {
         }, 100);
       }
     } catch (error) {
-      console.error("Error saving project:", error);
       toast({
         title: "Error",
         description: "Failed to save project",

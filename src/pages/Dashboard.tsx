@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+
 import { 
   BarChart, 
   Bar, 
@@ -182,6 +183,7 @@ const Dashboard = () => {
     const isCurrentShift = isToday(shiftStart);
     
     return (
+
       <Card key={shift.id} className="mb-3">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">

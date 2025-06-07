@@ -23,7 +23,6 @@ import PrintPage from '@/pages/PrintPage';
 import QRCodePage from '@/pages/QRCodePage';
 import Settings from '@/pages/Settings';
 import KnowledgeBase from '@/pages/KnowledgeBase';
-import FCMDebug from '@/pages/FCMDebug';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
 
@@ -61,7 +60,6 @@ function App() {
                 <Route path="/qr-code/:id" element={<QRCodePage />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
-                <Route path="/fcm-debug" element={<FCMDebug />} />
                 <Route path="/notes" element={<Notes />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -39,8 +39,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchData = async () => {
     try {
-      console.log('Fetching all data...');
-      
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*');
@@ -85,10 +83,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         operatorName: h.operator_name,
         timestamp: h.timestamp,
       })));
-      
-      console.log('Data fetched successfully');
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast({
         title: "Error",
         description: "Failed to load data",
@@ -101,38 +96,27 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     fetchData();
 
     // Set up real-time subscriptions with proper error handling
-    console.log('Setting up real-time subscriptions...');
-    
     const channel = supabase
       .channel('data-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
-        (payload) => {
-          console.log('Project change detected:', payload.eventType, payload);
-          fetchData(); // Refetch all data to ensure consistency
+        () => {
+          fetchData();
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
-        (payload) => {
-          console.log('Hard drive change detected:', payload.eventType, payload);
-          fetchData(); // Refetch all data to ensure consistency
+        () => {
+          fetchData();
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
-        (payload) => {
-          console.log('Print history change detected:', payload.eventType, payload);
-          fetchData(); // Refetch all data to ensure consistency
+        () => {
+          fetchData();
         }
       )
       .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to real-time updates');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Real-time subscription failed, will retry...');
-          // Retry after a short delay
+        if (status === 'CHANNEL_ERROR') {
           setTimeout(() => {
             channel.unsubscribe();
-            // Re-setup with a new channel
             setupRealtimeSubscription();
           }, 2000);
         }
@@ -150,13 +134,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
           () => fetchData()
         )
-        .subscribe((status) => {
-          console.log('Retry subscription status:', status);
-        });
+        .subscribe();
     };
 
     return () => {
-      console.log('Cleaning up data subscriptions...');
       supabase.removeAllChannels();
     };
   }, [toast]);
@@ -241,8 +222,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
     try {
-      console.log('Adding hard drive:', hardDrive);
-      
       const dbHardDrive = {
         name: hardDrive.name,
         serial_number: hardDrive.serialNumber,
@@ -260,12 +239,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         .single();
 
       if (error) {
-        console.error('Error adding hard drive:', error);
         throw error;
       }
 
-      console.log('Hard drive added successfully:', data.id);
-      
+      const newHardDrive: HardDrive = {
+        id: data.id,
+        name: data.name,
+        serialNumber: data.serial_number,
+        projectId: data.project_id || "",
+        capacity: data.capacity || "",
+        freeSpace: data.free_space || "",
+        data: data.data || "",
+        cables: data.cables as HardDrive["cables"],
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+
+      setHardDrives(currentHardDrives => [...currentHardDrives, newHardDrive]);
+
       toast({
         title: "Success",
         description: "Hard drive added successfully",
@@ -273,7 +264,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
       return data.id;
     } catch (error) {
-      console.error('Error adding hard drive:', error);
       toast({
         title: "Error",
         description: "Failed to add hard drive",
@@ -285,8 +275,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const updateHardDrive = async (hardDrive: HardDrive) => {
     try {
-      console.log('Updating hard drive:', hardDrive.id, hardDrive);
-      
       const dbHardDrive = {
         name: hardDrive.name,
         serial_number: hardDrive.serialNumber,
@@ -303,12 +291,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', hardDrive.id);
 
       if (error) {
-        console.error('Supabase update error:', error);
         throw error;
       }
 
-      console.log('Hard drive updated successfully in database');
-      
       toast({
         title: "Success",
         description: "Hard drive updated successfully",
@@ -318,7 +303,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       await fetchData();
       
     } catch (error) {
-      console.error('Error updating hard drive:', error);
       toast({
         title: "Error",
         description: "Failed to update hard drive",
@@ -330,26 +314,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteHardDrive = async (id: string) => {
     try {
-      console.log('Deleting hard drive:', id);
-      
       const { error } = await supabase
         .from('hard_drives')
         .delete()
         .eq('id', id);
 
       if (error) {
-        console.error('Error deleting hard drive:', error);
         throw error;
       }
 
-      console.log('Hard drive deleted successfully');
-      
       toast({
         title: "Success",
         description: "Hard drive deleted successfully",
       });
     } catch (error) {
-      console.error('Error deleting hard drive:', error);
       toast({
         title: "Error",
         description: "Failed to delete hard drive",
