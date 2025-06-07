@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { NotificationService } from '@/services/notificationService';
 
 export interface Note {
   id: string;
@@ -187,6 +187,13 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .from('notes')
         .update({ is_shared: true })
         .eq('id', noteId);
+
+      // Send notification to the user the note was shared with
+      await NotificationService.sendNoteSharedNotification(
+        [userId],
+        selectedNote?.title || 'Note',
+        currentUser.username || 'A user'
+      );
 
       toast.success('Note shared successfully');
       return true;

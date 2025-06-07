@@ -160,6 +160,24 @@ export class NotificationService {
       }
     });
   }
+
+  static async sendNoteSharedNotification(
+    userIds: string[],
+    noteTitle: string,
+    sharedByUsername: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `${noteTitle} (Shared)`,
+      body: `${sharedByUsername} has shared a note with you`,
+      data: {
+        type: 'note_shared',
+        noteTitle,
+        url: '/notes',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
   
   // Manual FCM token registration function that can be used for testing
   static async saveTokenManually(userId: string, token: string): Promise<{ success: boolean; message?: string; error?: string }> {
