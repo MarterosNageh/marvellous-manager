@@ -89,7 +89,18 @@ export class NotificationService {
         appVersion: navigator.appVersion,
         isMobile: isMobileDevice,
         timestamp: new Date().toISOString(),
-        manual: true
+        manual: true,
+        // Add more detailed mobile information
+        screen: {
+          width: window.screen.width,
+          height: window.screen.height,
+          orientation: window.screen.orientation?.type || 'unknown'
+        },
+        deviceMemory: (navigator as any).deviceMemory,
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        mobileOS: isMobileDevice ? 
+          (/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'iOS' : 
+           /Android/.test(navigator.userAgent) ? 'Android' : 'Other') : 'Desktop'
       };
 
       console.log(`📱 ${isMobileDevice ? 'Mobile' : 'Desktop'} device detected, saving FCM token for user: ${userId}`);
@@ -112,8 +123,12 @@ export class NotificationService {
           })
           .eq('id', existingTokens[0].id);
           
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('Error updating token:', updateError);
+          throw updateError;
+        }
         
+        console.log('✅ FCM token updated successfully for mobile device');
         return { 
           success: true, 
           message: 'FCM token updated successfully' 
@@ -129,8 +144,12 @@ export class NotificationService {
             is_active: true
           }]);
           
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Error inserting token:', insertError);
+          throw insertError;
+        }
         
+        console.log('✅ FCM token saved successfully for mobile device');
         return {
           success: true,
           message: 'FCM token saved successfully'

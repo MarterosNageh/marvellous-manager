@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Header } from "@/components/layout/Header";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {fetchToken } from "../../../notification";
+import { NotificationService } from "@/services/notificationService";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -21,10 +22,15 @@ export const MainLayout = ({
     const initializeNotifications = async () => {
       if (isAuthenticated && currentUser) {
         try {
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          console.log(`📱 Initializing notifications for ${isMobile ? 'mobile' : 'desktop'} device`);
+          
           const token = await fetchToken();
           if (token) {
-            console.log('FCM initialized successfully');
-            console.log(token);
+            console.log(`FCM token obtained for ${isMobile ? 'mobile' : 'desktop'}:`, token.slice(0, 10) + '...');
+            await NotificationService.saveTokenManually(currentUser.id, token);
+          } else {
+            console.warn('No FCM token obtained');
           }
         } catch (error) {
           console.error('Error initializing FCM:', error);

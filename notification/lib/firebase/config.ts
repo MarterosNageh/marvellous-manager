@@ -13,12 +13,22 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const messaging = async () => {
   try {
     const supported = await isSupported();
-    return supported ? getMessaging(app) : null;
+    if (!supported) {
+      // Check if it's a mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        console.log('📱 Mobile device detected, using alternative token method');
+        return 'mobile';
+      }
+      console.log('Firebase messaging is not supported in this browser');
+      return null;
+    }
+    return getMessaging(app);
   } catch (error) {
     console.error('Error checking messaging support:', error);
     return null;
@@ -28,6 +38,16 @@ const messaging = async () => {
 export const fetchToken = async () => {
   try {
     const fcmMessaging = await messaging();
+    
+    // Handle mobile devices differently
+    if (fcmMessaging === 'mobile') {
+      // For mobile devices, we'll use the Firebase Installation ID
+      const { getToken: getInstallationToken } = await import('firebase/installations');
+      const installationToken = await getInstallationToken(app);
+      console.log('📱 Mobile FCM token obtained:', installationToken?.slice(0, 10) + '...');
+      return installationToken;
+    }
+    
     if (!fcmMessaging) {
       console.log('Firebase messaging is not supported in this browser');
       return null;
@@ -35,14 +55,12 @@ export const fetchToken = async () => {
     
     console.log('Requesting notification permission...');
     
-    // Check if permission is already granted
     if (Notification.permission === 'granted') {
       console.log('Notification permission already granted');
     } else if (Notification.permission === 'denied') {
       console.warn('Notification permission denied by user');
       throw new Error('Notification permission denied');
     } else {
-      // Request permission
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         console.warn('Failed to get permission for notifications');
