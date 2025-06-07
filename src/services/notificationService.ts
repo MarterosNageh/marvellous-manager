@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface NotificationPayload {
@@ -80,7 +79,7 @@ export class NotificationService {
   // Manual FCM token registration function that can be used for testing
   static async saveTokenManually(userId: string, token: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      console.log(`📱 Manually saving FCM token for user: ${userId}`);
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
       const deviceInfo = {
         userAgent: navigator.userAgent,
@@ -88,9 +87,12 @@ export class NotificationService {
         language: navigator.language,
         vendor: navigator.vendor,
         appVersion: navigator.appVersion,
+        isMobile: isMobileDevice,
         timestamp: new Date().toISOString(),
         manual: true
       };
+
+      console.log(`📱 ${isMobileDevice ? 'Mobile' : 'Desktop'} device detected, saving FCM token for user: ${userId}`);
       
       // Check if token already exists
       const { data: existingTokens } = await supabase

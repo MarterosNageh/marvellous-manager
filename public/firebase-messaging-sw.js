@@ -20,47 +20,60 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message:', payload);
+  console.log('[firebase-messaging-sw.js] Received background message:', payload);
 
-  const notificationTitle = payload.notification?.title || 'New Notification';
+  // Enhanced notification options for better mobile support
   const notificationOptions = {
     body: payload.notification?.body || '',
     icon: '/marvellous-logo-black.png',
+    badge: '/marvellous-logo-black.png',
     tag: payload.data?.tag || 'default',
     data: payload.data || {},
-    badge: '/marvellous-logo-black.png',
-    vibrate: [200, 100, 200],
-    requireInteraction: true
+    vibrate: [100, 50, 100], // Mobile vibration pattern
+    requireInteraction: true,
+    renotify: true, // Always notify even if using same tag
+    actions: [
+      {
+        action: 'open',
+        title: 'Open',
+        icon: '/marvellous-logo-black.png'
+      }
+    ],
+    // Mobile specific options
+    silent: false,
+    timestamp: Date.now(),
+    priority: 'high'
   };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(
+    payload.notification?.title || 'New Notification',
+    notificationOptions
+  );
 });
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('Notification clicked:', event);
+  console.log('[firebase-messaging-sw.js] Notification clicked:', event);
   event.notification.close();
 
-  // This looks to see if the current is already open and focuses if it is
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        const hadWindowToFocus = clientList.some((windowClient) => {
-          if (windowClient.url === event.notification.data?.url) {
-            windowClient.focus();
-            return true;
-          }
-          return false;
-        });
+  // Handle notification click with mobile support
+  const urlToOpen = event.notification.data?.url || '/';
 
-        // If no window is already open, open a new one
-        if (!hadWindowToFocus) {
-          clients.openWindow(event.notification.data?.url || '/').then((windowClient) => {
-            if (windowClient) {
-              windowClient.focus();
-            }
-          });
+  event.waitUntil(
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((clientList) => {
+      // Check if there's already a window/tab open with the target URL
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
         }
-      })
+      }
+      // If no window/tab is already open, open a new one
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
   );
 }); 

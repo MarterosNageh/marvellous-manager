@@ -158,18 +158,47 @@ async function sendFCMNotificationV1(fcmToken, title, body, data, supabaseAdmin,
         token: fcmToken,
         notification: {
           title: title || 'Notification',
-          body: body || 'You have a new notification'
+          body: body || 'You have a new notification',
+          image: data?.image || '/marvellous-logo-black.png',
         },
-        data: data ? Object.fromEntries(Object.entries(data).map(([key, value])=>[
-            key,
-            String(value)
-          ])) : {},
+        android: {
+          priority: 'high',
+          notification: {
+            icon: '@drawable/ic_notification',
+            color: '#4CAF50',
+            priority: 'high',
+            default_sound: true,
+            notification_priority: 'PRIORITY_HIGH',
+            visibility: 'PUBLIC'
+          }
+        },
+        apns: {
+          headers: {
+            'apns-priority': '10',
+          },
+          payload: {
+            aps: {
+              alert: {
+                title: title || 'Notification',
+                body: body || 'You have a new notification',
+              },
+              sound: 'default',
+              badge: 1,
+              'mutable-content': 1,
+              'content-available': 1
+            }
+          }
+        },
         webpush: {
+          headers: {
+            Urgency: 'high',
+          },
           notification: {
             icon: data?.icon || '/marvellous-logo-black.png',
             badge: data?.badge || '/marvellous-logo-black.png',
             tag: data?.tag,
-            requireInteraction: data?.requireInteraction !== undefined ? data.requireInteraction : true
+            requireInteraction: true,
+            renotify: true
           },
           fcm_options: {
             link: data?.url || '/'
