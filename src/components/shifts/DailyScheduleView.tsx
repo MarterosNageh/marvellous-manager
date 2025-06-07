@@ -1,26 +1,19 @@
-
-import React, { useState } from 'react';
-import { useShifts } from '@/context/ShiftsContext';
-import { format, isSameDay, subDays, addDays } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useShifts } from "@/context/ShiftsContext";
+import { isSameDay, subDays, addDays, format } from "date-fns";
 
 export const DailyScheduleView = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { shifts, users } = useShifts();
+  const { shifts } = useShifts();
 
-  const getShiftsForDay = (day: Date) => {
-    return shifts?.filter(shift => {
-      if (!shift.start_time) return false;
-      try {
-        return isSameDay(new Date(shift.start_time), day);
-      } catch {
-        return false;
-      }
-    }) || [];
-  };
+  // Filter shifts for the current day
+  const todaysShifts = shifts.filter(shift => 
+    isSameDay(new Date(shift.start_time), currentDate)
+  );
 
   const goToPreviousDay = () => {
     setCurrentDate(subDays(currentDate, 1));
@@ -30,48 +23,44 @@ export const DailyScheduleView = () => {
     setCurrentDate(addDays(currentDate, 1));
   };
 
-  const dayShifts = getShiftsForDay(currentDate);
-
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <Button onClick={goToPreviousDay}><ChevronLeft /></Button>
-        <h2 className="text-lg font-semibold">{format(currentDate, 'EEEE, MMMM d, yyyy')}</h2>
-        <Button onClick={goToNextDay}><ChevronRight /></Button>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" onClick={goToPreviousDay}>
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Previous Day
+        </Button>
+        <h2 className="text-xl font-bold">{format(currentDate, "EEEE, MMMM d, yyyy")}</h2>
+        <Button variant="outline" onClick={goToNextDay}>
+          Next Day
+          <ChevronRight className="h-4 w-4 ml-2" />
+        </Button>
       </div>
-      
-      <div className="space-y-2">
-        {dayShifts.length === 0 ? (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-gray-500">No shifts scheduled for {format(currentDate, 'MMMM d')}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          dayShifts.map((shift) => {
-            const user = users?.find(u => u.id === shift.user_id);
-            return (
-              <Card key={shift.id}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex justify-between items-center">
-                    <span>{shift.title}</span>
-                    <Badge variant="secondary">
-                      {shift.start_time && format(new Date(shift.start_time), 'HH:mm')} - 
-                      {shift.end_time && format(new Date(shift.end_time), 'HH:mm')}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {shift.notes && <p className="text-gray-600 mb-2">{shift.notes}</p>}
-                  {user && (
-                    <p className="text-sm text-gray-500">Assigned to: {user.username}</p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+
+      {todaysShifts.length > 0 ? (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {todaysShifts.map((shift) => (
+            <Card key={shift.id}>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between">
+                  <CardTitle>{shift.title}</CardTitle>
+                  <Badge variant="outline">{shift.shift_type}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm mb-2">{format(new Date(shift.start_time), "h:mm a")} - {format(new Date(shift.end_time), "h:mm a")}</p>
+                <p className="text-sm text-muted-foreground">{shift.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-center text-muted-foreground">No shifts scheduled for this day.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
