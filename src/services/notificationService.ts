@@ -53,7 +53,7 @@ export class NotificationService {
       data: {
         type: 'test',
         timestamp: new Date().toISOString(),
-        url: '/tasks'
+        url: '/task-manager'
       }
     });
   }
@@ -69,7 +69,7 @@ export class NotificationService {
       data: {
         type: 'task_created',
         taskTitle,
-        url: '/tasks',
+        url: '/task-manager',
         timestamp: new Date().toISOString()
       }
     });
@@ -86,7 +86,7 @@ export class NotificationService {
       data: {
         type: 'task_assignment',
         taskTitle,
-        url: '/tasks',
+        url: '/task-manager',
         timestamp: new Date().toISOString()
       }
     });
@@ -114,7 +114,7 @@ export class NotificationService {
         taskTitle,
         oldStatus,
         newStatus,
-        url: '/tasks',
+        url: '/task-manager',
         timestamp: new Date().toISOString()
       }
     });
@@ -138,7 +138,7 @@ export class NotificationService {
         type: 'task_modified',
         taskTitle,
         changes,
-        url: '/tasks',
+        url: '/task-manager',
         timestamp: new Date().toISOString()
       }
     });
@@ -155,7 +155,7 @@ export class NotificationService {
       data: {
         type: 'task_deleted',
         taskTitle,
-        url: '/tasks',
+        url: '/task-manager',
         timestamp: new Date().toISOString()
       }
     });
