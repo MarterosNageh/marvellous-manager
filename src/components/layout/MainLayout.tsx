@@ -1,4 +1,3 @@
-
 import { ReactNode, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchToken } from "../../../notification";
 import { NotificationService } from "@/services/notificationService";
+import { InstallPWA } from "@/components/InstallPWA";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -75,6 +75,7 @@ export const MainLayout = ({
           </div>
         </main>
       </div>
+      <InstallPWA />
     </SidebarProvider>
   );
 };
