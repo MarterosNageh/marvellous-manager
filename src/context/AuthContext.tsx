@@ -60,15 +60,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
 
-          // Set JWT claims for RLS to work
-          await supabase.rpc('set_claim', {
-            uid: user.id,
-            claim: 'username',
-            value: user.username
-          }).catch(() => {
-            // Fallback: set in local storage for RLS functions
-            localStorage.setItem('current_username', user.username);
-          });
+          // Set current username for any RLS functions that might still exist
+          localStorage.setItem('current_username', user.username);
 
           setCurrentUser(user);
           setIsAuthenticated(true);
@@ -107,15 +100,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: data.created_at
       };
 
-      // Set JWT claims for RLS to work
-      await supabase.rpc('set_claim', {
-        uid: user.id,
-        claim: 'username',
-        value: user.username
-      }).catch(() => {
-        // Fallback: set in local storage for RLS functions
-        localStorage.setItem('current_username', user.username);
-      });
+      // Set current username for any RLS functions that might still exist
+      localStorage.setItem('current_username', user.username);
 
       setCurrentUser(user);
       setIsAuthenticated(true);
@@ -142,15 +128,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('current_username');
-    
-    // Clear any JWT claims
-    supabase.rpc('set_claim', {
-      uid: null,
-      claim: 'username',
-      value: null
-    }).catch(() => {
-      // Silent fail for cleanup
-    });
     
     toast.success('Logged out successfully');
   };
