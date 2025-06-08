@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { TaskUtilizationTable } from "@/components/dashboard/TaskUtilizationTable";
-import { HardDrive, ArrowRight, Boxes, Users, Calendar, BarChart2 } from "lucide-react";
+import { HardDrive, ArrowRight, Boxes, Users, BarChart2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { isToday, format } from "date-fns";
 
@@ -35,15 +35,11 @@ interface ProjectData {
   created_at: string;
 }
 
-interface ShiftData {
-  id: string;
-  user_id: string;
+interface StatsCardProps {
   title: string;
-  description: string;
-  start_time: string;
-  end_time: string;
-  shift_type: string;
-  status: string;
+  value: string | number;
+  description?: string;
+  icon: React.ReactNode;
 }
 
 const Dashboard = () => {
@@ -51,7 +47,6 @@ const Dashboard = () => {
   const { currentUser } = useAuth();
   const [hardDrives, setHardDrives] = useState<HardDriveData[]>([]);
   const [projects, setProjects] = useState<ProjectData[]>([]);
-  const [todayShifts, setTodayShifts] = useState<ShiftData[]>([]);
   const [stats, setStats] = useState({
     totalHardDrives: 0,
     availableHardDrives: 0,
@@ -83,18 +78,6 @@ const Dashboard = () => {
         
         if (projectsError) throw projectsError;
         setProjects(projectsData as ProjectData[]);
-        
-        // Fetch Today's Shifts
-        const today = new Date();
-        const { data: shiftsData, error: shiftsError } = await supabase
-          .from('shifts')
-          .select('*')
-          .gte('start_time', today.toISOString().split('T')[0])
-          .lt('start_time', new Date(today.setDate(today.getDate() + 1)).toISOString().split('T')[0])
-          .order('start_time', { ascending: true });
-          
-        if (shiftsError) throw shiftsError;
-        setTodayShifts(shiftsData);
         
         // Get Stats
         const [
@@ -133,17 +116,13 @@ const Dashboard = () => {
     loadDashboardData();
   }, [toast]);
 
-  const userShiftsToday = todayShifts.filter(
-    (shift) => shift.user_id === currentUser?.id
-  );
-
   // Rendering logic
   return (
     <MainLayout>
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           <StatsCard 
             title="Hard Drives" 
             value={stats.totalHardDrives} 
@@ -162,11 +141,6 @@ const Dashboard = () => {
             icon={<Users className="h-4 w-4" />} 
           />
           <StatsCard 
-            title="Today's Shifts" 
-            value={todayShifts.length} 
-            icon={<Calendar className="h-4 w-4" />} 
-          />
-          <StatsCard 
             title="Task Completion" 
             value="86%" 
             description="Last 30 days"
@@ -175,45 +149,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Today's Schedule */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Your Schedule Today</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {userShiftsToday.length > 0 ? (
-                userShiftsToday.map((shift) => (
-                  <div 
-                    key={shift.id} 
-                    className="p-3 border rounded-lg flex justify-between items-center"
-                  >
-                    <div>
-                      <p className="font-medium">{shift.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(shift.start_time), "h:mm a")} - {format(new Date(shift.end_time), "h:mm a")}
-                      </p>
-                    </div>
-                    {isToday(new Date(shift.start_time)) && (
-                      <Button variant="outline" size="sm">Check In</Button>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-4">
-                  No shifts scheduled for today
-                </p>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full" asChild>
-                <Link to="/shifts">
-                  View Full Schedule
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardFooter>
-          </Card>
-
           {/* Recent Hard Drives */}
           <Card>
             <CardHeader>
@@ -328,20 +263,24 @@ const Dashboard = () => {
   );
 };
 
-const StatsCard = ({ title, value, description, icon }) => {
+const StatsCard = ({ title, value, description, icon }: StatsCardProps) => {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">
-          {title}
-        </CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              {icon}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+              <p className="text-2xl font-bold">{value}</p>
+              {description && (
+                <p className="text-xs text-muted-foreground">{description}</p>
+              )}
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

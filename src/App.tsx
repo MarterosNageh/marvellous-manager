@@ -17,7 +17,7 @@ import Projects from '@/pages/Projects';
 import ProjectForm from '@/pages/ProjectForm';
 import ProjectDetail from '@/pages/ProjectDetail';
 import TaskManager from '@/pages/TaskManager';
-import ShiftsSchedule from '@/pages/ShiftsSchedule';
+import ComingSoon from '@/pages/ComingSoon';
 import UserManagement from '@/pages/UserManagement';
 import PrintPage from '@/pages/PrintPage';
 import QRCodePage from '@/pages/QRCodePage';
@@ -52,11 +52,11 @@ function App() {
                 <Route path="/projects/new" element={<ProjectForm />} />
                 <Route path="/projects/:id" element={<ProjectDetail />} />
                 <Route path="/projects/:id/edit" element={<ProjectForm />} />
-                <Route path="/projects/:id/print" element={<PrintPage />} />
-                <Route path="/task-manager" element={<TaskManager />} />
-                <Route path="/shifts-schedule" element={<ShiftsSchedule />} />
-                <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/print" element={<PrintPage />} />
+                <Route path="/print/:id" element={<PrintPage />} />
+                <Route path="/task-manager" element={<TaskManager />} />
+                <Route path="/shifts-schedule" element={<ComingSoon />} />
+                <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/qr-code/:id" element={<QRCodePage />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />

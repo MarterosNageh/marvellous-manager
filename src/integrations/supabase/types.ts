@@ -90,6 +90,7 @@ export type Database = {
           serial_number: string
           status: string | null
           updated_at: string
+          drive_type: string
         }
         Insert: {
           cables?: Json
@@ -103,6 +104,7 @@ export type Database = {
           serial_number: string
           status?: string | null
           updated_at?: string
+          drive_type?: string
         }
         Update: {
           cables?: Json
@@ -116,6 +118,7 @@ export type Database = {
           serial_number?: string
           status?: string | null
           updated_at?: string
+          drive_type?: string
         }
         Relationships: [
           {

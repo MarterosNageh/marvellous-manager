@@ -65,6 +65,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         capacity: h.capacity || "",
         freeSpace: h.free_space || "",
         data: h.data || "",
+        driveType: h.drive_type || "backup",
         cables: h.cables as HardDrive["cables"],
         createdAt: h.created_at,
         updatedAt: h.updated_at,
@@ -229,6 +230,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         capacity: hardDrive.capacity,
         free_space: hardDrive.freeSpace,
         data: hardDrive.data,
+        drive_type: hardDrive.driveType,
         cables: hardDrive.cables
       };
 
@@ -250,6 +252,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         capacity: data.capacity || "",
         freeSpace: data.free_space || "",
         data: data.data || "",
+        driveType: data.drive_type || "backup",
         cables: data.cables as HardDrive["cables"],
         createdAt: data.created_at,
         updatedAt: data.updated_at,
@@ -282,6 +285,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         capacity: hardDrive.capacity,
         free_space: hardDrive.freeSpace,
         data: hardDrive.data,
+        drive_type: hardDrive.driveType,
         cables: hardDrive.cables
       };
 

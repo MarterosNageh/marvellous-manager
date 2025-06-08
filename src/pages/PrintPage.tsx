@@ -19,6 +19,12 @@ import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
 
 type ExtendedPrintType = PrintType | "hard-label";
 
+interface LocationState {
+  type: ExtendedPrintType;
+  projectId: string;
+  projectName: string;
+}
+
 const PrintPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -27,18 +33,22 @@ const PrintPage = () => {
   const { getHardDrive, getProject, getHardDrivesByProject, addPrintHistory } = useData();
   const { currentUser } = useAuth();
   
-  const defaultType = searchParams.get("type") as ExtendedPrintType || "hard-out";
+  const state = location.state as LocationState | null;
+  const defaultType = state?.type || searchParams.get("type") as ExtendedPrintType || "hard-out";
   const [printType, setPrintType] = useState<ExtendedPrintType>(defaultType);
   const [operatorName, setOperatorName] = useState(currentUser?.username || "");
   const printRef = useRef<HTMLDivElement>(null);
   
   // Determine if this is a project print or hard drive print
-  const isProjectPrint = window.location.pathname.includes("/projects/");
+  const isProjectPrint = state?.projectId || window.location.pathname.includes("/projects/");
+  const projectId = state?.projectId || id;
   
   // Get the relevant data
   const hardDrive = !isProjectPrint && id ? getHardDrive(id) : null;
-  const project = isProjectPrint ? getProject(id) : (hardDrive ? getProject(hardDrive.projectId) : null);
-  const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : (hardDrive ? [hardDrive] : []);
+  const project = isProjectPrint ? getProject(projectId) : (hardDrive ? getProject(hardDrive.projectId) : null);
+  const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : 
+    (hardDrive && project ? getHardDrivesByProject(project.id) : // Get all drives from project when printing all-hards
+    (hardDrive ? [hardDrive] : []));
 
   // Set default print type for project prints
   useEffect(() => {
@@ -48,7 +58,9 @@ const PrintPage = () => {
   }, [isProjectPrint]);
 
   // Check if we have the required data based on print type
-  const hasRequiredData = printType === "all-hards" ? (isProjectPrint && project && hardDrives.length > 0) : (hardDrive !== null);
+  const hasRequiredData = printType === "all-hards" 
+    ? (project !== null) // Only check if project exists for all-hards print type
+    : (hardDrive !== null);
 
   if (!hasRequiredData) {
     return (

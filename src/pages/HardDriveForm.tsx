@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -34,6 +33,7 @@ const HardDriveForm = () => {
     capacity: "",
     freeSpace: "",
     data: "",
+    driveType: "backup" as 'backup' | 'taxi' | 'passport',
     cables: {
       thunderbolt3: false,
       typeC: false,
@@ -63,6 +63,7 @@ const HardDriveForm = () => {
           capacity: hardDrive.capacity,
           freeSpace: hardDrive.freeSpace,
           data: hardDrive.data,
+          driveType: hardDrive.driveType,
           cables: updatedCables
         });
       }
@@ -98,6 +99,10 @@ const HardDriveForm = () => {
   
   const handleProjectChange = (value: string) => {
     setFormData(prev => ({ ...prev, projectId: value }));
+  };
+  
+  const handleDriveTypeChange = (value: string) => {
+    setFormData(prev => ({ ...prev, driveType: value as 'backup' | 'taxi' | 'passport' }));
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -182,19 +187,35 @@ const HardDriveForm = () => {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="project">Project</Label>
-                <Select value={formData.projectId} onValueChange={handleProjectChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Project</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="driveType">Drive Type *</Label>
+                  <Select value={formData.driveType} onValueChange={handleDriveTypeChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select drive type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="backup">Backup</SelectItem>
+                      <SelectItem value="taxi">Taxi</SelectItem>
+                      <SelectItem value="passport">Passport</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="project">Project</Label>
+                  <Select value={formData.projectId} onValueChange={handleProjectChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Project</SelectItem>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

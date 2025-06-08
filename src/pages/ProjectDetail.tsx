@@ -1,16 +1,17 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowLeft, Edit, Trash2, Users, Clock, CheckCircle, AlertTriangle, HardDrive, Printer } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Users, Clock, CheckCircle, AlertTriangle, HardDrive, Printer, History, Boxes } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { PrintHistoryTable } from '@/components/print/PrintHistoryTable';
 
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -80,20 +81,76 @@ const ProjectDetail = () => {
     enabled: !!id
   });
 
+  // Fetch print history for this project
+  const { data: printHistory = [], isLoading: printHistoryLoading } = useQuery({
+    queryKey: ['project-print-history', id],
+    queryFn: async () => {
+      if (!id) return [];
+      
+      const { data, error } = await supabase
+        .from('print_history')
+        .select('*')
+        .eq('project_id', id)
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data.map(record => ({
+        id: record.id,
+        type: record.type,
+        hard_drive_id: record.hard_drive_id,
+        printed_at: record.timestamp,
+        printed_by: record.operator_name,
+        hardDriveName: hardDrives.find(hd => hd.id === record.hard_drive_id)?.name
+      }));
+    },
+    enabled: !!id
+  });
+
   // Parse storage size to compare
   const parseStorageSize = (sizeStr: string): number => {
     if (!sizeStr || sizeStr === 'N/A' || sizeStr === '') return 0;
     
-    const cleanStr = sizeStr.replace(/[^0-9.]/g, '');
-    const num = parseFloat(cleanStr);
+    // Extract number and unit from string (e.g., "2TB" -> ["2", "TB"])
+    const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(TB|GB|MB)?$/i);
+    if (!match) return 0;
+
+    const value = parseFloat(match[1]);
+    const unit = (match[2] || 'GB').toUpperCase();
+
+    // Convert everything to GB for comparison
+    switch (unit) {
+      case 'TB':
+        return value * 1024; // 1 TB = 1024 GB
+      case 'MB':
+        return value / 1024; // 1 GB = 1024 MB
+      case 'GB':
+      default:
+        return value;
+    }
+  };
+
+  // Format storage size to human readable format
+  const formatStorageSize = (sizeInGB: number): string => {
+    if (sizeInGB >= 1024) {
+      return `${(sizeInGB / 1024).toFixed(2)} TB`;
+    }
+    return `${sizeInGB.toFixed(2)} GB`;
+  };
+
+  // Calculate total storage
+  const calculateTotalStorage = () => {
+    const totalGB = hardDrives.reduce((total, drive) => {
+      return total + parseStorageSize(drive.capacity || '0');
+    }, 0);
     
-    if (sizeStr.toUpperCase().includes('TB')) return num * 1000;
-    if (sizeStr.toUpperCase().includes('GB')) return num;
-    return num;
+    return formatStorageSize(totalGB);
   };
 
   // Check if hard drive has low space
   const hasLowSpace = (drive: any) => {
+    // Only check backup drives
+    if (drive.drive_type !== 'backup') return false;
+
     const capacity = parseStorageSize(drive.capacity || '');
     const freeSpace = parseStorageSize(drive.free_space || '');
     
@@ -127,9 +184,9 @@ const ProjectDetail = () => {
   };
 
   const handlePrintAll = () => {
-    navigate('/print', { 
+    navigate(`/print/${id}`, { 
       state: { 
-        type: 'all_hards',
+        type: 'all-hards',
         projectId: id,
         projectName: project?.name 
       } 
@@ -274,10 +331,7 @@ const ProjectDetail = () => {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Total Storage</span>
                   <span className="text-sm font-medium">
-                    {hardDrives.reduce((total, drive) => {
-                      const capacity = parseStorageSize(drive.capacity || '');
-                      return total + capacity;
-                    }, 0).toFixed(1)} GB
+                    {calculateTotalStorage()}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -294,29 +348,35 @@ const ProjectDetail = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Tasks ({taskStats.total})
+                <Boxes className="h-5 w-5" />
+                Tasks
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Completed</span>
-                  <span className="text-sm font-medium text-green-600">{taskStats.completed}</span>
+                  <span className="text-sm text-gray-600">Pending</span>
+                  <span className="text-sm font-medium">
+                    {tasks.filter(task => task.status === 'todo').length}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">In Progress</span>
-                  <span className="text-sm font-medium text-blue-600">{taskStats.inProgress}</span>
+                  <span className="text-sm font-medium text-blue-600">
+                    {tasks.filter(task => task.status === 'in_progress').length}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">To Do</span>
-                  <span className="text-sm font-medium text-gray-600">{taskStats.todo}</span>
+                  <span className="text-sm text-gray-600">Under Review</span>
+                  <span className="text-sm font-medium text-purple-600">
+                    {tasks.filter(task => task.status === 'under_review').length}
+                  </span>
                 </div>
-                <div className="pt-2 border-t">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Completion Rate</span>
-                    <span className="text-sm font-bold">{completionRate}%</span>
-                  </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Completed</span>
+                  <span className="text-sm font-medium text-green-600">
+                    {tasks.filter(task => task.status === 'completed').length}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -342,48 +402,167 @@ const ProjectDetail = () => {
                 <p>No hard drives associated with this project</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-3 font-medium">Name</th>
-                      <th className="text-left p-3 font-medium">Serial Number</th>
-                      <th className="text-left p-3 font-medium">Capacity</th>
-                      <th className="text-left p-3 font-medium">Free Space</th>
-                      <th className="text-left p-3 font-medium">Data</th>
-                      <th className="text-left p-3 font-medium">Date Added</th>
-                      <th className="text-left p-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hardDrives.map((drive) => (
-                      <tr key={drive.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">{drive.name}</span>
-                            {hasLowSpace(drive) && (
-                              <Badge variant="destructive" className="text-xs">
-                                Low Space
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3 text-gray-600">{drive.serial_number}</td>
-                        <td className="p-3">{drive.capacity || 'N/A'}</td>
-                        <td className="p-3">{drive.free_space || 'N/A'}</td>
-                        <td className="p-3">{drive.data || 'N/A'}</td>
-                        <td className="p-3 text-gray-600">
-                          {format(new Date(drive.created_at), 'MMM d, yyyy')}
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="outline">
-                            Available
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-8">
+                {/* Backup Drives */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Backup Drives</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium">Name</th>
+                          <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Capacity</th>
+                          <th className="text-left p-3 font-medium">Free Space</th>
+                          <th className="text-left p-3 font-medium">Data</th>
+                          <th className="text-left p-3 font-medium">Date Added</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hardDrives
+                          .filter(drive => drive.drive_type === 'backup')
+                          .map((drive) => (
+                            <tr key={drive.id} className="border-b hover:bg-gray-50">
+                              <td className="p-3">
+                                <div className="flex items-center space-x-2">
+                                  <Link 
+                                    to={`/hard-drives/${drive.id}`}
+                                    className="font-medium text-primary hover:underline flex items-center gap-2"
+                                  >
+                                    <HardDrive className="h-4 w-4" />
+                                    {drive.name}
+                                  </Link>
+                                  {hasLowSpace(drive) && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Low Space
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">{drive.capacity || 'N/A'}</td>
+                              <td className="p-3">{drive.free_space || 'N/A'}</td>
+                              <td className="p-3">{drive.data || 'N/A'}</td>
+                              <td className="p-3 text-gray-600">
+                                {format(new Date(drive.created_at), 'MMM d, yyyy')}
+                              </td>
+                            </tr>
+                          ))}
+                        {hardDrives.filter(drive => drive.drive_type === 'backup').length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                              No backup drives found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Taxi Drives */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Taxi Drives</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium">Name</th>
+                          <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Capacity</th>
+                          <th className="text-left p-3 font-medium">Free Space</th>
+                          <th className="text-left p-3 font-medium">Data</th>
+                          <th className="text-left p-3 font-medium">Date Added</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hardDrives
+                          .filter(drive => drive.drive_type === 'taxi')
+                          .map((drive) => (
+                            <tr key={drive.id} className="border-b hover:bg-gray-50">
+                              <td className="p-3">
+                                <div className="flex items-center space-x-2">
+                                  <Link 
+                                    to={`/hard-drives/${drive.id}`}
+                                    className="font-medium text-primary hover:underline flex items-center gap-2"
+                                  >
+                                    <HardDrive className="h-4 w-4" />
+                                    {drive.name}
+                                  </Link>
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">{drive.capacity || 'N/A'}</td>
+                              <td className="p-3">{drive.free_space || 'N/A'}</td>
+                              <td className="p-3">{drive.data || 'N/A'}</td>
+                              <td className="p-3 text-gray-600">
+                                {format(new Date(drive.created_at), 'MMM d, yyyy')}
+                              </td>
+                            </tr>
+                          ))}
+                        {hardDrives.filter(drive => drive.drive_type === 'taxi').length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                              No taxi drives found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Passport Drives */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Passport Drives</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium">Name</th>
+                          <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Capacity</th>
+                          <th className="text-left p-3 font-medium">Free Space</th>
+                          <th className="text-left p-3 font-medium">Data</th>
+                          <th className="text-left p-3 font-medium">Date Added</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hardDrives
+                          .filter(drive => drive.drive_type === 'passport')
+                          .map((drive) => (
+                            <tr key={drive.id} className="border-b hover:bg-gray-50">
+                              <td className="p-3">
+                                <div className="flex items-center space-x-2">
+                                  <Link 
+                                    to={`/hard-drives/${drive.id}`}
+                                    className="font-medium text-primary hover:underline flex items-center gap-2"
+                                  >
+                                    <HardDrive className="h-4 w-4" />
+                                    {drive.name}
+                                  </Link>
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">{drive.capacity || 'N/A'}</td>
+                              <td className="p-3">{drive.free_space || 'N/A'}</td>
+                              <td className="p-3">{drive.data || 'N/A'}</td>
+                              <td className="p-3 text-gray-600">
+                                {format(new Date(drive.created_at), 'MMM d, yyyy')}
+                              </td>
+                            </tr>
+                          ))}
+                        {hardDrives.filter(drive => drive.drive_type === 'passport').length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                              No passport drives found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
@@ -451,6 +630,25 @@ const ProjectDetail = () => {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Print History */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Print History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {printHistoryLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : (
+              <PrintHistoryTable data={printHistory} />
             )}
           </CardContent>
         </Card>

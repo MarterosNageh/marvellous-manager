@@ -18,6 +18,45 @@ export const AllHardsPrintPrev = ({
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString();
 
+  // Group hard drives by type
+  const backupDrives = hardDrives.filter(hd => hd.driveType === 'backup');
+  const taxiDrives = hardDrives.filter(hd => hd.driveType === 'taxi');
+  const passportDrives = hardDrives.filter(hd => hd.driveType === 'passport');
+
+  const formatDriveType = (type: string) => {
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  const renderDriveTable = (drives: HardDrive[], type: string) => {
+    if (drives.length === 0) return null;
+    
+    return (
+      <div className="mb-6">
+        <h3 className="font-bold text-sm mb-2">{formatDriveType(type)} Drives</h3>
+        <table className="min-w-full border border-collapse">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2 text-left">Name</th>
+              <th className="border p-2 text-left">Serial Number</th>
+              <th className="border p-2 text-left">Capacity</th>
+              <th className="border p-2 text-left">Free Space</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drives.map((hd) => (
+              <tr key={hd.id}>
+                <td className="border p-2">{hd.name}</td>
+                <td className="border p-2">{hd.serialNumber}</td>
+                <td className="border p-2">{hd.capacity}</td>
+                <td className="border p-2">{hd.freeSpace}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className={`p-6 ${isPreviewing ? 'text-sm' : 'text-base'}`}>
       <div className="text-center mb-6">
@@ -44,32 +83,15 @@ export const AllHardsPrintPrev = ({
         </div>
       </div>
       
-      <h3 className="font-bold text-sm mb-2">Hard Drives List</h3>
-      <table className="min-w-full border border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2 text-left">Name</th>
-            <th className="border p-2 text-left">Serial Number</th>
-            <th className="border p-2 text-left">Capacity</th>
-            <th className="border p-2 text-left">Free Space</th>
-          </tr>
-        </thead>
-        <tbody>
-          {hardDrives.map((hd) => (
-            <tr key={hd.id}>
-              <td className="border p-2">{hd.name}</td>
-              <td className="border p-2">{hd.serialNumber}</td>
-              <td className="border p-2">{hd.capacity}</td>
-              <td className="border p-2">{hd.freeSpace}</td>
-            </tr>
-          ))}
-          {hardDrives.length === 0 && (
-            <tr>
-              <td colSpan={4} className="border p-2 text-center">No hard drives found</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div className="space-y-6">
+        {renderDriveTable(backupDrives, 'backup')}
+        {renderDriveTable(taxiDrives, 'taxi')}
+        {renderDriveTable(passportDrives, 'passport')}
+        
+        {hardDrives.length === 0 && (
+          <p className="text-center p-4 border">No hard drives found</p>
+        )}
+      </div>
       
       {hardDrives.length > 0 && (
         <div className="mt-6">
@@ -111,11 +133,10 @@ export const AllHardsPrintPrev = ({
         </div>
       )}
       
-        
-          <div>
-            <h3 className="font-bold text-sm">Recipient Signature</h3>
-            <div className="border-b border-black h-8 mt-8"></div>
-          </div>
+      <div>
+        <h3 className="font-bold text-sm">Recipient Signature</h3>
+        <div className="border-b border-black h-8 mt-8"></div>
       </div>
+    </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
@@ -21,11 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 const HardDrives = () => {
   const { hardDrives, projects, getProject } = useData();
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
+  const [isMobile, setIsMobile] = useState(false);
 
   const filteredHardDrives = hardDrives.filter((hardDrive) => {
     const matchesSearch =
@@ -104,17 +105,16 @@ const HardDrives = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Serial Number</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Free Space</TableHead>
-                  <TableHead className="w-[140px]">Actions</TableHead>
+                  {!isMobile && <TableHead>Project</TableHead>}
+                  <TableHead>Drive Type</TableHead>
+                  <TableHead className="hidden sm:table-cell">Creation Date</TableHead>
+                  <TableHead className="hidden md:table-cell">Capacity</TableHead>
+                  <TableHead className="hidden lg:table-cell">Description</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredHardDrives.map((hardDrive) => {
                   const project = getProject(hardDrive.projectId);
-                  
                   return (
                     <TableRow key={hardDrive.id}>
                       <TableCell className="font-medium">
@@ -124,35 +124,28 @@ const HardDrives = () => {
                         >
                           {hardDrive.name}
                         </Link>
-                      </TableCell>
-                      <TableCell>{hardDrive.serialNumber}</TableCell>
-                      <TableCell>
-                        {project ? (
-                          <Link
-                            to={`/projects/${project.id}`}
-                            className="hover:underline"
-                          >
-                            {project.name}
-                          </Link>
-                        ) : (
-                          "Unknown Project"
+                        {isMobile && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {project?.name || "No Project"} • {hardDrive.driveType}
+                          </div>
                         )}
                       </TableCell>
-                      <TableCell>{hardDrive.capacity}</TableCell>
-                      <TableCell>{hardDrive.freeSpace}</TableCell>
+                      {!isMobile && (
+                        <TableCell>{project?.name || "No Project"}</TableCell>
+                      )}
                       <TableCell>
-                        <div className="flex gap-2">
-                          <Link to={`/hard-drives/${hardDrive.id}/qr`}>
-                            <Button variant="outline" size="icon">
-                              <QrCode className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Link to={`/hard-drives/${hardDrive.id}/print`}>
-                            <Button variant="outline" size="icon">
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
+                        <Badge variant="secondary" className="capitalize">
+                          {hardDrive.driveType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {new Date(hardDrive.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {hardDrive.capacity || "N/A"}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell max-w-xs truncate">
+                        {hardDrive.data || "No description"}
                       </TableCell>
                     </TableRow>
                   );

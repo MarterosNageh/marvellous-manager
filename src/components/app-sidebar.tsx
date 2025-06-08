@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut, BookOpen, FileText } from "lucide-react";
@@ -24,7 +23,7 @@ const items = [{
   url: "/task-manager",
   icon: Files
 }, {
-  title: "Shifts Schedule",
+  title: "Staff Schedule (Coming Soon)",
   url: "/shifts-schedule",
   icon: CalendarDays
 }, {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -189,6 +188,11 @@ const HardDriveDetail = () => {
               <div>
                 <label className="text-sm font-medium text-gray-500">Serial Number</label>
                 <p className="text-lg font-mono">{hardDrive.serialNumber}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-500">Drive Type</label>
+                <p className="text-lg capitalize">{hardDrive.driveType}</p>
               </div>
               
               <div>
