@@ -60,13 +60,14 @@ export const InstallPWA: React.FC = () => {
   if (!isInstallable) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-50">
+    <div className="fixed top-4 right-4 z-50">
       <button
         onClick={handleInstallClick}
         className="bg-black text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2 hover:bg-gray-800 transition-colors"
+        style={{ minWidth: '140px' }}
       >
         <svg
-          className="w-6 h-6"
+          className="w-5 h-5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
