@@ -304,7 +304,7 @@ serve(async (req)=>{
       message: `Missing required environment variables: ${missingEnvVars.join(', ')}`,
       status: 500
     }), {
-      status: 500,
+        status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
@@ -353,7 +353,7 @@ serve(async (req)=>{
       error: 'Invalid Request',
       message: 'userIds array is required and cannot be empty'
     }), {
-      status: 400,
+          status: 400,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
@@ -396,7 +396,7 @@ serve(async (req)=>{
         message: 'Failed to fetch FCM tokens',
         details: fetchError.message
       }), {
-        status: 500,
+          status: 500,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
@@ -507,7 +507,7 @@ serve(async (req)=>{
       message: error.message,
       details: 'An unexpected error occurred'
     }), {
-      status: 500,
+        status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'

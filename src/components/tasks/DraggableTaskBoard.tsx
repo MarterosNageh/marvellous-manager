@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { TaskStatus } from "@/types/taskTypes";
 
 const statusColumns: { status: TaskStatus; title: string; color: string }[] = [
-  { status: 'pending', title: 'Pending', color: 'bg-gray-100' },
-  { status: 'in_progress', title: 'In Progress', color: 'bg-blue-100' },
-  { status: 'under_review', title: 'Under Review', color: 'bg-purple-100' },
-  { status: 'completed', title: 'Completed', color: 'bg-green-100' },
+  { status: 'pending', title: 'Pending', color: 'bg-gray-300' },
+  { status: 'in_progress', title: 'In Progress', color: 'bg-red-300' },
+  { status: 'under_review', title: 'Under Review', color: 'bg-blue-300' },
+  { status: 'completed', title: 'Completed', color: 'bg-green-300' },
 ];
 
 export const DraggableTaskBoard = () => {

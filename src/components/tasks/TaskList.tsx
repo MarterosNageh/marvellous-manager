@@ -10,10 +10,10 @@ import { Search, Filter } from "lucide-react";
 import { TaskStatus } from "@/types/taskTypes";
 
 const statusSections = [
-  { status: 'pending' as TaskStatus, title: 'Pending', color: 'bg-gray-50' },
-  { status: 'in_progress' as TaskStatus, title: 'In Progress', color: 'bg-blue-50' },
-  { status: 'under_review' as TaskStatus, title: 'Under Review', color: 'bg-purple-50' },
-  { status: 'completed' as TaskStatus, title: 'Completed', color: 'bg-green-50' },
+  { status: 'pending' as TaskStatus, title: 'Pending', color: 'bg-gray-300' },
+  { status: 'in_progress' as TaskStatus, title: 'In Progress', color: 'bg-red-300' },
+  { status: 'under_review' as TaskStatus, title: 'Under Review', color: 'bg-blue-300' },
+  { status: 'completed' as TaskStatus, title: 'Completed', color: 'bg-green-300' },
 ];
 
 export const TaskList = () => {

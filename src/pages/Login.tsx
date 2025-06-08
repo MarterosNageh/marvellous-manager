@@ -18,8 +18,8 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full px-4">
         <div className="text-center mb-8">
+          <img src="/marvellous-logo-black.png" alt="Marvellous Manager Logo" className="mx-auto h-[150px] w-auto mb-4" />
           <h1 className="text-3xl font-bold">Marvellous Manager</h1>
-          <p className="text-gray-600 mt-2">Hard Drive Management Solutions</p>
         </div>
         <LoginForm />
       </div>

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +36,8 @@ const statusIcons = {
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { updateTask, deleteTask, currentUser } = useTask();
   const [detailOpen, setDetailOpen] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState(task.title);
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed', event: React.MouseEvent) => {
     event.stopPropagation();
@@ -49,6 +50,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
       setDetailOpen(false);
       await deleteTask(task.id);
     }
+  };
+
+  const handleRename = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setIsRenaming(true);
+  };
+
+  const handleRenameSubmit = async (event: React.FormEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (newTitle.trim() && newTitle !== task.title) {
+      await updateTask(task.id, { title: newTitle.trim() });
+    }
+    setIsRenaming(false);
+  };
+
+  const handleOpenTask = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setDetailOpen(true);
   };
 
   const formatDueDate = (dateString: string) => {
@@ -75,11 +95,28 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
         <CardHeader className="pb-2 px-3 pt-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-sm line-clamp-1 text-gray-900">{task.title}</h3>
-              {task.description && (
-                <p className="text-xs text-gray-600 mt-1 line-clamp-1">
-                  {task.description}
-                </p>
+              {isRenaming ? (
+                <form onSubmit={handleRenameSubmit} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full text-sm font-medium border rounded px-2 py-1"
+                    autoFocus
+                    onBlur={() => {
+                      handleRenameSubmit({ preventDefault: () => {}, stopPropagation: () => {} } as any);
+                    }}
+                  />
+                </form>
+              ) : (
+                <>
+                  <h3 className="font-medium text-sm line-clamp-1 text-gray-900">{task.title}</h3>
+                  {task.description && (
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-1">
+                      {task.description}
+                    </p>
+                  )}
+                </>
               )}
             </div>
             <DropdownMenu>
@@ -89,6 +126,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleOpenTask}>
+                  Open Task
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleRename}>
+                  Rename
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleStatusChange('pending', e)}>
                   Move to Pending
                 </DropdownMenuItem>
