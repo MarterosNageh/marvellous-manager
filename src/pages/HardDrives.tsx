@@ -4,15 +4,7 @@ import { useData } from "@/context/DataContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { QrCode, Plus, Search, HardDrive as HardDriveIcon, Printer } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Plus, Search, HardDrive as HardDriveIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,10 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { HardDriveGroupedList } from "@/components/HardDriveGroupedList";
 
 const HardDrives = () => {
-  const { hardDrives, projects, getProject } = useData();
+  const { hardDrives, projects } = useData();
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
@@ -100,59 +92,11 @@ const HardDrives = () => {
             )}
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  {!isMobile && <TableHead>Project</TableHead>}
-                  <TableHead>Drive Type</TableHead>
-                  <TableHead className="hidden sm:table-cell">Creation Date</TableHead>
-                  <TableHead className="hidden md:table-cell">Capacity</TableHead>
-                  <TableHead className="hidden lg:table-cell">Description</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredHardDrives.map((hardDrive) => {
-                  const project = getProject(hardDrive.projectId);
-                  return (
-                    <TableRow key={hardDrive.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          to={`/hard-drives/${hardDrive.id}`}
-                          className="hover:underline"
-                        >
-                          {hardDrive.name}
-                        </Link>
-                        {isMobile && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {project?.name || "No Project"} • {hardDrive.driveType}
-                          </div>
-                        )}
-                      </TableCell>
-                      {!isMobile && (
-                        <TableCell>{project?.name || "No Project"}</TableCell>
-                      )}
-                      <TableCell>
-                        <Badge variant="secondary" className="capitalize">
-                          {hardDrive.driveType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {new Date(hardDrive.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {hardDrive.capacity || "N/A"}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell max-w-xs truncate">
-                        {hardDrive.data || "No description"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <HardDriveGroupedList
+            hardDrives={filteredHardDrives}
+            projects={projects}
+            isMobile={isMobile}
+          />
         )}
       </div>
     </MainLayout>

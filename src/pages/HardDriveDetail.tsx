@@ -90,6 +90,33 @@ const HardDriveDetail = () => {
     navigate(`/hard-drives/${hardDrive.id}/qr`);
   };
 
+  // Check if hard drive has low space
+  const hasLowSpace = (hardDrive: HardDrive) => {
+    if (hardDrive.driveType !== 'backup' || !hardDrive.freeSpace || !hardDrive.capacity) return false;
+    
+    // Extract numbers and convert to GB for comparison
+    const parseSize = (size: string) => {
+      const match = size.match(/^(\d+(?:\.\d+)?)\s*(TB|GB|MB)?$/i);
+      if (!match) return 0;
+      
+      const value = parseFloat(match[1]);
+      const unit = (match[2] || 'GB').toUpperCase();
+      
+      switch (unit) {
+        case 'TB': return value * 1024;
+        case 'MB': return value / 1024;
+        default: return value;
+      }
+    };
+
+    const freeSpaceGB = parseSize(hardDrive.freeSpace);
+    const capacityGB = parseSize(hardDrive.capacity);
+    
+    // Calculate percentage of free space
+    const freeSpacePercentage = (freeSpaceGB / capacityGB) * 100;
+    return freeSpacePercentage < 10; // Less than 10% free space
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -134,7 +161,14 @@ const HardDriveDetail = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Hard Drives
             </Button>
-            <h1 className="text-3xl font-bold">{hardDrive.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold">{hardDrive.name}</h1>
+              {hasLowSpace(hardDrive) && (
+                <Badge variant="destructive" className="text-sm">
+                  Low Space
+                </Badge>
+              )}
+            </div>
           </div>
           
           <div className="flex gap-2">
