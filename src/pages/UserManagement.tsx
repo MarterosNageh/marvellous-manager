@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash, User, UserPlus } from "lucide-react";
+import { Plus, Trash, User, Shield, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -32,42 +33,78 @@ const UserManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Security check - only admins can access user management
+  useEffect(() => {
+    if (currentUser && !currentUser.isAdmin) {
+      toast.error("Access denied. Administrator privileges required.");
+    }
+  }, [currentUser]);
+
   const handleAddUser = async () => {
+    if (!currentUser?.isAdmin) {
+      toast.error("Only administrators can add users");
+      return;
+    }
+
     if (!newUser.username || !newUser.password) {
       toast.error("Username and password are required");
       return;
     }
 
+    if (newUser.username.length < 3) {
+      toast.error("Username must be at least 3 characters long");
+      return;
+    }
+
+    if (newUser.password.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+
     // Check if username already exists
-    if (users.some(user => user.username === newUser.username)) {
+    if (users.some(user => user.username.toLowerCase() === newUser.username.toLowerCase())) {
       toast.error("Username already exists");
       return;
     }
     
     setIsLoading(true);
     try {
-      await addUser(newUser);
-      setNewUser({
-        username: "",
-        password: "",
-        isAdmin: false,
-        role: "operator",
-        title: ""
-      });
-      setIsDialogOpen(false);
+      const success = await addUser(newUser);
+      if (success) {
+        setNewUser({
+          username: "",
+          password: "",
+          isAdmin: false,
+          role: "operator",
+          title: ""
+        });
+        setIsDialogOpen(false);
+      }
     } catch (error) {
-      // Remove console.error statements
+      console.error('Error adding user:', error);
+      toast.error("Failed to add user");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRemoveUser = async (userId: string) => {
+    if (!currentUser?.isAdmin) {
+      toast.error("Only administrators can remove users");
+      return;
+    }
+
+    if (currentUser.id === userId) {
+      toast.error("Cannot delete your own account");
+      return;
+    }
+
     setIsLoading(true);
     try {
       await removeUser(userId);
     } catch (error) {
-      // Remove console.error statements
+      console.error('Error removing user:', error);
+      toast.error("Failed to remove user");
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +112,7 @@ const UserManagement = () => {
 
   const getRoleBadge = (role: string, isAdmin: boolean) => {
     if (isAdmin) {
-      return <Badge variant="destructive">Admin</Badge>;
+      return <Badge variant="destructive" className="flex items-center gap-1"><Shield className="h-3 w-3" />Admin</Badge>;
     }
     switch (role) {
       case 'manager':
@@ -101,11 +138,38 @@ const UserManagement = () => {
     }
   };
 
+  // Security check - render access denied for non-admins
+  if (!currentUser?.isAdmin) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <AlertTriangle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+                <h3 className="text-lg font-semibold text-red-600 mb-2">Access Denied</h3>
+                <p className="text-gray-600 mb-4">
+                  You need administrator privileges to access user management.
+                </p>
+                <p className="text-sm text-gray-500">
+                  Contact your system administrator if you believe this is an error.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+            <p className="text-gray-600">Manage system users and their permissions</p>
+          </div>
           <div className="flex space-x-2">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -123,10 +187,11 @@ const UserManagement = () => {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="username">Username *</Label>
                     <Input
                       id="username"
                       value={newUser.username}
+                      placeholder="Enter username (min 3 characters)"
                       onChange={(e) => setNewUser(prev => ({
                         ...prev,
                         username: e.target.value
@@ -134,11 +199,12 @@ const UserManagement = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">Password *</Label>
                     <Input
                       id="password"
                       type="password"
                       value={newUser.password}
+                      placeholder="Enter password (min 6 characters)"
                       onChange={(e) => setNewUser(prev => ({
                         ...prev,
                         password: e.target.value
@@ -187,7 +253,8 @@ const UserManagement = () => {
                         isAdmin: !!checked
                       }))}
                     />
-                    <label htmlFor="isAdmin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    <label htmlFor="isAdmin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
+                      <Shield className="h-3 w-3 text-red-500" />
                       Admin User (Full System Access)
                     </label>
                   </div>
@@ -233,7 +300,9 @@ const UserManagement = () => {
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="destructive">Admin</Badge>
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <Shield className="h-3 w-3" />Admin
+                  </Badge>
                 </div>
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• All manager permissions</li>
@@ -248,7 +317,7 @@ const UserManagement = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Users</CardTitle>
+            <CardTitle>System Users ({users.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {users.length === 0 ? (
@@ -274,8 +343,12 @@ const UserManagement = () => {
                   {users.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
-                        {user.username}{" "}
-                        {currentUser?.id === user.id && "(Current)"}
+                        <div className="flex items-center gap-2">
+                          {user.username}
+                          {currentUser?.id === user.id && (
+                            <Badge variant="outline" className="text-xs">Current</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {getRoleBadge(user.role || 'operator', user.isAdmin)}
@@ -297,10 +370,11 @@ const UserManagement = () => {
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>
-                                  Are you sure?
+                                  Delete User Account
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will permanently delete the user account for {user.username}.
+                                  This will permanently delete the user account for <strong>{user.username}</strong>.
+                                  This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -308,8 +382,9 @@ const UserManagement = () => {
                                 <AlertDialogAction
                                   onClick={() => handleRemoveUser(user.id)}
                                   disabled={isLoading}
+                                  className="bg-red-600 hover:bg-red-700"
                                 >
-                                  Delete
+                                  Delete User
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

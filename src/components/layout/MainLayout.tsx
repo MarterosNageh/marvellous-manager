@@ -1,3 +1,4 @@
+
 import { ReactNode, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -5,7 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Header } from "@/components/layout/Header";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {fetchToken } from "../../../notification";
+import { fetchToken } from "../../../notification";
 import { NotificationService } from "@/services/notificationService";
 
 interface MainLayoutProps {
@@ -41,22 +42,26 @@ export const MainLayout = ({
     initializeNotifications();
   }, [isAuthenticated, currentUser]);
 
-  // Don't redirect if we're still checking authentication
-  // Only redirect if we're definitely not authenticated
+  // Redirect to login if not authenticated
   if (isAuthenticated === false) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
   // Show loading state while checking authentication
   if (isAuthenticated === null || isAuthenticated === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Authenticating...</p>
         </div>
       </div>
     );
+  }
+
+  // Additional security check - ensure user object exists
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
   }
   
   return (

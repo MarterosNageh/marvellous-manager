@@ -83,6 +83,7 @@ export type Database = {
           capacity: string | null
           created_at: string
           data: string | null
+          drive_type: string
           free_space: string | null
           id: string
           name: string
@@ -90,13 +91,13 @@ export type Database = {
           serial_number: string
           status: string | null
           updated_at: string
-          drive_type: string
         }
         Insert: {
           cables?: Json
           capacity?: string | null
           created_at?: string
           data?: string | null
+          drive_type?: string
           free_space?: string | null
           id?: string
           name: string
@@ -104,13 +105,13 @@ export type Database = {
           serial_number: string
           status?: string | null
           updated_at?: string
-          drive_type?: string
         }
         Update: {
           cables?: Json
           capacity?: string | null
           created_at?: string
           data?: string | null
+          drive_type?: string
           free_space?: string | null
           id?: string
           name?: string
@@ -118,7 +119,6 @@ export type Database = {
           serial_number?: string
           status?: string | null
           updated_at?: string
-          drive_type?: string
         }
         Relationships: [
           {
@@ -558,6 +558,18 @@ export type Database = {
       create_table_if_not_exists: {
         Args: { table_name: string; column_definitions: Json[] }
         Returns: undefined
+      }
+      get_current_user_from_auth_users: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_role_auth_users: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      is_current_user_admin_auth_users: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
     }
     Enums: {
