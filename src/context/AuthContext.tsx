@@ -1,30 +1,49 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface User {
+export interface AuthUser {
   id: string;
   username: string;
+  role: 'admin' | 'senior' | 'operator';
   isAdmin: boolean;
-  role?: string;
   title?: string;
-  created_at: string;
+  created_at?: string;
 }
 
-interface AuthContextType {
-  currentUser: User | null;
-  users: User[];
+export interface AuthContextType {
+  currentUser: AuthUser | null;
+  users: AuthUser[];
   isAuthenticated: boolean | null;
+  isAdmin: boolean;
+  isSenior: boolean;
+  canCompleteTask: boolean;
+  canAddUser: boolean;
+  canAccessSettings: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   refreshUsers: () => Promise<void>;
-  updateUser: (userId: string, userData: Partial<User>) => Promise<boolean>;
+  updateUser: (userId: string, userData: Partial<AuthUser>) => Promise<boolean>;
   addUser: (userData: { username: string; password: string; isAdmin: boolean; role?: string; title?: string }) => Promise<boolean>;
   removeUser: (userId: string) => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  currentUser: null,
+  users: [],
+  isAuthenticated: null,
+  isAdmin: false,
+  isSenior: false,
+  canCompleteTask: false,
+  canAddUser: false,
+  canAccessSettings: false,
+  login: async () => false,
+  logout: () => {},
+  refreshUsers: async () => {},
+  updateUser: async () => false,
+  addUser: async () => false,
+  removeUser: async () => false,
+});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -35,47 +54,51 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [users, setUsers] = useState<AuthUser[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Check for existing session on app load
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          // Verify the user still exists in the database
-          const { data: dbUser, error } = await supabase
-            .from('auth_users')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+  // Compute permissions based on user role
+  const isAdmin = currentUser?.role === 'admin';
+  const isSenior = currentUser?.role === 'senior';
+  const canCompleteTask = isAdmin || isSenior;
+  const canAddUser = isAdmin || isSenior;
+  const canAccessSettings = isAdmin || isSenior;
 
-          if (error || !dbUser) {
-            // User no longer exists, clear session
-            localStorage.removeItem('currentUser');
-            setIsAuthenticated(false);
-            return;
-          }
-
-          // Set current username for any RLS functions that might still exist
-          localStorage.setItem('current_username', user.username);
-
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Session check error:', error);
-        setIsAuthenticated(false);
+  const refreshUsers = async () => {
+    try {
+      if (!currentUser?.isAdmin && currentUser?.role !== 'senior') {
+        // Non-admin users can only see their own profile
+        setUsers(currentUser ? [currentUser] : []);
+        return;
       }
-    };
 
-    checkSession();
-  }, []);
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('*')
+        .order('username');
+
+      if (error) {
+        console.error('Failed to fetch users:', error);
+        toast.error('Failed to load users');
+        return;
+      }
+
+      const mappedUsers: AuthUser[] = data.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' || 'operator'),
+        isAdmin: user.is_admin,
+        title: user.title,
+        created_at: user.created_at
+      }));
+
+      setUsers(mappedUsers);
+    } catch (error) {
+      console.error('Error refreshing users:', error);
+      toast.error('Failed to refresh users');
+    }
+  };
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
@@ -91,22 +114,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const user: User = {
+      const user: AuthUser = {
         id: data.id,
         username: data.username,
+        role: data.is_admin ? 'admin' : (data.role as 'senior' | 'operator' || 'operator'),
         isAdmin: data.is_admin,
-        role: data.role,
         title: data.title,
         created_at: data.created_at
       };
 
-      // Set current username for any RLS functions that might still exist
-      localStorage.setItem('current_username', user.username);
+      // Log user data for debugging
+      console.log('Login user data:', {
+        fromDB: data,
+        constructed: user
+      });
 
       setCurrentUser(user);
       setIsAuthenticated(true);
       
-      // Store user session in localStorage with timestamp for security
+      // Store user session in localStorage
       const sessionData = {
         ...user,
         loginTime: Date.now(),
@@ -128,59 +154,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('current_username');
-    
     toast.success('Logged out successfully');
   };
 
-  const refreshUsers = async () => {
+  const updateUser = async (userId: string, userData: Partial<AuthUser>): Promise<boolean> => {
     try {
-      if (!currentUser?.isAdmin && currentUser?.role !== 'manager') {
-        // Non-admin users can only see their own profile
-        setUsers(currentUser ? [currentUser] : []);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('auth_users')
-        .select('*')
-        .order('username');
-
-      if (error) {
-        console.error('Failed to fetch users:', error);
-        toast.error('Failed to load users');
-        return;
-      }
-
-      const mappedUsers: User[] = data.map(user => ({
-        id: user.id,
-        username: user.username,
-        isAdmin: user.is_admin,
-        role: user.role,
-        title: user.title,
-        created_at: user.created_at
-      }));
-
-      setUsers(mappedUsers);
-    } catch (error) {
-      console.error('Error refreshing users:', error);
-      toast.error('Failed to refresh users');
-    }
-  };
-
-  const updateUser = async (userId: string, userData: Partial<User>): Promise<boolean> => {
-    try {
-      // Check authorization
       if (!currentUser?.isAdmin && currentUser?.id !== userId) {
         toast.error('Unauthorized to update this user');
         return false;
       }
 
-      const updateData: any = {};
-      
-      if (userData.username) updateData.username = userData.username;
-      if (userData.isAdmin !== undefined) updateData.is_admin = userData.isAdmin;
-      if (userData.role) updateData.role = userData.role;
-      if (userData.title !== undefined) updateData.title = userData.title;
+      const updateData: any = {
+        role: userData.role,
+        title: userData.title,
+      };
+
+      // Only admin can change admin status
+      if (currentUser?.isAdmin && userData.role === 'admin') {
+        updateData.is_admin = true;
+      } else if (currentUser?.isAdmin && userData.role !== 'admin') {
+        updateData.is_admin = false;
+      }
+
+      console.log('Updating user with data:', {
+        userId,
+        updateData,
+        currentUser
+      });
 
       const { error } = await supabase
         .from('auth_users')
@@ -197,7 +197,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Update current user if it's the same user
       if (currentUser && currentUser.id === userId) {
-        const updatedUser = { ...currentUser, ...userData };
+        const updatedUser = {
+          ...currentUser,
+          ...userData,
+          role: userData.role || currentUser.role,
+          isAdmin: userData.role === 'admin'
+        };
         setCurrentUser(updatedUser);
         localStorage.setItem('currentUser', JSON.stringify({
           ...updatedUser,
@@ -217,20 +222,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addUser = async (userData: { username: string; password: string; isAdmin: boolean; role?: string; title?: string }): Promise<boolean> => {
     try {
-      // Check authorization
       if (!currentUser?.isAdmin) {
         toast.error('Only administrators can add users');
-        return false;
-      }
-
-      // Input validation
-      if (!userData.username || userData.username.length < 3) {
-        toast.error('Username must be at least 3 characters long');
-        return false;
-      }
-
-      if (!userData.password || userData.password.length < 6) {
-        toast.error('Password must be at least 6 characters long');
         return false;
       }
 
@@ -245,12 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
       if (error) {
-        if (error.code === '23505') {
-          toast.error('Username already exists');
-        } else {
-          console.error('Add user error:', error);
-          toast.error('Failed to add user');
-        }
+        console.error('Add user error:', error);
+        toast.error('Failed to add user');
         return false;
       }
 
@@ -266,13 +255,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeUser = async (userId: string): Promise<boolean> => {
     try {
-      // Check authorization
       if (!currentUser?.isAdmin) {
         toast.error('Only administrators can remove users');
         return false;
       }
 
-      // Prevent self-deletion
       if (currentUser.id === userId) {
         toast.error('Cannot delete your own account');
         return false;
@@ -299,6 +286,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const sessionData = JSON.parse(storedUser);
+          const now = Date.now();
+          const sessionAge = now - (sessionData.loginTime || 0);
+          const timeout = sessionData.sessionTimeout || 24 * 60 * 60 * 1000;
+
+          if (sessionAge <= timeout) {
+            // Verify the user still exists in the database
+            const { data: dbUser, error } = await supabase
+              .from('auth_users')
+              .select('*')
+              .eq('id', sessionData.id)
+              .single();
+
+            if (error || !dbUser) {
+              console.error('Failed to verify user in database:', error);
+              localStorage.removeItem('currentUser');
+              setIsAuthenticated(false);
+              return;
+            }
+
+            console.log('Session restoration - DB user data:', dbUser);
+
+            const user: AuthUser = {
+              id: dbUser.id,
+              username: dbUser.username,
+              role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' || 'operator'),
+              isAdmin: dbUser.is_admin,
+              title: dbUser.title,
+              created_at: dbUser.created_at
+            };
+
+            console.log('Session restoration - Constructed user:', user);
+
+            setCurrentUser(user);
+            setIsAuthenticated(true);
+          } else {
+            console.log('Session expired:', { sessionAge, timeout });
+            localStorage.removeItem('currentUser');
+            setIsAuthenticated(false);
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        localStorage.removeItem('currentUser');
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkSession();
+  }, []);
+
   // Auto-refresh users when authentication status changes
   useEffect(() => {
     if (isAuthenticated && currentUser) {
@@ -306,47 +352,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isAuthenticated, currentUser?.id]);
 
-  // Session timeout check
-  useEffect(() => {
-    const checkSessionTimeout = () => {
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser && isAuthenticated) {
-        try {
-          const sessionData = JSON.parse(storedUser);
-          const now = Date.now();
-          const sessionAge = now - (sessionData.loginTime || 0);
-          const timeout = sessionData.sessionTimeout || 24 * 60 * 60 * 1000;
+  const value = {
+    currentUser,
+    users,
+    isAuthenticated,
+    isAdmin,
+    isSenior,
+    canCompleteTask,
+    canAddUser,
+    canAccessSettings,
+    login,
+    logout,
+    refreshUsers,
+    updateUser,
+    addUser,
+    removeUser
+  };
 
-          if (sessionAge > timeout) {
-            toast.warning('Session expired. Please log in again.');
-            logout();
-          }
-        } catch (error) {
-          console.error('Session validation error:', error);
-          logout();
-        }
-      }
-    };
-
-    // Check session timeout every 5 minutes
-    const interval = setInterval(checkSessionTimeout, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
-
-  return (
-    <AuthContext.Provider value={{
-      currentUser,
-      users,
-      isAuthenticated,
-      login,
-      logout,
-      refreshUsers,
-      updateUser,
-      addUser,
-      removeUser
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

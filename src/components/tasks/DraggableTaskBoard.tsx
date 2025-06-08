@@ -1,6 +1,6 @@
-
 import { useState } from "react";
 import { useTask } from "@/context/TaskContext";
+import { useAuth } from "@/context/AuthContext";
 import { TaskCard } from "@/components/tasks/TaskCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ const statusColumns: { status: TaskStatus; title: string; color: string }[] = [
 
 export const DraggableTaskBoard = () => {
   const { tasks, updateTask, loading, currentUser } = useTask();
+  const { canCompleteTask } = useAuth();
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -50,8 +51,8 @@ export const DraggableTaskBoard = () => {
     }
 
     // Check if trying to move to completed and user is not admin
-    if (newStatus === 'completed' && currentUser && !currentUser.isAdmin) {
-      console.log('Non-admin user trying to move to completed status');
+    if (newStatus === 'completed' && !canCompleteTask) {
+      console.log('User does not have permission to complete tasks');
       setDraggedTask(null);
       return;
     }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -115,8 +114,8 @@ const UserManagement = () => {
       return <Badge variant="destructive" className="flex items-center gap-1"><Shield className="h-3 w-3" />Admin</Badge>;
     }
     switch (role) {
-      case 'manager':
-        return <Badge variant="default">Manager</Badge>;
+      case 'senior':
+        return <Badge variant="default">Senior</Badge>;
       case 'operator':
         return <Badge variant="secondary">Operator</Badge>;
       default:
@@ -129,10 +128,10 @@ const UserManagement = () => {
       return "Full system access, can manage all users, tasks, and data";
     }
     switch (role) {
-      case 'manager':
-        return "Can complete tasks, approve requests, manage team schedules";
+      case 'senior':
+        return "Can complete tasks, add users (without role setting), manage team schedules";
       case 'operator':
-        return "Can view schedules, submit requests, edit own tasks, view dashboard";
+        return "Can view schedules, submit requests, view tasks (no completion)";
       default:
         return "Basic user permissions";
     }
@@ -237,7 +236,7 @@ const UserManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="senior">Senior</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500">
@@ -283,18 +282,18 @@ const UserManagement = () => {
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• View team schedules</li>
                   <li>• Submit requests</li>
-                  <li>• Edit own tasks only</li>
+                  <li>• View tasks (no completion)</li>
                   <li>• View dashboard</li>
                 </ul>
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="default">Manager</Badge>
+                  <Badge variant="default">Senior</Badge>
                 </div>
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• All operator permissions</li>
                   <li>• Complete any task</li>
-                  <li>• Approve/reject requests</li>
+                  <li>• Add new users</li>
                   <li>• Manage team schedules</li>
                 </ul>
               </div>
@@ -305,10 +304,10 @@ const UserManagement = () => {
                   </Badge>
                 </div>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• All manager permissions</li>
+                  <li>• Full system access</li>
                   <li>• User management</li>
                   <li>• System configuration</li>
-                  <li>• Full data access</li>
+                  <li>• Role management</li>
                 </ul>
               </div>
             </div>

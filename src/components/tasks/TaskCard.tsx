@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Calendar, Flag, MoreHorizontal, User, MessageCircle, Circle, Clock, Eye, CheckCircle } from "lucide-react";
 import { Task } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
+import { useAuth } from "@/context/AuthContext";
 import { TaskDetailDialog } from "./TaskDetailDialog";
 
 interface TaskCardProps {
@@ -35,6 +36,7 @@ const statusIcons = {
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { updateTask, deleteTask, currentUser } = useTask();
+  const { canCompleteTask } = useAuth();
   const [detailOpen, setDetailOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(task.title);
@@ -141,7 +143,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                 <DropdownMenuItem onClick={(e) => handleStatusChange('under_review', e)}>
                   Move to Under Review
                 </DropdownMenuItem>
-                {currentUser?.isAdmin && (
+                {canCompleteTask && (
                   <DropdownMenuItem onClick={(e) => handleStatusChange('completed', e)}>
                     Move to Completed
                   </DropdownMenuItem>

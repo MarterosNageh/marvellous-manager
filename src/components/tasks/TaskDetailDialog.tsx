@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle, Save, X } from "lucide-react";
 import { Task, TaskStatus } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface TaskDetailDialogProps {
   task: Task;
@@ -39,6 +40,7 @@ const statusIcons = {
 
 export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, onOpenChange }) => {
   const { updateTask, deleteTask, currentUser, tasks } = useTask();
+  const { canCompleteTask } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState(task);
 
@@ -172,7 +174,7 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
                     Under Review
                   </div>
                 </SelectItem>
-                {currentUser?.isAdmin && (
+                {canCompleteTask && (
                   <SelectItem value="completed">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />

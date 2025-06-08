@@ -3,6 +3,7 @@ import { Task, TaskPriority, TaskStatus, User } from "@/types/taskTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationService } from "@/services/notificationService";
+import { useAuth } from './AuthContext';
 
 interface Project {
   id: string;
@@ -42,14 +43,18 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const { toast } = useToast();
+  const { canCompleteTask } = useAuth();
 
   // Function to fetch all data
   const fetchData = async () => {
     try {
+      setLoading(true);
+
       // Fetch users
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
-        .select('*');
+        .select('*')
+        .order('username');
       
       if (usersError) throw usersError;
       
@@ -57,35 +62,41 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         id: user.id,
         username: user.username,
         password: user.password,
-        isAdmin: user.is_admin,
-        role: user.is_admin ? 'admin' : 'user',
+        role: user.role || 'user',
+        isAdmin: user.is_admin
       }));
       setUsers(transformedUsers);
 
       // Fetch projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('*');
+        .select('*')
+        .order('name');
       
       if (projectsError) throw projectsError;
       
-      const transformedProjects = projectsData.map(project => ({
-        id: project.id,
-        name: project.name,
-        description: project.description,
-        created_at: project.created_at,
-      }));
-      setProjects(transformedProjects);
+      setProjects(projectsData);
 
-      // Fetch tasks with assignments and subtasks
+      // Fetch tasks with related data
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select(`
           *,
-          task_assignments(user_id),
-          subtasks(*),
-          projects(name)
-        `);
+          task_assignments (
+            user_id
+          ),
+          subtasks (
+            id,
+            title,
+            completed,
+            order_index
+          ),
+          projects (
+            id,
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
 
       if (tasksError) throw tasksError;
 
@@ -121,6 +132,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       setTasks(transformedTasks);
     } catch (error) {
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
         description: "Failed to load data",
@@ -349,11 +361,11 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Task not found');
       }
 
-      // Check if trying to update status to completed and user is not admin
-      if (updates.status === 'completed' && currentUser && !currentUser.isAdmin) {
+      // Check if trying to update status to completed and user doesn't have permission
+      if (updates.status === 'completed' && !canCompleteTask) {
         toast({
           title: "Access Denied",
-          description: "Only admins can mark tasks as completed",
+          description: "You don't have permission to complete tasks",
           variant: "destructive",
         });
         return;
@@ -405,8 +417,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log('✅ Task updated successfully');
+      console.log('📝 Changes:', changes.join(', '));
 
-      // Send notifications to assigned users
+      // Send notifications to assignees about the update
       try {
         const { NotificationService } = await import('@/services/notificationService');
         const assigneeIds = originalTask.assignees.map(a => a.id);
