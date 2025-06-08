@@ -23,7 +23,7 @@ const items = [{
   url: "/task-manager",
   icon: Files
 }, {
-  title: "Staff Schedule (Coming Soon)",
+  title: "Staff Schedule",
   url: "/shifts-schedule",
   icon: CalendarDays
 }, {
