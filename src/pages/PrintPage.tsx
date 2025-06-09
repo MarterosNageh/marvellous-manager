@@ -16,13 +16,15 @@ import { HardDriveInPrintPrev } from "@/components/print/HardDriveInPrintPrev";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { AllHardsPrintPrev } from "@/components/print/AllHardsPrintPrev";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ExtendedPrintType = PrintType | "hard-label";
 
 interface LocationState {
   type: ExtendedPrintType;
-  projectId: string;
-  projectName: string;
+  projectId?: string;
+  projectName?: string;
+  hardDriveId?: string;
 }
 
 const PrintPage = () => {
@@ -32,6 +34,7 @@ const PrintPage = () => {
   const location = useLocation();
   const { getHardDrive, getProject, getHardDrivesByProject, addPrintHistory } = useData();
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
   
   const state = location.state as LocationState | null;
   const defaultType = state?.type || searchParams.get("type") as ExtendedPrintType || "hard-out";
@@ -43,8 +46,11 @@ const PrintPage = () => {
   const isProjectPrint = state?.projectId || window.location.pathname.includes("/projects/");
   const projectId = state?.projectId || id;
   
-  // Get the relevant data
-  const hardDrive = !isProjectPrint && id ? getHardDrive(id) : null;
+  // Get the hard drive either from state or from URL parameter
+  const hardDriveId = state?.hardDriveId || (!isProjectPrint ? id : null);
+  const hardDrive = hardDriveId ? getHardDrive(hardDriveId) : null;
+  
+  // Get project and hard drives
   const project = isProjectPrint ? getProject(projectId) : (hardDrive ? getProject(hardDrive.projectId) : null);
   const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : 
     (hardDrive && project ? getHardDrivesByProject(project.id) : // Get all drives from project when printing all-hards
@@ -81,297 +87,218 @@ const PrintPage = () => {
     );
   }
 
-  const handlePrint = () => {
-    // Add print history for all print types
-    if (printType === "hard-label" && hardDrive) {
-      addPrintHistory({
-        type: "label" as PrintType,
-        hardDriveId: hardDrive.id,
-        projectId: project?.id || null,
-        operatorName,
-      });
-    } else if ((printType === "hard-out" || printType === "hard-in") && hardDrive) {
-      addPrintHistory({
-        type: printType as PrintType,
-        hardDriveId: hardDrive.id,
-        projectId: project?.id || null,
-        operatorName,
-      });
-    } else if (printType === "all-hards" && isProjectPrint && project) {
-      addPrintHistory({
-        type: printType,
-        hardDriveId: null,
-        projectId: project.id,
-        operatorName,
-      });
-    }
+  const handlePrint = async () => {
+    try {
+      console.log('Starting print operation:', { printType, isProjectPrint, project });
+      
+      // Add print history for all print types
+      if (printType === "hard-label" && hardDrive) {
+        await addPrintHistory({
+          type: "label" as PrintType,
+          hardDriveId: hardDrive.id,
+          projectId: project?.id || null,
+          operatorName,
+        });
+      } else if ((printType === "hard-out" || printType === "hard-in") && hardDrive) {
+        await addPrintHistory({
+          type: printType as PrintType,
+          hardDriveId: hardDrive.id,
+          projectId: project?.id || null,
+          operatorName,
+        });
+      } else if (printType === "all-hards" && project) {
+        console.log('Adding all-hards print history:', { project, operatorName });
+        
+        // Record the project-level print
+        await addPrintHistory({
+          type: "all-hards" as PrintType,
+          hardDriveId: null,
+          projectId: project.id,
+          operatorName,
+        });
 
-    if (!printRef.current) return;
-    
-    const content = printRef.current;
-    const printWindow = window.open('', '_blank');
-    
-    if (!printWindow) {
-      alert("Please allow popups for this website");
-      return;
-    }
+        // Also record individual entries for each hard drive with all-hards type
+        for (const drive of hardDrives) {
+          await addPrintHistory({
+            type: "all-hards" as PrintType,
+            hardDriveId: drive.id,
+            projectId: project.id,
+            operatorName,
+          });
+        }
+      }
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Document - Marvellous Manager</title>
-          <link rel="icon" type="image/x-icon" href="/favicon.ico">
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            
-            body { 
-              font-family: "Inter", "ui-sans-serif", sans-serif;
-              margin: 0; 
-              padding: 0; 
-            }
+      // Invalidate print history queries to trigger a refresh
+      await queryClient.invalidateQueries({ queryKey: ['project-print-history'] });
 
-            @media print {
-              body { padding: 0; }
-              button { display: none; }
+      // After database operations are complete, handle the print window
+      if (!printRef.current) {
+        console.log('Print ref not found');
+        return;
+      }
+      
+      const content = printRef.current;
+      const printWindow = window.open('', '_blank');
+      
+      if (!printWindow) {
+        alert("Please allow popups for this website");
+        return;
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print Document - Marvellous Manager</title>
+            <link rel="icon" type="image/x-icon" href="/favicon.ico">
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
               
-              #header, #info-box, #signature {
-                page-break-inside: avoid;
+              body { 
+                font-family: "Inter", "ui-sans-serif", sans-serif;
+                margin: 0; 
+                padding: 0; 
               }
 
-              #ContainerHard {
-                max-width: 100%;
-                padding: 10mm;
-              }
+              @media print {
+                body { 
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                
+                @page {
+                  margin: 0;
+                  size: A4;
+                }
 
-              #signature-text {
-                display: block;
-                text-align: center;
-              }
-            }
+                #Container {
+                  padding: 20mm;
+                }
 
-            #ContainerP {
-              height: 1087px;
-              margin: 0 auto;
-              position: relative;
-              background-color: white;
-            }
+                #ContainerHard {
+                  padding: 10mm;
+                }
 
-            #labelP {
-              height: 271.7px;
-              position: relative;
-              left: 0px;
-              width: 383.5px;
-              text-align: center;
-              padding: 5px;
-              top: 0px;
-            }
+                #labelP {
+                  position: absolute;
+                  width: 383.5px;
+                  height: 271.7px;
+                }
 
-            #BtnContainer {
-              text-align: center;
-              margin-top: 20px;
-              position: absolute;
-              left: 363.5px;
-              z-index: 99;
-            }
+                #label {
+                  padding: 20px;
+                }
 
-            #card {
-              transform: rotate(90deg);
-            }
+                #header {
+                  text-align: center;
+                  margin-bottom: 20px;
+                }
 
-            #ContainerHard {
-              width: 100%;
-              background-color: white;
-              border-radius: 8px;
-              max-height: 100%;
-              overflow: hidden;
-            }
+                #header h1 {
+                  margin: 10px 0;
+                  font-size: 18px;
+                }
 
-            .content-wrapper {
-              width: 90%;
-              display: flex;
-              justify-content: center;
-              align-items: flex-start;
-              min-height: 100vh;
-              flex-direction: column;
-            }
+                #grid {
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 20px;
+                  margin-bottom: 20px;
+                }
 
-            #header {
-              text-align: center;
-              margin-bottom: 30px;
-            }
+                #info-box {
+                  border: 1px solid black;
+                  padding: 10px;
+                }
 
-            h1 {
-              font-size: 26px;
-              font-weight: bold;
-              color: #333;
-            }
+                #info-box h3 {
+                  margin: 0 0 10px 0;
+                  font-size: 14px;
+                }
 
-            p {
-              font-size: 16px;
-              color: #6c757d;
-            }
+                #info-box table {
+                  width: 100%;
+                  border-collapse: collapse;
+                }
 
-            #grid {
-              display: grid;
-              grid-template-columns: 1fr;
-              gap: 20px;
-            }
+                #info-box td {
+                  padding: 5px 0;
+                  font-size: 12px;
+                }
 
-            @media (min-width: 768px) {
-              #grid {
-                grid-template-columns: 1fr 1fr;
-              }
-            }
+                #info-box td:first-child {
+                  font-weight: 500;
+                  width: 40%;
+                }
 
-            #info-box {
-              background-color: #ffffff;
-              padding: 15px;
-              border-radius: 8px;
-            }
+                #signature {
+                  margin-top: 30px;
+                }
 
-            h3 {
-              font-size: 18px;
-              font-weight: bold;
-              color: #333;
-              margin-bottom: 12px;
-              border-bottom: 2px solid #e0e0e0;
-              padding-bottom: 8px;
-            }
+                #signTitle {
+                  font-size: 14px;
+                  margin-bottom: 20px;
+                }
 
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
+                #signature-line {
+                  border-bottom: 1px solid black;
+                  height: 30px;
+                }
 
-            table td {
-              padding: 6px 12px;
-              border-bottom: 1px solid #f1f1f1;
-              font-size: 14px;
-              color: #555;
-            }
+                table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin: 10px 0;
+                }
 
-            table td:first-child {
-              font-weight: bold;
-            }
+                th, td {
+                  border: 1px solid black;
+                  padding: 8px;
+                  text-align: left;
+                }
 
-            #cables {
-              margin-top: 30px;
-            }
-
-            #cables ul {
-              list-style-type: disc;
-              margin-left: 25px;
-              font-size: 14px;
-              color: #555;
-            }
-
-            #cables li {
-              margin-bottom: 6px;
-            }
-
-            #signature {
-              margin-top: 30px;
-              text-align: center;
-            }
-
-            #signature-line {
-              height: 2px;
-              width: 250px;
-              margin-left: auto;
-              margin-right: auto;
-              border-bottom: 1px dashed black;
-              margin-top: 50px;
-            }
-
-            #signature-text {
-              font-size: 14px;
-              color: #555;
-              margin-top: 8px;
-            }
-
-            #signTitle {
-              border-bottom: 0px solid white;
-            }
-
-            .print-controls {
-              padding: 20px;
-              background: #f5f5f5;
-              border-bottom: 1px solid #ddd;
-              text-align: center;
-              display: flex;
-              justify-content: center;
-              flex-wrap: wrap;
-              gap: 10px;
-            }
-
-            .print-controls button {
-              background: #0070f3;
-              color: white;
-              border: none;
-              padding: 8px 16px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-weight: 500;
-              margin: 5px;
-            }
-
-            .print-controls button:hover {
-              background: #0051a8;
-            }
-          </style>
-        </head>
-        <body>
-          ${printType === "hard-label" ? `
-            <div id="BtnContainer">
-              <button id="1">01</button>
-              <button id="2">02</button>
-              <br>
-              <button id="3">03</button>
-              <button id="4">04</button>
-              <br>
-              <button id="5">05</button>
-              <button id="6">06</button>
-              <br>
-              <button id="7">07</button>
-              <button id="8">08</button>
-            </div>
-            <div class="ContainerP">
-              ${content.innerHTML}
-            </div>
-          ` : `
-            <div class="content-wrapper">
-              ${content.innerHTML}
-            </div>
-          `}
-
-          <script>
-            var label = document.getElementById("labelP");
-            if (label) {
-              let btn = [];
-              for(let x = 0; x <= 7; x++){
-                btn[x] = document.getElementById(x + 1);
-                if (btn[x]) {
-                  btn[x].addEventListener("click", () => {
-                    // Left side
-                    if(x % 2 === 0){
-                      label.style.left = "0px";
-                      label.style.top = (x/2*271.7) + "px";
-                      window.print();
-                    // Right side
-                    } else {
-                      label.style.left = "383.5px";
-                      label.style.top = (((x+1)/2-1)*271.7) + "px";
-                      window.print();
-                    }
-                  });
+                th {
+                  background-color: #f3f4f6;
                 }
               }
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+            </style>
+          </head>
+          <body>
+            ${content.innerHTML}
+            <script>
+              var label = document.getElementById("labelP");
+              if (label) {
+                let btn = [];
+                for(let x = 0; x <= 7; x++){
+                  btn[x] = document.getElementById(x + 1);
+                  if (btn[x]) {
+                    btn[x].addEventListener("click", () => {
+                      // Left side
+                      if(x % 2 === 0){
+                        label.style.left = "0px";
+                        label.style.top = (x/2*271.7) + "px";
+                        window.print();
+                      // Right side
+                      } else {
+                        label.style.left = "383.5px";
+                        label.style.top = (((x+1)/2-1)*271.7) + "px";
+                        window.print();
+                      }
+                    });
+                  }
+                }
+              } else {
+                // If not a label print, print immediately
+                window.print();
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error in handlePrint:', error);
+      alert('There was an error saving the print history. Please try again.');
+    }
   };
 
   return (

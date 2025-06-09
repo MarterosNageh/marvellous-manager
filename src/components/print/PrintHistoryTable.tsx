@@ -4,12 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, ArrowUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface PrintHistoryProps {
   id: string;
   type?: string;
-  hard_drive_id: string;
+  hard_drive_id?: string | null;
   printed_at: string;
   printed_by: string;
   hardDriveName?: string;
@@ -22,6 +23,7 @@ interface PrintHistoryTableProps {
 export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -53,11 +55,22 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) =>
     { value: 'all-hards', label: 'Project Print' }
   ];
 
+  const toggleSort = () => {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
   const filteredData = data.filter(item => {
     const matchesSearch = item.printed_by.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (item.hardDriveName && item.hardDriveName.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesType = selectedType === 'all' || item.type === selectedType;
+    const matchesType = selectedType === 'all' || (item.type && item.type.toLowerCase() === selectedType.toLowerCase());
     return matchesSearch && matchesType;
+  });
+
+  // Sort the filtered data by date
+  const sortedData = [...filteredData].sort((a, b) => {
+    const dateA = new Date(a.printed_at).getTime();
+    const dateB = new Date(b.printed_at).getTime();
+    return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
   return (
@@ -94,12 +107,22 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) =>
           <TableRow>
             <TableHead className="w-[200px]">Print Type</TableHead>
             <TableHead className="w-[200px]">User</TableHead>
-            <TableHead>Date & Time</TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                onClick={toggleSort}
+                className="h-8 flex items-center gap-1 -ml-4"
+              >
+                Date & Time
+                <ArrowUpDown className="h-4 w-4" />
+                {sortDirection === 'asc' ? '(Oldest First)' : '(Newest First)'}
+              </Button>
+            </TableHead>
             {data.some(item => item.hardDriveName) && <TableHead className="w-[200px]">Hard Drive</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredData.map((item) => (
+          {sortedData.map((item) => (
             <TableRow key={item.id}>
               <TableCell>
                 <Badge variant="secondary" className="font-medium">
@@ -113,7 +136,7 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) =>
               )}
             </TableRow>
           ))}
-          {filteredData.length === 0 && (
+          {sortedData.length === 0 && (
             <TableRow>
               <TableCell colSpan={data.some(item => item.hardDriveName) ? 4 : 3} className="text-center py-4">
                 {searchQuery || selectedType !== 'all' 
