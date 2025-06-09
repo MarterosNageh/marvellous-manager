@@ -102,6 +102,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
+      console.log('Attempting login with username:', username);
+      
+      // First, check if the user exists
+      const { data: userData, error: userError } = await supabase
+        .from('auth_users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user:', userError);
+        toast.error('Error during login. Please try again.');
+        return false;
+      }
+
+      if (!userData) {
+        console.error('User not found:', username);
+        toast.error('Invalid username or password');
+        return false;
+      }
+
+      // Then check the password
       const { data, error } = await supabase
         .from('auth_users')
         .select('*')
@@ -109,7 +131,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('password', password)
         .single();
 
-      if (error || !data) {
+      if (error) {
+        console.error('Login error:', error);
+        toast.error('Error during login. Please try again.');
+        return false;
+      }
+
+      if (!data) {
+        console.error('Invalid password for user:', username);
         toast.error('Invalid username or password');
         return false;
       }
@@ -123,10 +152,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: data.created_at
       };
 
-      // Log user data for debugging
-      console.log('Login user data:', {
-        fromDB: data,
-        constructed: user
+      console.log('Login successful:', {
+        username: user.username,
+        role: user.role,
+        isAdmin: user.isAdmin
       });
 
       setCurrentUser(user);
@@ -143,8 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Login successful');
       return true;
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Login failed');
+      console.error('Unexpected login error:', error);
+      toast.error('An unexpected error occurred. Please try again.');
       return false;
     }
   };
@@ -351,6 +380,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshUsers();
     }
   }, [isAuthenticated, currentUser?.id]);
+
+  // Check and create default admin user if no users exist
+  const ensureDefaultAdmin = async () => {
+    try {
+      // Check if any users exist
+      const { data: users, error: countError } = await supabase
+        .from('auth_users')
+        .select('*');
+
+      if (countError) {
+        console.error('Error checking users:', countError);
+        return;
+      }
+
+      if (!users || users.length === 0) {
+        console.log('No users found, creating default admin user...');
+        
+        // Create default admin user
+        const { error: createError } = await supabase
+          .from('auth_users')
+          .insert([
+            {
+              username: 'admin',
+              password: 'admin123', // You should change this immediately
+              is_admin: true,
+              role: 'admin',
+              title: 'System Administrator'
+            }
+          ]);
+
+        if (createError) {
+          console.error('Error creating default admin:', createError);
+          return;
+        }
+
+        console.log('Default admin user created successfully');
+        toast.success('Default admin user created. Username: admin, Password: admin123');
+      } else {
+        console.log('Users exist in database:', users.length);
+      }
+    } catch (error) {
+      console.error('Error in ensureDefaultAdmin:', error);
+    }
+  };
+
+  // Call ensureDefaultAdmin when the AuthProvider mounts
+  useEffect(() => {
+    ensureDefaultAdmin();
+  }, []);
 
   const value = {
     currentUser,

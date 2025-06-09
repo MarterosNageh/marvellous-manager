@@ -24,7 +24,7 @@ const items = [{
   icon: Files
 }, {
   title: "Staff Schedule",
-  url: "/shifts-schedule",
+  url: "/schedule",
   icon: CalendarDays
 }, {
   title: "Notes",

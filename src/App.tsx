@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { TaskProvider } from '@/context/TaskContext';
+import { ScheduleProvider } from '@/context/ScheduleContext';
 
 // Pages
 import Index from '@/pages/Index';
@@ -25,7 +26,7 @@ import Settings from '@/pages/Settings';
 import KnowledgeBase from '@/pages/KnowledgeBase';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
-
+import Schedule from '@/pages/Schedule';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ function App() {
       <AuthProvider>
         <DataProvider>
           <TaskProvider>
+            <ScheduleProvider>
             <Router>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -55,7 +57,7 @@ function App() {
                 <Route path="/print" element={<PrintPage />} />
                 <Route path="/print/:id" element={<PrintPage />} />
                 <Route path="/task-manager" element={<TaskManager />} />
-                <Route path="/shifts-schedule" element={<ComingSoon />} />
+                  <Route path="/schedule" element={<Schedule />} />
                 <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
@@ -64,6 +66,7 @@ function App() {
               </Routes>
             </Router>
             <Toaster />
+            </ScheduleProvider>
           </TaskProvider>
         </DataProvider>
       </AuthProvider>

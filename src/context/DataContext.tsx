@@ -114,32 +114,38 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           fetchData();
         }
       )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') {
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to data updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Channel error:', err);
+          // Implement exponential backoff for retries
+          let retryCount = 0;
+          const maxRetries = 3;
+          const retrySubscription = () => {
+            if (retryCount < maxRetries) {
+              retryCount++;
+              const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
           setTimeout(() => {
+                console.log(`🔄 Retrying subscription (attempt ${retryCount}/${maxRetries})...`);
             channel.unsubscribe();
-            setupRealtimeSubscription();
-          }, 2000);
+                channel.subscribe();
+              }, delay);
+            } else {
+              console.error('❌ Max retry attempts reached for data updates subscription');
+              toast({
+                title: "Connection Error",
+                description: "Failed to establish real-time connection. Please refresh the page.",
+                variant: "destructive",
+              });
+            }
+          };
+          retrySubscription();
         }
       });
 
-    const setupRealtimeSubscription = () => {
-      const retryChannel = supabase
-        .channel(`data-updates-retry-${Date.now()}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
-          () => fetchData()
-        )
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
-          () => fetchData()
-        )
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
-          () => fetchData()
-        )
-        .subscribe();
-    };
-
     return () => {
-      supabase.removeAllChannels();
+      channel.unsubscribe();
     };
   }, [toast]);
 
