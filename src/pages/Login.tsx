@@ -32,16 +32,10 @@ const Login = () => {
           </p>
         </div>
 
-        <div className="bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl px-4 py-6 sm:px-6">
+        <div >
           <LoginForm />
         </div>
 
-        <p className="text-center text-sm text-gray-600">
-          Don't have an account?{" "}
-          <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">
-            Contact your administrator
-          </a>
-        </p>
       </div>
     </div>
   );
