@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,11 @@ import {
 import { useNotes } from '@/context/NotesContext';
 import { useAuth } from '@/context/AuthContext';
 
-export const NotesSidebar = () => {
+interface NotesSidebarProps {
+  onNoteSelect?: () => void;
+}
+
+export const NotesSidebar = ({ onNoteSelect }: NotesSidebarProps) => {
   const { notes, selectedNote, selectNote, createNote, deleteNote, loading } = useNotes();
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +39,7 @@ export const NotesSidebar = () => {
     const newNote = await createNote('New Note', '');
     if (newNote) {
       selectNote(newNote);
+      onNoteSelect?.();
     }
   };
 
@@ -44,6 +48,11 @@ export const NotesSidebar = () => {
     if (confirm('Are you sure you want to delete this note?')) {
       await deleteNote(noteId);
     }
+  };
+
+  const handleNoteSelect = (note: any) => {
+    selectNote(note);
+    onNoteSelect?.();
   };
 
   const canEditNote = (note: any) => {
@@ -65,10 +74,10 @@ export const NotesSidebar = () => {
 
   const NoteItem = ({ note }: { note: any }) => (
     <div
-      className={`group cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${
+      className={`group cursor-pointer p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
         selectedNote?.id === note.id ? 'bg-blue-100 dark:bg-blue-900' : ''
       }`}
-      onClick={() => selectNote(note)}
+      onClick={() => handleNoteSelect(note)}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 flex-1 min-w-0">
@@ -93,16 +102,16 @@ export const NotesSidebar = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-32">
               <DropdownMenuItem
                 onClick={(e) => handleDeleteNote(note.id, e)}
-                className="text-red-600"
+                className="text-red-600 dark:text-red-400"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -115,8 +124,8 @@ export const NotesSidebar = () => {
   );
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-4">
+    <Card className="h-full flex flex-col border-0 rounded-none">
+      <CardHeader className="pb-4 space-y-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Notes</CardTitle>
           <Button
@@ -124,6 +133,7 @@ export const NotesSidebar = () => {
             size="sm"
             onClick={handleCreateNote}
             title="New Note"
+            className="hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             <Plus className="h-4 w-4" />
           </Button>

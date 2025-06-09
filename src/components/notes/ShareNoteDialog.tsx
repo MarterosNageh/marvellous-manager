@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -104,19 +103,19 @@ export const ShareNoteDialog: React.FC<ShareNoteDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Share Note</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Share Note</DialogTitle>
+          <DialogDescription className="text-sm sm:text-base">
             Share "{note?.title}" with other team members
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Add New Share */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Add People</h4>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select user..." />
@@ -130,24 +129,27 @@ export const ShareNoteDialog: React.FC<ShareNoteDialogProps> = ({
                 </SelectContent>
               </Select>
               
-              <Select value={selectedPermission} onValueChange={handlePermissionChange}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="read">Read</SelectItem>
-                  <SelectItem value="write">Write</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button
-                onClick={handleShare}
-                disabled={!selectedUserId}
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Select value={selectedPermission} onValueChange={handlePermissionChange}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">Read</SelectItem>
+                    <SelectItem value="write">Write</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Button
+                  onClick={handleShare}
+                  disabled={!selectedUserId}
+                  size="sm"
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -159,20 +161,21 @@ export const ShareNoteDialog: React.FC<ShareNoteDialogProps> = ({
                 {shares.map((share) => {
                   const user = users.find(u => u.id === share.shared_with_user_id);
                   return (
-                    <div key={share.id} className="flex items-center justify-between p-2 border rounded">
-                      <div className="flex items-center space-x-2">
-                        <Avatar className="h-6 w-6">
+                    <div key={share.id} className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <Avatar className="h-6 w-6 shrink-0">
                           <AvatarFallback className="text-xs">
                             {user?.username?.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{user?.username}</span>
+                        <span className="text-sm truncate">{user?.username}</span>
                         {getPermissionBadge(share.permission_level)}
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleUnshare(share.shared_with_user_id)}
+                        className="shrink-0 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
