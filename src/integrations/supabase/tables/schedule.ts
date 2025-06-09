@@ -1,296 +1,296 @@
+
 import { supabase } from '../client';
-import type { Shift, ShiftTemplate, LeaveRequest, ShiftSwapRequest, ScheduleUser } from '@/types/schedule';
+import type { Shift, ShiftTemplate, LeaveRequest, ShiftSwapRequest } from '@/types/schedule';
 
-// Error handling wrapper
-const handleSupabaseError = (error: any) => {
-  console.error('Database error:', error);
-  throw new Error(error.message);
-};
-
+// Shifts table operations
 export const shiftsTable = {
-  async getAll() {
+  async getAll(): Promise<Shift[]> {
     const { data, error } = await supabase
       .from('shifts')
-      .select(`
-        *,
-        created_by:auth_users!shifts_created_by_fkey(username),
-        user:auth_users!shifts_user_id_fkey(username)
-      `)
+      .select('*')
       .order('start_time', { ascending: true });
-
-    if (error) handleSupabaseError(error);
-    return data as Shift[];
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async getByDateRange(startDate: string, endDate: string) {
+  async getByDateRange(startDate: string, endDate: string): Promise<Shift[]> {
     const { data, error } = await supabase
       .from('shifts')
-      .select(`
-        *,
-        created_by:auth_users!shifts_created_by_fkey(username),
-        user:auth_users!shifts_user_id_fkey(username)
-      `)
+      .select('*')
       .gte('start_time', startDate)
-      .lte('end_time', endDate)
+      .lte('start_time', endDate)
       .order('start_time', { ascending: true });
-
-    if (error) handleSupabaseError(error);
-    return data as Shift[];
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async getByUserId(userId: string) {
+  async getByUserId(userId: string): Promise<Shift[]> {
     const { data, error } = await supabase
       .from('shifts')
-      .select(`
-        *,
-        created_by:auth_users!shifts_created_by_fkey(username),
-        user:auth_users!shifts_user_id_fkey(username)
-      `)
+      .select('*')
       .eq('user_id', userId)
       .order('start_time', { ascending: true });
-
-    if (error) handleSupabaseError(error);
-    return data as Shift[];
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async create(shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) {
+  async create(shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>): Promise<Shift> {
     const { data, error } = await supabase
       .from('shifts')
-      .insert([shift])
+      .insert(shift)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as Shift;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async update(id: string, shift: Partial<Shift>) {
+  async update(id: string, shift: Partial<Shift>): Promise<Shift> {
     const { data, error } = await supabase
       .from('shifts')
       .update(shift)
       .eq('id', id)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as Shift;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async delete(id: string) {
+  async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('shifts')
       .delete()
       .eq('id', id);
-
-    if (error) handleSupabaseError(error);
+    
+    if (error) throw error;
   },
 
   subscribe(callback: (payload: any) => void) {
     return supabase
-      .channel('shifts_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'shifts',
-      }, callback)
+      .channel('shifts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, callback)
       .subscribe();
   }
 };
 
+// Shift Templates table operations
 export const templatesTable = {
-  async getAll() {
+  async getAll(): Promise<ShiftTemplate[]> {
     const { data, error } = await supabase
       .from('shift_templates')
       .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftTemplate[];
+      .order('name', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async create(template: Omit<ShiftTemplate, 'id' | 'created_at'>) {
+  async create(template: Omit<ShiftTemplate, 'id' | 'created_at'>): Promise<ShiftTemplate> {
     const { data, error } = await supabase
       .from('shift_templates')
-      .insert([template])
+      .insert(template)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftTemplate;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async update(id: string, template: Partial<ShiftTemplate>) {
+  async update(id: string, template: Partial<ShiftTemplate>): Promise<ShiftTemplate> {
     const { data, error } = await supabase
       .from('shift_templates')
       .update(template)
       .eq('id', id)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftTemplate;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async delete(id: string) {
+  async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('shift_templates')
       .delete()
       .eq('id', id);
-
-    if (error) handleSupabaseError(error);
+    
+    if (error) throw error;
   }
 };
 
+// Shift Categories table operations
+export const categoriesTable = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('shift_categories')
+      .select('*')
+      .order('name', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async create(category: any) {
+    const { data, error } = await supabase
+      .from('shift_categories')
+      .insert(category)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, category: any) {
+    const { data, error } = await supabase
+      .from('shift_categories')
+      .update(category)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string) {
+    const { error } = await supabase
+      .from('shift_categories')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  }
+};
+
+// Leave Requests table operations
 export const leaveRequestsTable = {
-  async getAll() {
+  async getAll(): Promise<LeaveRequest[]> {
     const { data, error } = await supabase
       .from('leave_requests')
-      .select(`
-        *,
-        user:auth_users!leave_requests_user_id_fkey(username),
-        reviewer:auth_users!leave_requests_reviewer_id_fkey(username)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
-
-    if (error) handleSupabaseError(error);
-    return data as LeaveRequest[];
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async getByUserId(userId: string) {
+  async create(request: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>): Promise<LeaveRequest> {
     const { data, error } = await supabase
       .from('leave_requests')
-      .select(`
-        *,
-        user:auth_users!leave_requests_user_id_fkey(username),
-        reviewer:auth_users!leave_requests_reviewer_id_fkey(username)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) handleSupabaseError(error);
-    return data as LeaveRequest[];
-  },
-
-  async create(request: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .insert([request])
+      .insert(request)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as LeaveRequest;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async update(id: string, request: Partial<LeaveRequest>) {
+  async update(id: string, request: Partial<LeaveRequest>): Promise<LeaveRequest> {
     const { data, error } = await supabase
       .from('leave_requests')
       .update(request)
       .eq('id', id)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as LeaveRequest;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async delete(id: string) {
+  async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('leave_requests')
       .delete()
       .eq('id', id);
-
-    if (error) handleSupabaseError(error);
+    
+    if (error) throw error;
   },
 
   subscribe(callback: (payload: any) => void) {
     return supabase
-      .channel('leave_requests_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'leave_requests',
-      }, callback)
+      .channel('leave_requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, callback)
       .subscribe();
   }
 };
 
+// Shift Swap Requests table operations
 export const swapRequestsTable = {
-  async getAll() {
+  async getAll(): Promise<ShiftSwapRequest[]> {
     const { data, error } = await supabase
       .from('shift_swap_requests')
-      .select(`
-        *,
-        requester:auth_users!shift_swap_requests_requester_id_fkey(username),
-        requested_user:auth_users!shift_swap_requests_requested_user_id_fkey(username),
-        reviewer:auth_users!shift_swap_requests_reviewer_id_fkey(username),
-        shift:shifts!shift_swap_requests_shift_id_fkey(*),
-        proposed_shift:shifts!shift_swap_requests_proposed_shift_id_fkey(*)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftSwapRequest[];
+    
+    if (error) throw error;
+    return data || [];
   },
 
-  async getByUserId(userId: string) {
+  async create(request: Omit<ShiftSwapRequest, 'id' | 'created_at' | 'updated_at'>): Promise<ShiftSwapRequest> {
     const { data, error } = await supabase
       .from('shift_swap_requests')
-      .select(`
-        *,
-        requester:auth_users!shift_swap_requests_requester_id_fkey(username),
-        requested_user:auth_users!shift_swap_requests_requested_user_id_fkey(username),
-        reviewer:auth_users!shift_swap_requests_reviewer_id_fkey(username),
-        shift:shifts!shift_swap_requests_shift_id_fkey(*),
-        proposed_shift:shifts!shift_swap_requests_proposed_shift_id_fkey(*)
-      `)
-      .or(`requester_id.eq.${userId},requested_user_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftSwapRequest[];
-  },
-
-  async create(request: Omit<ShiftSwapRequest, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('shift_swap_requests')
-      .insert([request])
+      .insert(request)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftSwapRequest;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async update(id: string, request: Partial<ShiftSwapRequest>) {
+  async update(id: string, request: Partial<ShiftSwapRequest>): Promise<ShiftSwapRequest> {
     const { data, error } = await supabase
       .from('shift_swap_requests')
       .update(request)
       .eq('id', id)
       .select()
       .single();
-
-    if (error) handleSupabaseError(error);
-    return data as ShiftSwapRequest;
+    
+    if (error) throw error;
+    return data;
   },
 
-  async delete(id: string) {
+  async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('shift_swap_requests')
       .delete()
       .eq('id', id);
-
-    if (error) handleSupabaseError(error);
+    
+    if (error) throw error;
   },
 
   subscribe(callback: (payload: any) => void) {
     return supabase
-      .channel('shift_swap_requests_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'shift_swap_requests',
-      }, callback)
+      .channel('shift_swap_requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_swap_requests' }, callback)
       .subscribe();
   }
-}; 
+};
+
+// Users table operations for schedule
+export const usersTable = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('auth_users')
+      .select('*')
+      .order('username', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string) {
+    const { data, error } = await supabase
+      .from('auth_users')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+};

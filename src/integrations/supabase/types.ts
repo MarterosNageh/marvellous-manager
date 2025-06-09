@@ -12,28 +12,34 @@ export type Database = {
       auth_users: {
         Row: {
           created_at: string
+          department: string | null
           id: string
           is_admin: boolean
           password: string
           role: string | null
+          team_name: string | null
           title: string | null
           username: string
         }
         Insert: {
           created_at?: string
+          department?: string | null
           id?: string
           is_admin?: boolean
           password: string
           role?: string | null
+          team_name?: string | null
           title?: string | null
           username: string
         }
         Update: {
           created_at?: string
+          department?: string | null
           id?: string
           is_admin?: boolean
           password?: string
           role?: string | null
+          team_name?: string | null
           title?: string | null
           username?: string
         }
@@ -299,53 +305,90 @@ export type Database = {
         }
         Relationships: []
       }
-      shift_requests: {
+      shift_categories: {
         Row: {
-          approved_at: string | null
-          approved_by: string | null
+          color: string | null
           created_at: string
-          end_date: string | null
+          description: string | null
           id: string
-          reason: string | null
-          request_type: string
-          shift_id: string | null
-          start_date: string
-          status: string
+          name: string
           updated_at: string
-          user_id: string
         }
         Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
+          color?: string | null
           created_at?: string
-          end_date?: string | null
+          description?: string | null
           id?: string
-          reason?: string | null
-          request_type: string
-          shift_id?: string | null
-          start_date: string
-          status?: string
+          name: string
           updated_at?: string
-          user_id: string
         }
         Update: {
-          approved_at?: string | null
-          approved_by?: string | null
+          color?: string | null
           created_at?: string
-          end_date?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shift_requests: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          reason: string | null
+          replacement_user_id: string | null
+          request_type: string
+          review_notes: string | null
+          reviewer_id: string | null
+          shift_id: string | null
+          start_date: string
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
           id?: string
           reason?: string | null
+          replacement_user_id?: string | null
+          request_type: string
+          review_notes?: string | null
+          reviewer_id?: string | null
+          shift_id?: string | null
+          start_date: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          reason?: string | null
+          replacement_user_id?: string | null
           request_type?: string
+          review_notes?: string | null
+          reviewer_id?: string | null
           shift_id?: string | null
           start_date?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "shift_requests_approved_by_fkey"
-            columns: ["approved_by"]
+            foreignKeyName: "shift_requests_replacement_user_id_fkey"
+            columns: ["replacement_user_id"]
+            isOneToOne: false
+            referencedRelation: "auth_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_requests_reviewer_id_fkey"
+            columns: ["reviewer_id"]
             isOneToOne: false
             referencedRelation: "auth_users"
             referencedColumns: ["id"]
@@ -366,60 +409,95 @@ export type Database = {
           },
         ]
       }
-      shifts: {
+      shift_templates: {
         Row: {
-          created_at: string
-          created_by: string
-          description: string | null
+          color: string | null
+          created_at: string | null
           end_time: string
           id: string
+          location: string | null
+          name: string
           notes: string | null
-          role: string | null
+          priority: number | null
           shift_type: string
           start_time: string
-          status: string
-          title: string
-          updated_at: string
-          user_id: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          created_by: string
-          description?: string | null
+          color?: string | null
+          created_at?: string | null
           end_time: string
           id?: string
+          location?: string | null
+          name: string
           notes?: string | null
-          role?: string | null
+          priority?: number | null
           shift_type: string
           start_time: string
-          status?: string
-          title: string
-          updated_at?: string
-          user_id: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
-          created_by?: string
-          description?: string | null
+          color?: string | null
+          created_at?: string | null
           end_time?: string
           id?: string
+          location?: string | null
+          name?: string
           notes?: string | null
-          role?: string | null
+          priority?: number | null
           shift_type?: string
           start_time?: string
-          status?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      shifts: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          end_time: string
+          id: string
+          is_recurring: boolean | null
+          location: string | null
+          notes: string | null
+          priority: number | null
+          recurrence_pattern: Json | null
+          shift_type: string
+          start_time: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          end_time: string
+          id?: string
+          is_recurring?: boolean | null
+          location?: string | null
+          notes?: string | null
+          priority?: number | null
+          recurrence_pattern?: Json | null
+          shift_type: string
+          start_time: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          is_recurring?: boolean | null
+          location?: string | null
+          notes?: string | null
+          priority?: number | null
+          recurrence_pattern?: Json | null
+          shift_type?: string
+          start_time?: string
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "shifts_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "auth_users"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "shifts_user_id_fkey"
             columns: ["user_id"]
@@ -431,26 +509,26 @@ export type Database = {
       }
       subtasks: {
         Row: {
-          completed: boolean
-          created_at: string
+          completed: boolean | null
+          created_at: string | null
           id: string
-          order_index: number
+          order_index: number | null
           parent_task_id: string
           title: string
         }
         Insert: {
-          completed?: boolean
-          created_at?: string
+          completed?: boolean | null
+          created_at?: string | null
           id?: string
-          order_index?: number
+          order_index?: number | null
           parent_task_id: string
           title: string
         }
         Update: {
-          completed?: boolean
-          created_at?: string
+          completed?: boolean | null
+          created_at?: string | null
           id?: string
-          order_index?: number
+          order_index?: number | null
           parent_task_id?: string
           title?: string
         }
@@ -558,18 +636,6 @@ export type Database = {
       create_table_if_not_exists: {
         Args: { table_name: string; column_definitions: Json[] }
         Returns: undefined
-      }
-      get_current_user_from_auth_users: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_current_user_role_auth_users: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      is_current_user_admin_auth_users: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
       }
     }
     Enums: {

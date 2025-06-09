@@ -1,8 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useSchedule } from "@/context/ScheduleContext";
 import {
   Card,
   Tabs,
@@ -25,7 +25,7 @@ import RequestsView from '@/components/schedule/RequestsView';
 import { Plus, ChevronLeft, ChevronRight, Settings, Calendar, User } from 'lucide-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { addDays, format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
-import { usersTable, templatesTable, shiftsTable } from '@/integrations/supabase/tables';
+import { usersTable, templatesTable, shiftsTable } from '@/integrations/supabase/tables/schedule';
 import ShiftDialog from '@/components/schedule/ShiftDialog';
 import ShiftTemplateDialog from '@/components/schedule/ShiftTemplateDialog';
 
@@ -33,7 +33,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
   return (
     <div className="flex flex-col items-center justify-center h-[400px] p-4">
       <h2 className="text-xl font-semibold mb-4">Something went wrong:</h2>
-      <pre className="text-red-600 mb-4">{error.message}</pre>
+      <pre className="text-red-600 mb-4 text-sm">{error.message}</pre>
       <Button onClick={resetErrorBoundary}>Try again</Button>
     </div>
   );
@@ -47,66 +47,68 @@ const Schedule = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [users, setUsers] = useState<ScheduleUser[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [showShiftDialog, setShowShiftDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ShiftTemplate | null>(null);
-  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
 
   const startDate = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const endDate = endOfWeek(selectedDate, { weekStartsOn: 1 });
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const usersData = await usersTable.getAll();
-        setUsers(usersData);
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-        toast({
-          title: "Error loading data",
-          description: "Please try again later",
-          variant: "destructive",
-        });
-      }
-    };
-
-    loadInitialData();
-  }, [toast]);
-
-  const loadTemplates = async () => {
+  // Load all data
+  const loadData = async () => {
     try {
-      const templatesData = await templatesTable.getAll();
-      console.log('Schedule - Loaded templates:', templatesData);
+      setIsLoading(true);
+      console.log('Loading schedule data...');
+      
+      const [usersData, shiftsData, templatesData] = await Promise.all([
+        usersTable.getAll(),
+        shiftsTable.getAll(),
+        templatesTable.getAll()
+      ]);
+
+      console.log('Loaded data:', {
+        users: usersData.length,
+        shifts: shiftsData.length,
+        templates: templatesData.length
+      });
+
+      // Transform users data to match ScheduleUser interface
+      const transformedUsers = usersData.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.role || 'operator',
+        title: user.title,
+        created_at: user.created_at,
+        updated_at: user.created_at
+      }));
+
+      setUsers(transformedUsers);
+      setShifts(shiftsData);
       setTemplates(templatesData);
     } catch (error) {
-      console.error('Error loading templates:', error);
+      console.error('Error loading schedule data:', error);
       toast({
-        title: "Error loading templates",
+        title: "Error loading data",
         description: "Please try again later",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTemplates();
+    loadData();
   }, []);
 
   // Filter users based on role
   const filteredUsers = users.filter(user => 
     roleFilter === "all" || user.role === roleFilter
   );
-
-  const handleUserToggle = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
 
   const handleSaveShift = async (shiftData: Partial<Shift>) => {
     try {
@@ -121,7 +123,6 @@ const Schedule = () => {
 
       console.log('Saving shift with data:', shiftData);
 
-      // Create or update the shift
       if (selectedShift?.id) {
         await shiftsTable.update(selectedShift.id, {
           user_id: shiftData.user_id,
@@ -129,10 +130,6 @@ const Schedule = () => {
           end_time: shiftData.end_time,
           shift_type: shiftData.shift_type,
           notes: shiftData.notes,
-          created_by: currentUser.id,
-          title: `${shiftData.shift_type} Shift`,
-          status: 'active',
-          role: shiftData.role,
         });
         toast({
           title: "Success",
@@ -145,10 +142,6 @@ const Schedule = () => {
           end_time: shiftData.end_time!,
           shift_type: shiftData.shift_type!,
           notes: shiftData.notes,
-          created_by: currentUser.id,
-          title: `${shiftData.shift_type} Shift`,
-          status: 'active',
-          role: shiftData.role,
         });
         toast({
           title: "Success",
@@ -157,11 +150,9 @@ const Schedule = () => {
       }
 
       setShowShiftDialog(false);
-      // Reload shifts data
-      const startDateStr = startOfWeek(selectedDate, { weekStartsOn: 1 }).toISOString();
-      const endDateStr = endOfWeek(selectedDate, { weekStartsOn: 1 }).toISOString();
-      const shiftsData = await shiftsTable.getByDateRange(startDateStr, endDateStr);
-      setShifts(shiftsData);
+      setSelectedShift(null);
+      // Reload data to show changes
+      loadData();
     } catch (error) {
       console.error('Error saving shift:', error);
       toast({
@@ -175,11 +166,6 @@ const Schedule = () => {
   const handleSaveTemplate = async (templateData: Partial<ShiftTemplate>) => {
     try {
       if (!currentUser?.isAdmin && currentUser?.role !== 'admin') {
-        console.log('Permission denied - User:', {
-          id: currentUser?.id,
-          role: currentUser?.role,
-          isAdmin: currentUser?.isAdmin
-        });
         toast({
           title: "Permission Denied",
           description: "Only administrators can manage templates",
@@ -216,8 +202,7 @@ const Schedule = () => {
       }
       setShowTemplateDialog(false);
       setSelectedTemplate(null);
-      // Reload templates
-      loadTemplates();
+      loadData();
     } catch (error) {
       console.error('Error saving template:', error);
       toast({
@@ -237,16 +222,44 @@ const Schedule = () => {
   };
 
   const handleEditShift = (shift: Shift) => {
-    // Implementation of edit shift logic
+    setSelectedShift(shift);
+    setShowShiftDialog(true);
   };
 
-  const handleDeleteShift = (shiftId: string) => {
-    // Implementation of delete shift logic
+  const handleDeleteShift = async (shiftId: string) => {
+    try {
+      await shiftsTable.delete(shiftId);
+      toast({
+        title: "Success",
+        description: "Shift deleted successfully",
+      });
+      loadData();
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete shift. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCreateShift = () => {
-    // Implementation of create shift logic
+    setSelectedShift(null);
+    setShowShiftDialog(true);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto py-6">
+          <div className="flex items-center justify-center h-[400px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -267,7 +280,7 @@ const Schedule = () => {
                   {activeTab === 'shifts' && (
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => setShowShiftDialog(true)}
+                        onClick={handleCreateShift}
                         size="sm"
                       >
                         <Plus className="h-4 w-4 mr-1" />
@@ -393,8 +406,12 @@ const Schedule = () => {
 
       {showShiftDialog && (
         <ShiftDialog
+          shift={selectedShift}
           users={users}
-          onClose={() => setShowShiftDialog(false)}
+          onClose={() => {
+            setShowShiftDialog(false);
+            setSelectedShift(null);
+          }}
           onSave={handleSaveShift}
           templates={templates}
         />
@@ -406,7 +423,6 @@ const Schedule = () => {
           onClose={() => {
             setShowTemplateDialog(false);
             setSelectedTemplate(null);
-            loadTemplates(); // Reload templates after closing the dialog
           }}
           onSave={handleSaveTemplate}
         />
