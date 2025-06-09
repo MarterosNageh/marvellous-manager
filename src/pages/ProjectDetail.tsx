@@ -257,32 +257,51 @@ const ProjectDetail = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm" onClick={() => navigate('/projects')}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-              <p className="text-muted-foreground">
-                Created on {format(new Date(project.created_at), 'MMMM d, yyyy')}
-              </p>
+        <div className="space-y-4 sm:space-y-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" size="sm" onClick={() => navigate('/projects')}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{project.name}</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">
+                  Created on {format(new Date(project.created_at), 'MMMM d, yyyy')}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" onClick={handlePrintAll}>
-              <Printer className="h-4 w-4 mr-2" />
-              Print All Hard Drives
-            </Button>
-            <Button variant="outline" onClick={handleEdit}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-            <Button variant="outline" onClick={handleDelete} className="text-red-600 hover:text-red-700">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handlePrintAll}
+                className="flex-1 sm:flex-none justify-center"
+              >
+                <Printer className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Print All Hard Drives</span>
+                <span className="sm:hidden">Print All</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleEdit}
+                className="flex-1 sm:flex-none justify-center"
+              >
+                <Edit className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Edit Project</span>
+                <span className="sm:hidden">Edit</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleDelete} 
+                className="flex-1 sm:flex-none justify-center text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Delete Project</span>
+                <span className="sm:hidden">Delete</span>
+              </Button>
+            </div>
           </div>
         </div>
 

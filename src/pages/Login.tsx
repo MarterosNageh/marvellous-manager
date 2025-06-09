@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
 
-
 const Login = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -15,13 +14,34 @@ const Login = () => {
   }, [isAuthenticated, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full px-4">
-        <div className="text-center mb-8">
-          <img src="/marvellous-logo-black.png" alt="Marvellous Manager Logo" className="mx-auto h-[150px] w-auto mb-4" />
-          <h1 className="text-3xl font-bold">Marvellous Manager</h1>
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-8">
+      <div className="w-full max-w-[400px] space-y-6">
+        <div className="text-center space-y-2">
+          <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto">
+            <img 
+              src="/marvellous-logo-black.png" 
+              alt="Marvellous Manager Logo" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
+            Marvellous Manager
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Sign in to your account
+          </p>
         </div>
-        <LoginForm />
+
+        <div className="bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl px-4 py-6 sm:px-6">
+          <LoginForm />
+        </div>
+
+        <p className="text-center text-sm text-gray-600">
+          Don't have an account?{" "}
+          <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">
+            Contact your administrator
+          </a>
+        </p>
       </div>
     </div>
   );

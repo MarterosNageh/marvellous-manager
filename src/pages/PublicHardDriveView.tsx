@@ -64,6 +64,11 @@ const PublicHardDriveView = () => {
       <div className="max-w-4xl mx-auto">
         <Card className="mb-8">
           <CardHeader className="text-center border-b pb-6">
+          <img 
+              src="/marvellous-logo-black.png" 
+              alt="Marvellous Manager Logo" 
+              className="w-auro h-16 object-contain"
+            />
             <h1 className="text-3xl font-bold">Marvellous Manager</h1>
             <p className="text-muted-foreground">Hard Drive Information</p>
           </CardHeader>

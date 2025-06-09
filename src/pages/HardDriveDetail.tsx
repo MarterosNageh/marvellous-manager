@@ -151,18 +151,20 @@ const HardDriveDetail = () => {
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button 
               variant="ghost" 
               size="sm"
               onClick={() => navigate('/hard-drives')}
+              className="shrink-0"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Hard Drives
+              <span className="hidden sm:inline">Back to Hard Drives</span>
+              <span className="sm:hidden">Back</span>
             </Button>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold">{hardDrive.name}</h1>
+              <h1 className="text-xl sm:text-3xl font-bold truncate">{hardDrive.name}</h1>
               {hasLowSpace(hardDrive) && (
                 <Badge variant="destructive" className="text-sm">
                   Low Space
@@ -171,38 +173,46 @@ const HardDriveDetail = () => {
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
             <Button 
               variant="outline" 
               size="sm"
               onClick={handleQRCode}
+              className="flex-1 sm:flex-none justify-center"
             >
               <QrCode className="h-4 w-4 mr-2" />
-              QR Code
+              <span className="hidden sm:inline">QR Code</span>
+              <span className="sm:hidden">QR</span>
             </Button>
             <Button 
               variant="outline" 
               size="sm"
               onClick={handlePrint}
+              className="flex-1 sm:flex-none justify-center"
             >
               <Printer className="h-4 w-4 mr-2" />
-              Print Forms
+              <span className="hidden sm:inline">Print Forms</span>
+              <span className="sm:hidden">Print</span>
             </Button>
             <Button 
               variant="outline" 
               size="sm"
               onClick={() => navigate(`/hard-drives/${hardDrive.id}/edit`)}
+              className="flex-1 sm:flex-none justify-center"
             >
               <Edit className="h-4 w-4 mr-2" />
-              Edit
+              <span className="hidden sm:inline">Edit</span>
+              <span className="sm:hidden">Edit</span>
             </Button>
             <Button 
               variant="destructive" 
               size="sm"
               onClick={handleDelete}
+              className="flex-1 sm:flex-none justify-center"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">Delete</span>
             </Button>
           </div>
         </div>

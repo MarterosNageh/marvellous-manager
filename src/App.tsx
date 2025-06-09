@@ -47,7 +47,7 @@ function App() {
                 <Route path="/hard-drives/:id/edit" element={<HardDriveForm />} />
                 <Route path="/hard-drives/:id/print" element={<PrintPage />} />
                 <Route path="/hard-drives/:id/qr" element={<QRCodePage />} />
-                <Route path="/public/hard-drive/:id" element={<PublicHardDriveView />} />
+                <Route path="/hard-drives/:id/view" element={<PublicHardDriveView />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/new" element={<ProjectForm />} />
                 <Route path="/projects/:id" element={<ProjectDetail />} />
@@ -57,7 +57,6 @@ function App() {
                 <Route path="/task-manager" element={<TaskManager />} />
                 <Route path="/shifts-schedule" element={<ComingSoon />} />
                 <Route path="/user-management" element={<UserManagement />} />
-                <Route path="/qr-code/:id" element={<QRCodePage />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/notes" element={<Notes />} />
