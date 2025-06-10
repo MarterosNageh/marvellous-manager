@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfWeek } from 'date-fns';
 import { Plus, Settings, Calendar, Trash2 } from 'lucide-react';
@@ -64,6 +63,9 @@ const WeeklyView = ({
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Calculate week start from Sunday (weekStartsOn: 0)
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
 
   // Load data from database
   useEffect(() => {
@@ -180,8 +182,8 @@ const WeeklyView = ({
   // Define display order of roles
   const roleDisplayOrder = ['Operators', 'Leaders'];
 
-  // Generate array of dates for the week
-  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+  // Generate array of dates for the week starting from Sunday
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   // Calculate total hours for each user for the current week
   const userHours = users.reduce((acc, user) => {

@@ -55,8 +55,9 @@ const Schedule = () => {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
 
-  const startDate = startOfWeek(selectedDate, { weekStartsOn: 1 });
-  const endDate = endOfWeek(selectedDate, { weekStartsOn: 1 });
+  // Calculate week start from Sunday (weekStartsOn: 0)
+  const startDate = startOfWeek(selectedDate, { weekStartsOn: 0 });
+  const endDate = endOfWeek(selectedDate, { weekStartsOn: 0 });
 
   // Load all data
   const loadData = async () => {
