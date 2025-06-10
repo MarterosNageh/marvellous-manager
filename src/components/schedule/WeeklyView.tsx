@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfWeek } from 'date-fns';
 import { Plus, Settings, Calendar } from 'lucide-react';
@@ -71,7 +70,7 @@ const WeeklyView = ({
         setUsers(usersData.map(user => ({
           id: user.id,
           username: user.username,
-          role: user.role || 'operator',
+          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
           title: user.title,
           created_at: user.created_at,
           updated_at: user.created_at
@@ -93,6 +92,7 @@ const WeeklyView = ({
     loadData();
   }, [startDate]);
 
+  
   // Group users by role
   const groupedUsers = users.reduce((acc, user) => {
     const roleGroup = user.role === 'operator' ? 'Cashiers' : 'Floor Leaders';

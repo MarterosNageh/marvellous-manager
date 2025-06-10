@@ -11,7 +11,12 @@ export const shiftsTable = {
       .order('start_time', { ascending: true });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map(shift => ({
+      ...shift,
+      created_by: shift.user_id, // Map user_id to created_by for compatibility
+      title: shift.shift_type, // Use shift_type as title
+      status: 'active' // Default status
+    }));
   },
 
   async getByDateRange(startDate: string, endDate: string): Promise<Shift[]> {
@@ -23,7 +28,12 @@ export const shiftsTable = {
       .order('start_time', { ascending: true });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map(shift => ({
+      ...shift,
+      created_by: shift.user_id,
+      title: shift.shift_type,
+      status: 'active'
+    }));
   },
 
   async getByUserId(userId: string): Promise<Shift[]> {
@@ -34,30 +44,57 @@ export const shiftsTable = {
       .order('start_time', { ascending: true });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map(shift => ({
+      ...shift,
+      created_by: shift.user_id,
+      title: shift.shift_type,
+      status: 'active'
+    }));
   },
 
   async create(shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>): Promise<Shift> {
     const { data, error } = await supabase
       .from('shifts')
-      .insert(shift)
+      .insert({
+        user_id: shift.user_id,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        shift_type: shift.shift_type,
+        notes: shift.notes
+      })
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      created_by: data.user_id,
+      title: data.shift_type,
+      status: 'active'
+    };
   },
 
   async update(id: string, shift: Partial<Shift>): Promise<Shift> {
     const { data, error } = await supabase
       .from('shifts')
-      .update(shift)
+      .update({
+        user_id: shift.user_id,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        shift_type: shift.shift_type,
+        notes: shift.notes
+      })
       .eq('id', id)
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      created_by: data.user_id,
+      title: data.shift_type,
+      status: 'active'
+    };
   },
 
   async delete(id: string): Promise<void> {
@@ -167,11 +204,11 @@ export const categoriesTable = {
   }
 };
 
-// Leave Requests table operations
-export const leaveRequestsTable = {
-  async getAll(): Promise<LeaveRequest[]> {
+// Shift Requests table operations
+export const shiftRequestsTable = {
+  async getAll() {
     const { data, error } = await supabase
-      .from('leave_requests')
+      .from('shift_requests')
       .select('*')
       .order('created_at', { ascending: false });
     
@@ -179,9 +216,9 @@ export const leaveRequestsTable = {
     return data || [];
   },
 
-  async create(request: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>): Promise<LeaveRequest> {
+  async create(request: any) {
     const { data, error } = await supabase
-      .from('leave_requests')
+      .from('shift_requests')
       .insert(request)
       .select()
       .single();
@@ -190,9 +227,9 @@ export const leaveRequestsTable = {
     return data;
   },
 
-  async update(id: string, request: Partial<LeaveRequest>): Promise<LeaveRequest> {
+  async update(id: string, request: any) {
     const { data, error } = await supabase
-      .from('leave_requests')
+      .from('shift_requests')
       .update(request)
       .eq('id', id)
       .select()
@@ -202,72 +239,13 @@ export const leaveRequestsTable = {
     return data;
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string) {
     const { error } = await supabase
-      .from('leave_requests')
+      .from('shift_requests')
       .delete()
       .eq('id', id);
     
     if (error) throw error;
-  },
-
-  subscribe(callback: (payload: any) => void) {
-    return supabase
-      .channel('leave_requests')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, callback)
-      .subscribe();
-  }
-};
-
-// Shift Swap Requests table operations
-export const swapRequestsTable = {
-  async getAll(): Promise<ShiftSwapRequest[]> {
-    const { data, error } = await supabase
-      .from('shift_swap_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
-  },
-
-  async create(request: Omit<ShiftSwapRequest, 'id' | 'created_at' | 'updated_at'>): Promise<ShiftSwapRequest> {
-    const { data, error } = await supabase
-      .from('shift_swap_requests')
-      .insert(request)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  },
-
-  async update(id: string, request: Partial<ShiftSwapRequest>): Promise<ShiftSwapRequest> {
-    const { data, error } = await supabase
-      .from('shift_swap_requests')
-      .update(request)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  },
-
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('shift_swap_requests')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-  },
-
-  subscribe(callback: (payload: any) => void) {
-    return supabase
-      .channel('shift_swap_requests')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_swap_requests' }, callback)
-      .subscribe();
   }
 };
 

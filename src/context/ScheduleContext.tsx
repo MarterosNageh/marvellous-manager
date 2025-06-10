@@ -1,14 +1,14 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { shiftsTable, templatesTable, leaveRequestsTable, swapRequestsTable } from '@/integrations/supabase/tables/schedule';
-import type { Shift, ShiftTemplate, LeaveRequest, ShiftSwapRequest } from '@/types/schedule';
+import { shiftsTable, templatesTable, shiftRequestsTable } from '@/integrations/supabase/tables/schedule';
+import type { Shift, ShiftTemplate } from '@/types/schedule';
 
 interface ScheduleContextType {
   shifts: Shift[];
   templates: ShiftTemplate[];
-  leaveRequests: LeaveRequest[];
-  swapRequests: ShiftSwapRequest[];
+  shiftRequests: any[];
   isLoading: boolean;
   error: Error | null;
   refreshData: () => Promise<void>;
@@ -18,12 +18,9 @@ interface ScheduleContextType {
   createTemplate: (template: Omit<ShiftTemplate, 'id' | 'created_at'>) => Promise<ShiftTemplate>;
   updateTemplate: (id: string, template: Partial<ShiftTemplate>) => Promise<ShiftTemplate>;
   deleteTemplate: (id: string) => Promise<void>;
-  createLeaveRequest: (request: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>) => Promise<LeaveRequest>;
-  updateLeaveRequest: (id: string, request: Partial<LeaveRequest>) => Promise<LeaveRequest>;
-  deleteLeaveRequest: (id: string) => Promise<void>;
-  createSwapRequest: (request: Omit<ShiftSwapRequest, 'id' | 'created_at' | 'updated_at'>) => Promise<ShiftSwapRequest>;
-  updateSwapRequest: (id: string, request: Partial<ShiftSwapRequest>) => Promise<ShiftSwapRequest>;
-  deleteSwapRequest: (id: string) => Promise<void>;
+  createShiftRequest: (request: any) => Promise<any>;
+  updateShiftRequest: (id: string, request: any) => Promise<any>;
+  deleteShiftRequest: (id: string) => Promise<void>;
 }
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -37,11 +34,10 @@ export const useSchedule = () => {
 };
 
 export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
+  const [shiftRequests, setShiftRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -50,17 +46,15 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsLoading(true);
       setError(null);
 
-      const [shiftsData, templatesData, leaveRequestsData, swapRequestsData] = await Promise.all([
+      const [shiftsData, templatesData, shiftRequestsData] = await Promise.all([
         shiftsTable.getAll(),
         templatesTable.getAll(),
-        leaveRequestsTable.getAll(),
-        swapRequestsTable.getAll()
+        shiftRequestsTable.getAll()
       ]);
 
       setShifts(shiftsData);
       setTemplates(templatesData);
-      setLeaveRequests(leaveRequestsData);
-      setSwapRequests(swapRequestsData);
+      setShiftRequests(shiftRequestsData);
     } catch (err) {
       setError(err as Error);
       toast.error('Failed to load schedule data');
@@ -70,7 +64,7 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       refreshData();
 
       // Set up realtime subscriptions
@@ -86,38 +80,12 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       });
 
-      const leaveRequestsSubscription = leaveRequestsTable.subscribe((payload) => {
-        if (payload.eventType === 'INSERT') {
-          setLeaveRequests(prev => [...prev, payload.new as LeaveRequest]);
-        } else if (payload.eventType === 'UPDATE') {
-          setLeaveRequests(prev => prev.map(request => 
-            request.id === payload.new.id ? payload.new as LeaveRequest : request
-          ));
-        } else if (payload.eventType === 'DELETE') {
-          setLeaveRequests(prev => prev.filter(request => request.id !== payload.old.id));
-        }
-      });
-
-      const swapRequestsSubscription = swapRequestsTable.subscribe((payload) => {
-        if (payload.eventType === 'INSERT') {
-          setSwapRequests(prev => [...prev, payload.new as ShiftSwapRequest]);
-        } else if (payload.eventType === 'UPDATE') {
-          setSwapRequests(prev => prev.map(request => 
-            request.id === payload.new.id ? payload.new as ShiftSwapRequest : request
-          ));
-        } else if (payload.eventType === 'DELETE') {
-          setSwapRequests(prev => prev.filter(request => request.id !== payload.old.id));
-        }
-      });
-
       // Cleanup subscriptions
       return () => {
         shiftsSubscription.unsubscribe();
-        leaveRequestsSubscription.unsubscribe();
-        swapRequestsSubscription.unsubscribe();
       };
     }
-  }, [user]);
+  }, [currentUser]);
 
   const createShift = async (shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -183,66 +151,34 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>) => {
+  const createShiftRequest = async (request: any) => {
     try {
-      const newRequest = await leaveRequestsTable.create(request);
-      toast.success('Leave request created successfully');
+      const newRequest = await shiftRequestsTable.create(request);
+      toast.success('Shift request created successfully');
       return newRequest;
     } catch (err) {
-      toast.error('Failed to create leave request');
+      toast.error('Failed to create shift request');
       throw err;
     }
   };
 
-  const updateLeaveRequest = async (id: string, request: Partial<LeaveRequest>) => {
+  const updateShiftRequest = async (id: string, request: any) => {
     try {
-      const updatedRequest = await leaveRequestsTable.update(id, request);
-      toast.success('Leave request updated successfully');
+      const updatedRequest = await shiftRequestsTable.update(id, request);
+      toast.success('Shift request updated successfully');
       return updatedRequest;
     } catch (err) {
-      toast.error('Failed to update leave request');
+      toast.error('Failed to update shift request');
       throw err;
     }
   };
 
-  const deleteLeaveRequest = async (id: string) => {
+  const deleteShiftRequest = async (id: string) => {
     try {
-      await leaveRequestsTable.delete(id);
-      toast.success('Leave request deleted successfully');
+      await shiftRequestsTable.delete(id);
+      toast.success('Shift request deleted successfully');
     } catch (err) {
-      toast.error('Failed to delete leave request');
-      throw err;
-    }
-  };
-
-  const createSwapRequest = async (request: Omit<ShiftSwapRequest, 'id' | 'created_at' | 'updated_at'>) => {
-    try {
-      const newRequest = await swapRequestsTable.create(request);
-      toast.success('Swap request created successfully');
-      return newRequest;
-    } catch (err) {
-      toast.error('Failed to create swap request');
-      throw err;
-    }
-  };
-
-  const updateSwapRequest = async (id: string, request: Partial<ShiftSwapRequest>) => {
-    try {
-      const updatedRequest = await swapRequestsTable.update(id, request);
-      toast.success('Swap request updated successfully');
-      return updatedRequest;
-    } catch (err) {
-      toast.error('Failed to update swap request');
-      throw err;
-    }
-  };
-
-  const deleteSwapRequest = async (id: string) => {
-    try {
-      await swapRequestsTable.delete(id);
-      toast.success('Swap request deleted successfully');
-    } catch (err) {
-      toast.error('Failed to delete swap request');
+      toast.error('Failed to delete shift request');
       throw err;
     }
   };
@@ -252,8 +188,7 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         shifts,
         templates,
-        leaveRequests,
-        swapRequests,
+        shiftRequests,
         isLoading,
         error,
         refreshData,
@@ -263,15 +198,12 @@ export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         createTemplate,
         updateTemplate,
         deleteTemplate,
-        createLeaveRequest,
-        updateLeaveRequest,
-        deleteLeaveRequest,
-        createSwapRequest,
-        updateSwapRequest,
-        deleteSwapRequest,
+        createShiftRequest,
+        updateShiftRequest,
+        deleteShiftRequest,
       }}
     >
       {children}
     </ScheduleContext.Provider>
   );
-}; 
+};
