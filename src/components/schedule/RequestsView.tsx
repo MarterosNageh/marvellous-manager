@@ -20,13 +20,15 @@ import {
   TabsTrigger,
 } from '@/components/ui';
 import { format } from 'date-fns';
+import { Plus, Clock, User } from 'lucide-react';
 import { LeaveRequest, ShiftSwapRequest, RequestStatus, ScheduleUser } from '@/types/schedule';
 import { leaveRequestsTable, swapRequestsTable } from '@/integrations/supabase/tables/schedule';
+import { ShiftRequestDialog } from '@/components/shifts/ShiftRequestDialog';
 
 const statusColors: Record<RequestStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800'
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  approved: 'bg-green-100 text-green-800 border-green-200',
+  rejected: 'bg-red-100 text-red-800 border-red-200'
 };
 
 interface RequestsViewProps {
@@ -39,6 +41,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('leave');
   const [selectedStatus, setSelectedStatus] = useState<RequestStatus | 'all'>('all');
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const canManageRequests = currentUser?.role === 'admin' || currentUser?.role === 'senior';
@@ -104,6 +107,19 @@ export default function RequestsView({ users }: RequestsViewProps) {
     ? swapRequests
     : swapRequests.filter(req => req.status === selectedStatus);
 
+  const getApprovedHours = (userId: string) => {
+    const userLeaveRequests = leaveRequests.filter(req => 
+      req.user_id === userId && req.status === 'approved'
+    );
+    
+    return userLeaveRequests.reduce((total, req) => {
+      const start = new Date(req.start_date);
+      const end = new Date(req.end_date);
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      return total + (days * 8); // Assuming 8 hours per day
+    }, 0);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[400px]">
@@ -112,6 +128,54 @@ export default function RequestsView({ users }: RequestsViewProps) {
     );
   }
 
+  const renderTimeOffSummary = () => (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Clock className="h-5 w-5" />
+          Approved Time off
+        </h3>
+        <Button 
+          onClick={() => setShowRequestDialog(true)}
+          className="bg-blue-500 hover:bg-blue-600"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add time off
+        </Button>
+      </div>
+      
+      <div className="grid gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-sm text-gray-500 border-b pb-2">
+                <span>User name</span>
+                <span>Approved</span>
+                <span>Remaining balance</span>
+              </div>
+              
+              {users.map(user => {
+                const approvedHours = getApprovedHours(user.id);
+                return (
+                  <div key={user.id} className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
+                        {user.username.substring(0, 2).toUpperCase()}
+                      </div>
+                      <span className="font-medium">{user.username}</span>
+                    </div>
+                    <span className="text-sm">{approvedHours}.00 hrs</span>
+                    <span className="text-sm text-gray-500">Unlimited</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
   const renderLeaveRequest = (request: LeaveRequest) => {
     const user = users.find(u => u.id === request.user_id);
     return (
@@ -119,7 +183,8 @@ export default function RequestsView({ users }: RequestsViewProps) {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4" />
                 {user?.username || 'Unknown User'}
               </CardTitle>
               <div className="text-sm text-gray-500">
@@ -139,7 +204,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-green-600 hover:text-green-700"
+                className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
                 onClick={() => handleStatusChange(request.id, 'approved', 'leave')}
               >
                 Approve
@@ -147,7 +212,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                 onClick={() => handleStatusChange(request.id, 'rejected', 'leave')}
               >
                 Reject
@@ -189,7 +254,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-green-600 hover:text-green-700"
+                className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
                 onClick={() => handleStatusChange(request.id, 'approved', 'swap')}
               >
                 Approve
@@ -197,7 +262,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                 onClick={() => handleStatusChange(request.id, 'rejected', 'swap')}
               >
                 Reject
@@ -210,7 +275,9 @@ export default function RequestsView({ users }: RequestsViewProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {renderTimeOffSummary()}
+      
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Requests</h2>
         <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as RequestStatus | 'all')}>
@@ -246,6 +313,13 @@ export default function RequestsView({ users }: RequestsViewProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      {showRequestDialog && (
+        <ShiftRequestDialog
+          open={showRequestDialog}
+          onOpenChange={setShowRequestDialog}
+        />
+      )}
     </div>
   );
 }

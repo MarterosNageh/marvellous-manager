@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ShiftDialogProps } from '@/types/schedule';
 import {
   Dialog,
@@ -142,6 +142,56 @@ export default function ShiftDialog({
     }
   };
 
+  const createRepeatingShifts = async (baseShiftData: any, repeatDays: string[]) => {
+    const dayMapping = {
+      'monday': 1,
+      'tuesday': 2,
+      'wednesday': 3,
+      'thursday': 4,
+      'friday': 5,
+      'saturday': 6,
+      'sunday': 0
+    };
+
+    // Create shifts for the next 4 weeks for each selected day
+    const shiftsToCreate = [];
+    for (let week = 0; week < 4; week++) {
+      for (const day of repeatDays) {
+        const dayIndex = dayMapping[day as keyof typeof dayMapping];
+        const shiftDate = new Date();
+        
+        // Find the next occurrence of this day
+        const daysUntilTarget = (dayIndex - shiftDate.getDay() + 7) % 7;
+        shiftDate.setDate(shiftDate.getDate() + daysUntilTarget + (week * 7));
+        
+        const [startHours, startMinutes] = baseShiftData.start_time.split(':');
+        const [endHours, endMinutes] = baseShiftData.end_time.split(':');
+        
+        const startDateTime = new Date(shiftDate);
+        startDateTime.setHours(parseInt(startHours), parseInt(startMinutes), 0);
+        
+        const endDateTime = new Date(shiftDate);
+        endDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0);
+        
+        // If end time is before start time, assume it's for the next day
+        if (endDateTime < startDateTime) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+
+        shiftsToCreate.push({
+          ...baseShiftData,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+        });
+      }
+    }
+
+    // Create all shifts
+    for (const shiftData of shiftsToCreate) {
+      await onSave(shiftData);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.user_id || !formData.start_time || !formData.end_time) {
@@ -150,29 +200,35 @@ export default function ShiftDialog({
 
     try {
       setIsLoading(true);
-      // Create a date object for today with the selected time
-      const today = new Date();
-      const [startHours, startMinutes] = formData.start_time.split(':');
-      const [endHours, endMinutes] = formData.end_time.split(':');
       
-      const startDate = new Date(today);
-      startDate.setHours(parseInt(startHours), parseInt(startMinutes), 0);
-      
-      const endDate = new Date(today);
-      endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0);
+      if (repeatEnabled && selectedDays.length > 0) {
+        // Create repeating shifts
+        await createRepeatingShifts(formData, selectedDays);
+      } else {
+        // Create a single shift for today
+        const today = new Date();
+        const [startHours, startMinutes] = formData.start_time.split(':');
+        const [endHours, endMinutes] = formData.end_time.split(':');
+        
+        const startDate = new Date(today);
+        startDate.setHours(parseInt(startHours), parseInt(startMinutes), 0);
+        
+        const endDate = new Date(today);
+        endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0);
 
-      // If end time is before start time, assume it's for the next day
-      if (endDate < startDate) {
-        endDate.setDate(endDate.getDate() + 1);
+        // If end time is before start time, assume it's for the next day
+        if (endDate < startDate) {
+          endDate.setDate(endDate.getDate() + 1);
+        }
+
+        const shiftData = {
+          ...formData,
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
+        };
+        await onSave(shiftData);
       }
-
-      const shiftData = {
-        ...formData,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        repeat_days: repeatEnabled ? selectedDays : undefined,
-      };
-      await onSave(shiftData);
+      
       onClose();
     } catch (error) {
       console.error('Error saving shift:', error);
@@ -315,7 +371,7 @@ export default function ShiftDialog({
                   checked={repeatEnabled}
                   onCheckedChange={(checked) => setRepeatEnabled(checked as boolean)}
                 />
-                <Label htmlFor="repeat">Repeat weekly</Label>
+                <Label htmlFor="repeat">Repeat weekly for 4 weeks</Label>
               </div>
             </div>
 
@@ -367,4 +423,4 @@ export default function ShiftDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

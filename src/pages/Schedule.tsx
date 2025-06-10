@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ShiftsProvider } from "@/context/ShiftsContext";
 import {
   Card,
   Tabs,
@@ -262,172 +263,174 @@ const Schedule = () => {
   }
 
   return (
-    <MainLayout>
-      <div className="container mx-auto py-6 space-y-6">
-        <ErrorBoundary
-          FallbackComponent={ErrorFallback}
-          onReset={() => window.location.reload()}
-        >
-          <Card>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-6 border-b">
-                <div className="flex items-center justify-between w-full">
-                  <TabsList>
-                    <TabsTrigger value="shifts">Shifts</TabsTrigger>
-                    <TabsTrigger value="requests">Requests</TabsTrigger>
-                  </TabsList>
+    <ShiftsProvider>
+      <MainLayout>
+        <div className="container mx-auto py-6 space-y-6">
+          <ErrorBoundary
+            FallbackComponent={ErrorFallback}
+            onReset={() => window.location.reload()}
+          >
+            <Card>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-6 border-b">
+                  <div className="flex items-center justify-between w-full">
+                    <TabsList>
+                      <TabsTrigger value="shifts">Shifts</TabsTrigger>
+                      <TabsTrigger value="requests">Requests</TabsTrigger>
+                    </TabsList>
 
-                  {activeTab === 'shifts' && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={handleCreateShift}
-                        size="sm"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Shift
-                      </Button>
-                      {currentUser?.role === 'admin' && (
+                    {activeTab === 'shifts' && (
+                      <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          onClick={handleCreateShift}
                           size="sm"
-                          onClick={() => setShowTemplateDialog(true)}
                         >
-                          <Settings className="h-4 w-4 mr-1" />
-                          Templates
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Shift
                         </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <TabsContent value="shifts" className="p-6">
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <Select value={viewType} onValueChange={(value: ViewType) => setViewType(value)}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Select view" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily View</SelectItem>
-                      <SelectItem value="weekly">Weekly View</SelectItem>
-                      <SelectItem value="monthly">Monthly View</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by role">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          {roleFilter === "all" ? "All Roles" : roleFilter}
-                        </div>
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="operator">Operators</SelectItem>
-                      <SelectItem value="senior">Senior Staff</SelectItem>
-                      <SelectItem value="admin">Admins</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePreviousWeek}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="min-w-[200px] text-center font-medium">
-                      {format(startDate, 'MMM d')} - {format(endDate, 'MMM d, yyyy')}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleNextWeek}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedDate(new Date())}
-                    >
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Today
-                    </Button>
+                        {currentUser?.role === 'admin' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowTemplateDialog(true)}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Templates
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <ErrorBoundary fallback={<div>Error loading schedule view</div>}>
-                  {viewType === 'daily' && (
-                    <DailyView
-                      selectedDate={selectedDate}
-                      onEditShift={handleEditShift}
-                      onDeleteShift={handleDeleteShift}
-                      onDateChange={setSelectedDate}
-                      users={filteredUsers}
-                      shifts={shifts}
-                    />
-                  )}
-                  {viewType === 'weekly' && (
-                    <WeeklyView
-                      startDate={selectedDate}
-                      selectedDate={selectedDate}
-                      users={filteredUsers}
-                      shifts={shifts}
-                      onAddShift={handleCreateShift}
-                      onDateChange={setSelectedDate}
-                      onEditShift={handleEditShift}
-                      onDeleteShift={handleDeleteShift}
-                    />
-                  )}
-                  {viewType === 'monthly' && (
-                    <MonthlyView
-                      selectedDate={selectedDate}
-                      onEditShift={handleEditShift}
-                      onDeleteShift={handleDeleteShift}
-                      onDateChange={setSelectedDate}
-                      users={filteredUsers}
-                      shifts={shifts}
-                    />
-                  )}
-                </ErrorBoundary>
-              </TabsContent>
+                <TabsContent value="shifts" className="p-6">
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <Select value={viewType} onValueChange={(value: ViewType) => setViewType(value)}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select view" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily View</SelectItem>
+                        <SelectItem value="weekly">Weekly View</SelectItem>
+                        <SelectItem value="monthly">Monthly View</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-              <TabsContent value="requests" className="p-6">
-                <RequestsView users={users} />
-              </TabsContent>
-            </Tabs>
-          </Card>
-        </ErrorBoundary>
-      </div>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by role">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            {roleFilter === "all" ? "All Roles" : roleFilter}
+                          </div>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="operator">Operators</SelectItem>
+                        <SelectItem value="senior">Senior Staff</SelectItem>
+                        <SelectItem value="admin">Admins</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-      {showShiftDialog && (
-        <ShiftDialog
-          shift={selectedShift}
-          users={users}
-          onClose={() => {
-            setShowShiftDialog(false);
-            setSelectedShift(null);
-          }}
-          onSave={handleSaveShift}
-          templates={templates}
-        />
-      )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handlePreviousWeek}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="min-w-[200px] text-center font-medium">
+                        {format(startDate, 'MMM d')} - {format(endDate, 'MMM d, yyyy')}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleNextWeek}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedDate(new Date())}
+                      >
+                        <Calendar className="h-4 w-4 mr-1" />
+                        Today
+                      </Button>
+                    </div>
+                  </div>
 
-      {showTemplateDialog && (
-        <ShiftTemplateDialog
-          template={selectedTemplate}
-          onClose={() => {
-            setShowTemplateDialog(false);
-            setSelectedTemplate(null);
-          }}
-          onSave={handleSaveTemplate}
-        />
-      )}
-    </MainLayout>
+                  <ErrorBoundary fallback={<div>Error loading schedule view</div>}>
+                    {viewType === 'daily' && (
+                      <DailyView
+                        selectedDate={selectedDate}
+                        onEditShift={handleEditShift}
+                        onDeleteShift={handleDeleteShift}
+                        onDateChange={setSelectedDate}
+                        users={filteredUsers}
+                        shifts={shifts}
+                      />
+                    )}
+                    {viewType === 'weekly' && (
+                      <WeeklyView
+                        startDate={selectedDate}
+                        selectedDate={selectedDate}
+                        users={filteredUsers}
+                        shifts={shifts}
+                        onAddShift={handleCreateShift}
+                        onDateChange={setSelectedDate}
+                        onEditShift={handleEditShift}
+                        onDeleteShift={handleDeleteShift}
+                      />
+                    )}
+                    {viewType === 'monthly' && (
+                      <MonthlyView
+                        selectedDate={selectedDate}
+                        onEditShift={handleEditShift}
+                        onDeleteShift={handleDeleteShift}
+                        onDateChange={setSelectedDate}
+                        users={filteredUsers}
+                        shifts={shifts}
+                      />
+                    )}
+                  </ErrorBoundary>
+                </TabsContent>
+
+                <TabsContent value="requests" className="p-6">
+                  <RequestsView users={users} />
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </ErrorBoundary>
+        </div>
+
+        {showShiftDialog && (
+          <ShiftDialog
+            shift={selectedShift}
+            users={users}
+            onClose={() => {
+              setShowShiftDialog(false);
+              setSelectedShift(null);
+            }}
+            onSave={handleSaveShift}
+            templates={templates}
+          />
+        )}
+
+        {showTemplateDialog && (
+          <ShiftTemplateDialog
+            template={selectedTemplate}
+            onClose={() => {
+              setShowTemplateDialog(false);
+              setSelectedTemplate(null);
+            }}
+            onSave={handleSaveTemplate}
+          />
+        )}
+      </MainLayout>
+    </ShiftsProvider>
   );
 };
 

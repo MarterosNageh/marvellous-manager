@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfWeek } from 'date-fns';
-import { Plus, Settings, Calendar } from 'lucide-react';
+import { Plus, Settings, Calendar, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -8,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Shift, ScheduleUser, WeeklyViewProps } from '@/types/schedule';
 import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
 import { toast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const getInitials = (name: string) => {
   return name
@@ -17,7 +19,7 @@ const getInitials = (name: string) => {
     .toUpperCase();
 };
 
-const ShiftBlock = ({ shift, user }: { shift: Shift; user?: ScheduleUser }) => {
+const ShiftBlock = ({ shift, user, onDelete }: { shift: Shift; user?: ScheduleUser; onDelete: (id: string) => void }) => {
   const isEveningShift = shift.shift_type === 'night' || shift.shift_type === 'overnight';
   const startTime = format(new Date(shift.start_time), 'h:mm a');
   const endTime = format(new Date(shift.end_time), 'h:mm a');
@@ -25,7 +27,7 @@ const ShiftBlock = ({ shift, user }: { shift: Shift; user?: ScheduleUser }) => {
   return (
     <div
       className={cn(
-        'rounded-md p-2 text-xs h-full cursor-pointer hover:opacity-80 transition-opacity',
+        'rounded-md p-2 text-xs h-full cursor-pointer hover:opacity-80 transition-opacity relative group',
         isEveningShift ? 'bg-green-100 border border-green-200' : 'bg-blue-100 border border-blue-200'
       )}
     >
@@ -34,6 +36,17 @@ const ShiftBlock = ({ shift, user }: { shift: Shift; user?: ScheduleUser }) => {
       {shift.shift_type && (
         <div className="text-xs mt-1 capitalize">{shift.shift_type}</div>
       )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 h-6 w-6 p-1 text-red-500 hover:text-red-700"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(shift.id);
+        }}
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
     </div>
   );
 };
@@ -92,10 +105,66 @@ const WeeklyView = ({
     loadData();
   }, [startDate]);
 
+  // Set up realtime subscription for shifts
+  useEffect(() => {
+    const channel = supabase
+      .channel('shifts-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'shifts' 
+      }, (payload) => {
+        console.log('Realtime shift change:', payload);
+        
+        if (payload.eventType === 'INSERT') {
+          const newShift = {
+            ...payload.new,
+            created_by: payload.new.user_id,
+            title: payload.new.shift_type,
+            status: 'active'
+          } as Shift;
+          setShifts(prev => [...prev, newShift]);
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedShift = {
+            ...payload.new,
+            created_by: payload.new.user_id,
+            title: payload.new.shift_type,
+            status: 'active'
+          } as Shift;
+          setShifts(prev => prev.map(shift => 
+            shift.id === updatedShift.id ? updatedShift : shift
+          ));
+        } else if (payload.eventType === 'DELETE') {
+          setShifts(prev => prev.filter(shift => shift.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleDeleteShift = async (shiftId: string) => {
+    try {
+      await shiftsTable.delete(shiftId);
+      toast({
+        title: "Success",
+        description: "Shift deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete shift. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
   
-  // Group users by role
+  // Group users by role with updated names
   const groupedUsers = users.reduce((acc, user) => {
-    const roleGroup = user.role === 'operator' ? 'Cashiers' : 'Floor Leaders';
+    const roleGroup = user.role === 'operator' ? 'Operators' : 'Leaders';
     if (!acc[roleGroup]) {
       acc[roleGroup] = [];
     }
@@ -109,21 +178,26 @@ const WeeklyView = ({
   });
 
   // Define display order of roles
-  const roleDisplayOrder = ['Cashiers', 'Floor Leaders'];
+  const roleDisplayOrder = ['Operators', 'Leaders'];
 
   // Generate array of dates for the week
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
 
-  // Calculate total hours for each user
+  // Calculate total hours for each user for the current week
   const userHours = users.reduce((acc, user) => {
-    const userShifts = shifts.filter(shift => shift.user_id === user.id);
+    const userShifts = shifts.filter(shift => {
+      const shiftDate = new Date(shift.start_time);
+      return shift.user_id === user.id && 
+             weekDates.some(date => isSameDay(shiftDate, date));
+    });
+    
     const totalHours = userShifts.reduce((total, shift) => {
       const start = new Date(shift.start_time);
       const end = new Date(shift.end_time);
       const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
       return total + hours;
     }, 0);
-    acc[user.id] = Math.round(totalHours);
+    acc[user.id] = Math.round(totalHours * 10) / 10; // Round to 1 decimal place
     return acc;
   }, {} as Record<string, number>);
 
@@ -200,7 +274,9 @@ const WeeklyView = ({
                         <div className="font-medium text-sm truncate">{user.username}</div>
                         <div className="text-xs text-gray-500 truncate">
                           {user.title || user.role}
-                          <span className="ml-2 font-medium">{userHours[user.id] || 0} hrs</span>
+                        </div>
+                        <div className="text-xs font-medium text-blue-600">
+                          {userHours[user.id] || 0} hrs/week
                         </div>
                       </div>
                     </div>
@@ -223,6 +299,7 @@ const WeeklyView = ({
                               key={shiftIndex}
                               shift={shift}
                               user={user}
+                              onDelete={handleDeleteShift}
                             />
                           ))}
                           {dayShifts.length === 0 && (
