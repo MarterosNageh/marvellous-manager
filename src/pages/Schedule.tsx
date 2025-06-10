@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -80,7 +79,9 @@ const Schedule = () => {
       const transformedUsers = usersData.map(user => ({
         id: user.id,
         username: user.username,
-        role: user.role || 'operator',
+        role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') 
+          ? user.role as 'admin' | 'senior' | 'operator'
+          : 'operator' as const,
         title: user.title,
         created_at: user.created_at,
         updated_at: user.created_at
@@ -123,26 +124,25 @@ const Schedule = () => {
 
       console.log('Saving shift with data:', shiftData);
 
+      const shiftToSave = {
+        user_id: shiftData.user_id!,
+        start_time: shiftData.start_time!,
+        end_time: shiftData.end_time!,
+        shift_type: shiftData.shift_type!,
+        notes: shiftData.notes,
+        created_by: currentUser.id,
+        title: shiftData.shift_type!,
+        status: 'active'
+      };
+
       if (selectedShift?.id) {
-        await shiftsTable.update(selectedShift.id, {
-          user_id: shiftData.user_id,
-          start_time: shiftData.start_time,
-          end_time: shiftData.end_time,
-          shift_type: shiftData.shift_type,
-          notes: shiftData.notes,
-        });
+        await shiftsTable.update(selectedShift.id, shiftToSave);
         toast({
           title: "Success",
           description: "Shift updated successfully",
         });
       } else {
-        await shiftsTable.create({
-          user_id: shiftData.user_id!,
-          start_time: shiftData.start_time!,
-          end_time: shiftData.end_time!,
-          shift_type: shiftData.shift_type!,
-          notes: shiftData.notes,
-        });
+        await shiftsTable.create(shiftToSave);
         toast({
           title: "Success",
           description: "Shift created successfully",

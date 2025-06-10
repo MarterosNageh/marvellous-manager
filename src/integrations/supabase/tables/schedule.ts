@@ -249,6 +249,82 @@ export const shiftRequestsTable = {
   }
 };
 
+// Leave Requests table operations
+export const leaveRequestsTable = {
+  async getAll(): Promise<LeaveRequest[]> {
+    const { data, error } = await supabase
+      .from('shift_requests')
+      .select('*')
+      .eq('request_type', 'leave')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return (data || []).map(item => ({
+      id: item.id,
+      user_id: item.user_id,
+      leave_type: 'paid',
+      start_date: item.start_date,
+      end_date: item.end_date,
+      reason: item.reason || '',
+      status: item.status,
+      reviewer_id: item.reviewer_id,
+      review_notes: item.review_notes,
+      created_at: item.created_at,
+      updated_at: item.updated_at
+    }));
+  },
+
+  async updateStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('shift_requests')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+};
+
+// Swap Requests table operations
+export const swapRequestsTable = {
+  async getAll(): Promise<ShiftSwapRequest[]> {
+    const { data, error } = await supabase
+      .from('shift_requests')
+      .select('*')
+      .eq('request_type', 'swap')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return (data || []).map(item => ({
+      id: item.id,
+      requester_id: item.user_id,
+      requested_user_id: item.replacement_user_id || '',
+      shift_id: item.shift_id || '',
+      proposed_shift_id: undefined,
+      status: item.status,
+      notes: item.reason,
+      reviewer_id: item.reviewer_id,
+      review_notes: item.review_notes,
+      created_at: item.created_at,
+      updated_at: item.updated_at
+    }));
+  },
+
+  async updateStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('shift_requests')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+};
+
 // Users table operations for schedule
 export const usersTable = {
   async getAll() {

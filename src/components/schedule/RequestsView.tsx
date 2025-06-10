@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
@@ -18,10 +19,9 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
-import { Checkbox } from '@/components/ui/checkbox';
+import { format } from 'date-fns';
 import { LeaveRequest, ShiftSwapRequest, RequestStatus, ScheduleUser } from '@/types/schedule';
-import { leaveRequestsTable, swapRequestsTable } from '@/integrations/supabase/tables';
+import { leaveRequestsTable, swapRequestsTable } from '@/integrations/supabase/tables/schedule';
 
 const statusColors: Record<RequestStatus, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -127,7 +127,7 @@ export default function RequestsView({ users }: RequestsViewProps) {
                 {format(new Date(request.end_date), 'MMM d, yyyy')}
               </div>
             </div>
-            <Badge className={statusColors[request.status]}>
+            <Badge className={statusColors[request.status as RequestStatus]}>
               {request.status}
             </Badge>
           </div>
@@ -160,8 +160,8 @@ export default function RequestsView({ users }: RequestsViewProps) {
   };
 
   const renderSwapRequest = (request: ShiftSwapRequest) => {
-    const requester = users.find(u => u.id === request.user_id);
-    const targetUser = users.find(u => u.id === request.replacement_user_id);
+    const requester = users.find(u => u.id === request.requester_id);
+    const targetUser = users.find(u => u.id === request.requested_user_id);
 
     return (
       <Card key={request.id} className="mb-4">
@@ -172,17 +172,17 @@ export default function RequestsView({ users }: RequestsViewProps) {
                 {requester?.username || 'Unknown'} → {targetUser?.username || 'Unknown'}
               </CardTitle>
               <div className="text-sm text-gray-500">
-                Shift: {format(new Date(request.shift?.start_time || ''), 'MMM d, yyyy HH:mm')}
+                Shift Swap Request
               </div>
             </div>
-            <Badge className={statusColors[request.status]}>
+            <Badge className={statusColors[request.status as RequestStatus]}>
               {request.status}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {request.comment && (
-            <p className="text-sm text-gray-600 mb-4">{request.comment}</p>
+          {request.notes && (
+            <p className="text-sm text-gray-600 mb-4">{request.notes}</p>
           )}
           {canManageRequests && request.status === 'pending' && (
             <div className="flex gap-2">
@@ -248,4 +248,4 @@ export default function RequestsView({ users }: RequestsViewProps) {
       </Tabs>
     </div>
   );
-} 
+}
