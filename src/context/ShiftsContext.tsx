@@ -3,29 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { shiftRequestsTable } from '@/integrations/supabase/tables/schedule';
-
-interface ShiftRequest {
-  id: string;
-  user_id: string;
-  request_type: 'time_off' | 'extra_work' | 'shift_change' | 'custom_shift';
-  start_date: string;
-  end_date: string;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected';
-  requested_shift_details?: {
-    title: string;
-    shift_type: string;
-    role: string;
-    custom_hours?: {
-      start_hour: number;
-      start_minute: number;
-      end_hour: number;
-      end_minute: number;
-    };
-  };
-  created_at?: string;
-  updated_at?: string;
-}
+import { ShiftRequest } from '@/types/shiftTypes';
 
 interface ShiftsContextType {
   shiftRequests: ShiftRequest[];
@@ -53,7 +31,21 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       setIsLoading(true);
       const requests = await shiftRequestsTable.getAll();
-      setShiftRequests(requests);
+      
+      // Transform the data to match ShiftRequest interface
+      const transformedRequests: ShiftRequest[] = requests.map(req => ({
+        id: req.id,
+        user_id: req.user_id || '',
+        request_type: mapRequestType(req.request_type),
+        start_date: req.start_date,
+        end_date: req.end_date,
+        reason: req.reason || '',
+        status: mapStatus(req.status),
+        created_at: req.created_at,
+        updated_at: req.updated_at
+      }));
+      
+      setShiftRequests(transformedRequests);
     } catch (error) {
       console.error('Error loading shift requests:', error);
       toast({
@@ -66,16 +58,72 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Map frontend request types to database values
+  const mapRequestTypeToDb = (type: ShiftRequest['request_type']): string => {
+    switch (type) {
+      case 'time_off':
+        return 'leave';
+      case 'extra_work':
+        return 'extra';
+      case 'shift_change':
+        return 'swap';
+      case 'custom_shift':
+        return 'custom';
+      default:
+        return 'leave';
+    }
+  };
+
+  // Map database request types to frontend values
+  const mapRequestType = (type: string): ShiftRequest['request_type'] => {
+    switch (type) {
+      case 'leave':
+        return 'time_off';
+      case 'extra':
+        return 'extra_work';
+      case 'swap':
+        return 'shift_change';
+      case 'custom':
+        return 'custom_shift';
+      default:
+        return 'time_off';
+    }
+  };
+
+  // Map database status to frontend values
+  const mapStatus = (status: string): ShiftRequest['status'] => {
+    if (status === 'pending' || status === 'approved' || status === 'rejected') {
+      return status;
+    }
+    return 'pending';
+  };
+
   const createShiftRequest = async (request: Omit<ShiftRequest, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const newRequest = await shiftRequestsTable.create({
-        user_id: request.user_id,
-        request_type: request.request_type,
+      console.log('Creating shift request with data:', request);
+      
+      if (!currentUser?.id) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to submit requests",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const dbRequest = {
+        user_id: currentUser.id,
+        request_type: mapRequestTypeToDb(request.request_type),
         start_date: request.start_date,
-        end_date: request.end_date,
+        end_date: request.end_date || request.start_date,
         reason: request.reason,
         status: 'pending'
-      });
+      };
+
+      console.log('Sending to database:', dbRequest);
+      
+      const newRequest = await shiftRequestsTable.create(dbRequest);
+      console.log('Request created successfully:', newRequest);
       
       await refreshRequests();
       toast({
