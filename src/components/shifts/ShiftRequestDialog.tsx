@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useShifts } from '@/context/ShiftsContext';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -20,6 +19,9 @@ import {
 import { Calendar, Clock, User, Users } from 'lucide-react';
 import { ShiftRequest } from '@/types/shiftTypes';
 import { ScheduleUser } from '@/types/schedule';
+import { format } from 'date-fns';
+import { toast } from '@/components/ui/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ShiftRequestDialogProps {
   open: boolean;
@@ -29,10 +31,10 @@ interface ShiftRequestDialogProps {
 }
 
 const requestTypeOptions = [
-  { value: 'time_off', label: 'Time Off Request', icon: Calendar },
-  { value: 'extra_work', label: 'Extra Work Request', icon: Clock },
-  { value: 'shift_change', label: 'Shift Change Request', icon: User },
-  { value: 'custom_shift', label: 'Custom Shift Request', icon: Users },
+  { value: 'day-off', label: 'Day Off Request', icon: Calendar },
+  { value: 'unpaid-leave', label: 'Unpaid Leave', icon: Clock },
+  { value: 'extra-days', label: 'Extra Days', icon: User, adminOnly: true },
+  { value: 'public-holiday', label: 'Public Holiday', icon: Users, adminOnly: true }
 ];
 
 export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
@@ -42,18 +44,29 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
   initialData
 }) => {
   const { currentUser } = useAuth();
-  const { createShiftRequest } = useShifts();
+  const { createShiftRequest, updateShiftRequest } = useShifts();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'senior';
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<Partial<ShiftRequest>>({
-    request_type: 'time_off',
+    request_type: 'day-off',
     start_date: '',
     end_date: '',
     reason: '',
     user_id: currentUser?.id || '',
     ...initialData
   });
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        start_date: initialData.start_date ? format(new Date(initialData.start_date), 'yyyy-MM-dd') : '',
+        end_date: initialData.end_date ? format(new Date(initialData.end_date), 'yyyy-MM-dd') : '',
+      });
+    }
+  }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,21 +88,30 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
         requested_shift_details: formData.requested_shift_details
       };
 
-      const success = await createShiftRequest(requestData);
-      
-      if (success) {
-        onOpenChange(false);
-        // Reset form
-        setFormData({
-          request_type: 'time_off',
-          start_date: '',
-          end_date: '',
-          reason: '',
-          user_id: currentUser?.id || ''
-        });
+      if (initialData?.id) {
+        // Update existing request
+        await updateShiftRequest(initialData.id, requestData);
+      } else {
+        // Create new request
+        await createShiftRequest(requestData);
       }
+      
+      onOpenChange(false);
+      // Reset form
+      setFormData({
+        request_type: 'day-off',
+        start_date: '',
+        end_date: '',
+        reason: '',
+        user_id: currentUser?.id || ''
+      });
     } catch (error) {
       console.error('Error submitting request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit request",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -111,27 +133,29 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
           {/* User Selection for Admins */}
           {isAdmin && users && (
             <div className="space-y-2">
-              <Label htmlFor="user_id">Select User</Label>
-              <Select
-                value={formData.user_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, user_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
-                          {user.username.substring(0, 2).toUpperCase()}
-                        </div>
-                        {user.username}
+              <Label htmlFor="user_id">Select Users</Label>
+              <div className="border rounded-md p-2">
+                {users.map(user => (
+                  <div key={user.id} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      checked={selectedUsers.includes(user.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedUsers(prev => [...prev, user.id]);
+                        } else {
+                          setSelectedUsers(prev => prev.filter(id => id !== user.id));
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
+                        {user.username.substring(0, 2).toUpperCase()}
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      <span>{user.username}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -148,14 +172,16 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
                 <SelectValue placeholder="Select request type" />
               </SelectTrigger>
               <SelectContent>
-                {requestTypeOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <div className="flex items-center gap-2">
-                      <option.icon className="h-4 w-4" />
-                      {option.label}
-                    </div>
-                  </SelectItem>
-                ))}
+                {requestTypeOptions
+                  .filter(option => !option.adminOnly || isAdmin)
+                  .map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center gap-2">
+                        <option.icon className="h-4 w-4" />
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -195,89 +221,6 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
               rows={3}
             />
           </div>
-
-          {/* Custom Shift Details (for custom_shift requests) */}
-          {formData.request_type === 'custom_shift' && (
-            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-              <h4 className="font-medium">Custom Shift Details</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="shift_title">Shift Title</Label>
-                  <Input
-                    id="shift_title"
-                    placeholder="e.g., Special Event"
-                    value={formData.requested_shift_details?.title || ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      requested_shift_details: {
-                        ...prev.requested_shift_details,
-                        title: e.target.value,
-                        shift_type: prev.requested_shift_details?.shift_type || '',
-                        role: prev.requested_shift_details?.role || ''
-                      }
-                    }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shift_role">Role</Label>
-                  <Input
-                    id="shift_role"
-                    placeholder="e.g., Operator"
-                    value={formData.requested_shift_details?.role || ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      requested_shift_details: {
-                        ...prev.requested_shift_details,
-                        title: prev.requested_shift_details?.title || '',
-                        shift_type: prev.requested_shift_details?.shift_type || '',
-                        role: e.target.value
-                      }
-                    }))}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Shift Swap Details */}
-          {formData.request_type === 'shift_change' && (
-            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-              <h4 className="font-medium">Shift Swap Details</h4>
-              <div className="space-y-2">
-                <Label>Target User for Swap</Label>
-                {users && (
-                  <Select
-                    value={formData.requested_shift_details?.role || ''}
-                    onValueChange={(value) => setFormData(prev => ({
-                      ...prev,
-                      requested_shift_details: {
-                        ...prev.requested_shift_details,
-                        title: prev.requested_shift_details?.title || '',
-                        shift_type: prev.requested_shift_details?.shift_type || '',
-                        role: value
-                      }
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user to swap with" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.filter(u => u.id !== formData.user_id).map(user => (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">
-                              {user.username.substring(0, 2).toUpperCase()}
-                            </div>
-                            {user.username}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-2 pt-4">

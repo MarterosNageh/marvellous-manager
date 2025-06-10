@@ -1,8 +1,7 @@
-
 export interface ShiftRequest {
   id: string;
   user_id: string;
-  request_type: 'time_off' | 'extra_work' | 'shift_change' | 'custom_shift';
+  request_type: 'day-off' | 'unpaid-leave' | 'extra-days' | 'public-holiday';
   start_date: string;
   end_date: string;
   reason: string;

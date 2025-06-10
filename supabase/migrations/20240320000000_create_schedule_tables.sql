@@ -4,23 +4,25 @@ CREATE TABLE IF NOT EXISTS shifts (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   start_time TIMESTAMP WITH TIME ZONE NOT NULL,
   end_time TIMESTAMP WITH TIME ZONE NOT NULL,
-  shift_type TEXT NOT NULL CHECK (shift_type IN ('morning', 'night', 'on-call')),
+  shift_type TEXT NOT NULL CHECK (shift_type IN ('morning', 'night', 'over night')),
   location TEXT,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  color TEXT
 );
 
 -- Create shift templates table
 CREATE TABLE IF NOT EXISTS shift_templates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  shift_type TEXT NOT NULL CHECK (shift_type IN ('morning', 'night', 'on-call')),
+  shift_type TEXT NOT NULL CHECK (shift_type IN ('morning', 'night', 'over night')),
   start_time TEXT NOT NULL,
   end_time TEXT NOT NULL,
   location TEXT,
   notes TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  color TEXT
 );
 
 -- Create leave requests table
@@ -119,4 +121,29 @@ CREATE TRIGGER handle_shifts_updated_at
 CREATE TRIGGER handle_leave_requests_updated_at
   BEFORE UPDATE ON leave_requests
   FOR EACH ROW
-  EXECUTE FUNCTION handle_updated_at(); 
+  EXECUTE FUNCTION handle_updated_at();
+
+-- Update shifts table to match colors from templates
+UPDATE shifts s
+SET color = (
+    SELECT st.color 
+    FROM shift_templates st 
+    WHERE st.shift_type = s.shift_type 
+    ORDER BY st.created_at DESC 
+    LIMIT 1
+)
+WHERE EXISTS (
+    SELECT 1 
+    FROM shift_templates st 
+    WHERE st.shift_type = s.shift_type
+);
+
+-- For any remaining shifts without a matching template, set default colors
+UPDATE shifts s
+SET color = CASE 
+    WHEN shift_type = 'morning' THEN '#E3F2FD'
+    WHEN shift_type = 'night' THEN '#EDE7F6'
+    WHEN shift_type = 'over night' THEN '#FFF3E0'
+    ELSE '#E3F2FD'
+END
+WHERE color IS NULL; 

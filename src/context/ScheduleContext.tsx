@@ -1,26 +1,25 @@
-
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { shiftsTable, templatesTable, shiftRequestsTable } from '@/integrations/supabase/tables/schedule';
-import type { Shift, ShiftTemplate } from '@/types/schedule';
+import type { Shift, ShiftTemplate, ShiftType } from '@/types/schedule';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { NotificationService } from "@/services/notificationService";
+import { RecurrenceAction } from '@/types';
+import { realtimeService } from "@/services/realtimeService";
 
 interface ScheduleContextType {
   shifts: Shift[];
   templates: ShiftTemplate[];
-  shiftRequests: any[];
-  isLoading: boolean;
-  error: Error | null;
+  loading: boolean;
+  createShift: (data: Omit<Shift, 'id'>) => Promise<void>;
+  updateShift: (shiftId: string, updates: Partial<Shift>, recurrenceAction: RecurrenceAction) => Promise<void>;
+  deleteShift: (shiftId: string, recurrenceAction: RecurrenceAction) => Promise<void>;
+  createTemplate: (data: Omit<ShiftTemplate, 'id' | 'created_at'>) => Promise<void>;
+  updateTemplate: (templateId: string, updates: Partial<ShiftTemplate>) => Promise<void>;
+  deleteTemplate: (templateId: string) => Promise<void>;
   refreshData: () => Promise<void>;
-  createShift: (shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => Promise<Shift>;
-  updateShift: (id: string, shift: Partial<Shift>) => Promise<Shift>;
-  deleteShift: (id: string) => Promise<void>;
-  createTemplate: (template: Omit<ShiftTemplate, 'id' | 'created_at'>) => Promise<ShiftTemplate>;
-  updateTemplate: (id: string, template: Partial<ShiftTemplate>) => Promise<ShiftTemplate>;
-  deleteTemplate: (id: string) => Promise<void>;
-  createShiftRequest: (request: any) => Promise<any>;
-  updateShiftRequest: (id: string, request: any) => Promise<any>;
-  deleteShiftRequest: (id: string) => Promise<void>;
 }
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -33,176 +32,220 @@ export const useSchedule = () => {
   return context;
 };
 
-export const ScheduleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
+  const { toast } = useToast();
   const { currentUser } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const [shiftRequests, setShiftRequests] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Helper function to map database shift to domain shift
+  const mapDBShiftToDomainShift = (dbShift: any): Shift => ({
+    id: dbShift.id,
+    user_id: dbShift.user_id,
+    shift_type: dbShift.shift_type as ShiftType,
+    start_time: dbShift.start_time,
+    end_time: dbShift.end_time,
+    notes: dbShift.notes || '',
+    status: dbShift.status || 'active',
+    created_by: dbShift.created_by || dbShift.user_id,
+    repeat_days: dbShift.repeat_days || [],
+    created_at: dbShift.created_at || new Date().toISOString(),
+    updated_at: dbShift.updated_at || new Date().toISOString()
+  });
+
+  // Helper function to map database template to domain template
+  const mapDBTemplateToDomainTemplate = (dbTemplate: any): ShiftTemplate => ({
+    id: dbTemplate.id,
+    name: dbTemplate.name,
+    shift_type: dbTemplate.shift_type,
+    start_time: dbTemplate.start_time,
+    end_time: dbTemplate.end_time,
+    color: dbTemplate.color,
+    created_at: dbTemplate.created_at || new Date().toISOString(),
+    updated_at: dbTemplate.updated_at || new Date().toISOString()
+  });
 
   const refreshData = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      const [shiftsData, templatesData, shiftRequestsData] = await Promise.all([
+      setLoading(true);
+      const [shiftsData, templatesData] = await Promise.all([
         shiftsTable.getAll(),
-        templatesTable.getAll(),
-        shiftRequestsTable.getAll()
+        templatesTable.getAll()
       ]);
 
-      setShifts(shiftsData);
-      setTemplates(templatesData);
-      setShiftRequests(shiftRequestsData);
-    } catch (err) {
-      setError(err as Error);
-      toast.error('Failed to load schedule data');
+      setShifts(shiftsData.map(mapDBShiftToDomainShift));
+      setTemplates(templatesData.map(mapDBTemplateToDomainTemplate));
+    } catch (error) {
+      console.error('Error fetching schedule data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load schedule data",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const createShift = async (data: Omit<Shift, 'id'>) => {
+    try {
+      console.log('📝 Creating shift...');
+      await shiftsTable.create(data);
+      
+      toast({
+        title: "Success",
+        description: "Shift created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create shift",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const updateShift = async (shiftId: string, updates: Partial<Shift>, recurrenceAction: RecurrenceAction) => {
+    try {
+      console.log('📝 Updating shift:', shiftId, updates);
+      
+      await shiftsTable.update(shiftId, updates, recurrenceAction);
+      
+      toast({
+        title: "Success",
+        description: "Shift updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update shift",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const deleteShift = async (shiftId: string, recurrenceAction: RecurrenceAction) => {
+    try {
+      console.log('🗑️ Deleting shift:', shiftId);
+      
+      await shiftsTable.delete(shiftId, recurrenceAction);
+      
+      toast({
+        title: "Success",
+        description: "Shift deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete shift",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const createTemplate = async (data: Omit<ShiftTemplate, 'id' | 'created_at'>) => {
+    try {
+      console.log('📝 Creating template...', data);
+      const newTemplate = await templatesTable.create(data);
+      setTemplates(prev => [...prev, mapDBTemplateToDomainTemplate(newTemplate)]);
+      
+      toast({
+        title: "Success",
+        description: "Template created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create template",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const updateTemplate = async (templateId: string, updates: Partial<ShiftTemplate>) => {
+    try {
+      console.log('📝 Updating template:', templateId, updates);
+      const updatedTemplate = await templatesTable.update(templateId, updates);
+      setTemplates(prev => prev.map(template => 
+        template.id === templateId ? mapDBTemplateToDomainTemplate(updatedTemplate) : template
+      ));
+      
+      toast({
+        title: "Success",
+        description: "Template updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update template",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    try {
+      console.log('🗑️ Deleting template:', templateId);
+      await templatesTable.delete(templateId);
+      setTemplates(prev => prev.filter(template => template.id !== templateId));
+      
+      toast({
+        title: "Success",
+        description: "Template deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete template",
+        variant: "destructive",
+      });
+      throw error;
     }
   };
 
   useEffect(() => {
     if (currentUser) {
       refreshData();
-
-      // Set up realtime subscriptions
-      const shiftsSubscription = shiftsTable.subscribe((payload) => {
-        if (payload.eventType === 'INSERT') {
-          setShifts(prev => [...prev, payload.new as Shift]);
-        } else if (payload.eventType === 'UPDATE') {
-          setShifts(prev => prev.map(shift => 
-            shift.id === payload.new.id ? payload.new as Shift : shift
-          ));
-        } else if (payload.eventType === 'DELETE') {
-          setShifts(prev => prev.filter(shift => shift.id !== payload.old.id));
-        }
+      
+      // Subscribe to realtime updates
+      const unsubscribe = realtimeService.subscribe(() => {
+        console.log('Realtime update received, refreshing data...');
+        refreshData();
       });
 
-      // Cleanup subscriptions
       return () => {
-        shiftsSubscription.unsubscribe();
+        unsubscribe();
       };
     }
   }, [currentUser]);
 
-  const createShift = async (shift: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    try {
-      const newShift = await shiftsTable.create(shift);
-      toast.success('Shift created successfully');
-      return newShift;
-    } catch (err) {
-      toast.error('Failed to create shift');
-      throw err;
-    }
-  };
-
-  const updateShift = async (id: string, shift: Partial<Shift>) => {
-    try {
-      const updatedShift = await shiftsTable.update(id, shift);
-      toast.success('Shift updated successfully');
-      return updatedShift;
-    } catch (err) {
-      toast.error('Failed to update shift');
-      throw err;
-    }
-  };
-
-  const deleteShift = async (id: string) => {
-    try {
-      await shiftsTable.delete(id);
-      toast.success('Shift deleted successfully');
-    } catch (err) {
-      toast.error('Failed to delete shift');
-      throw err;
-    }
-  };
-
-  const createTemplate = async (template: Omit<ShiftTemplate, 'id' | 'created_at'>) => {
-    try {
-      const newTemplate = await templatesTable.create(template);
-      toast.success('Template created successfully');
-      return newTemplate;
-    } catch (err) {
-      toast.error('Failed to create template');
-      throw err;
-    }
-  };
-
-  const updateTemplate = async (id: string, template: Partial<ShiftTemplate>) => {
-    try {
-      const updatedTemplate = await templatesTable.update(id, template);
-      toast.success('Template updated successfully');
-      return updatedTemplate;
-    } catch (err) {
-      toast.error('Failed to update template');
-      throw err;
-    }
-  };
-
-  const deleteTemplate = async (id: string) => {
-    try {
-      await templatesTable.delete(id);
-      toast.success('Template deleted successfully');
-    } catch (err) {
-      toast.error('Failed to delete template');
-      throw err;
-    }
-  };
-
-  const createShiftRequest = async (request: any) => {
-    try {
-      const newRequest = await shiftRequestsTable.create(request);
-      toast.success('Shift request created successfully');
-      return newRequest;
-    } catch (err) {
-      toast.error('Failed to create shift request');
-      throw err;
-    }
-  };
-
-  const updateShiftRequest = async (id: string, request: any) => {
-    try {
-      const updatedRequest = await shiftRequestsTable.update(id, request);
-      toast.success('Shift request updated successfully');
-      return updatedRequest;
-    } catch (err) {
-      toast.error('Failed to update shift request');
-      throw err;
-    }
-  };
-
-  const deleteShiftRequest = async (id: string) => {
-    try {
-      await shiftRequestsTable.delete(id);
-      toast.success('Shift request deleted successfully');
-    } catch (err) {
-      toast.error('Failed to delete shift request');
-      throw err;
-    }
+  const value = {
+    shifts,
+    templates,
+    loading,
+    createShift,
+    updateShift,
+    deleteShift,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    refreshData,
   };
 
   return (
-    <ScheduleContext.Provider
-      value={{
-        shifts,
-        templates,
-        shiftRequests,
-        isLoading,
-        error,
-        refreshData,
-        createShift,
-        updateShift,
-        deleteShift,
-        createTemplate,
-        updateTemplate,
-        deleteTemplate,
-        createShiftRequest,
-        updateShiftRequest,
-        deleteShiftRequest,
-      }}
-    >
+    <ScheduleContext.Provider value={value}>
       {children}
     </ScheduleContext.Provider>
   );

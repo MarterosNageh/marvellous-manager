@@ -45,12 +45,13 @@ interface ShiftFormData {
   end_time: string;
   notes?: string;
   repeat_days?: string[];
+  color: string;
 }
 
 const shiftTypes = [
-  { value: 'morning', label: 'Morning Shift' },
-  { value: 'night', label: 'Night Shift' },
-  { value: 'on-call', label: 'On-Call Shift' },
+  { value: 'morning', label: 'Morning Shift', defaultColor: '#E3F2FD' },
+  { value: 'night', label: 'Night Shift', defaultColor: '#EDE7F6' },
+  { value: 'over night', label: 'Over Night Shift', defaultColor: '#FFF3E0' },
 ];
 
 const weekDays = [
@@ -87,6 +88,7 @@ export default function ShiftDialog({
     end_time: shift ? format(new Date(shift.end_time), "HH:mm") : '',
     notes: shift?.notes || '',
     repeat_days: [],
+    color: shift?.color || '',
   });
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function ShiftDialog({
         end_time: format(new Date(shift.end_time), "HH:mm"),
         notes: shift.notes,
         repeat_days: [],
+        color: shift.color,
       });
     }
   }, [shift]);
@@ -113,6 +116,7 @@ export default function ShiftDialog({
         shift_type: template.shift_type,
         start_time: template.start_time,
         end_time: template.end_time,
+        color: template.color || shiftTypes.find(t => t.value === template.shift_type)?.defaultColor || '#E3F2FD'
       }));
     }
   };
@@ -164,14 +168,17 @@ export default function ShiftDialog({
         const daysUntilTarget = (dayIndex - shiftDate.getDay() + 7) % 7;
         shiftDate.setDate(shiftDate.getDate() + daysUntilTarget + (week * 7));
         
-        const [startHours, startMinutes] = baseShiftData.start_time.split(':');
-        const [endHours, endMinutes] = baseShiftData.end_time.split(':');
-        
+        // Create a new shift for this day
         const startDateTime = new Date(shiftDate);
-        startDateTime.setHours(parseInt(startHours), parseInt(startMinutes), 0);
-        
         const endDateTime = new Date(shiftDate);
-        endDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0);
+        
+        // Parse the time from baseShiftData
+        const startTime = new Date(baseShiftData.start_time);
+        const endTime = new Date(baseShiftData.end_time);
+        
+        // Set hours and minutes from the base shift
+        startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+        endDateTime.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
         
         // If end time is before start time, assume it's for the next day
         if (endDateTime < startDateTime) {
@@ -179,59 +186,93 @@ export default function ShiftDialog({
         }
 
         shiftsToCreate.push({
-          ...baseShiftData,
+          user_id: baseShiftData.user_id,
+          shift_type: baseShiftData.shift_type,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
+          notes: baseShiftData.notes || '',
+          color: baseShiftData.color
         });
       }
     }
 
-    // Create all shifts
-    for (const shiftData of shiftsToCreate) {
-      await onSave(shiftData);
+    try {
+      console.log('Creating repeating shifts:', shiftsToCreate);
+      // Create all shifts
+      for (const shiftData of shiftsToCreate) {
+        await onSave(shiftData);
+      }
+      toast({ title: "Success", description: "Repeating shifts created successfully." });
+    } catch (error) {
+      console.error('Error creating repeating shifts:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to create repeating shifts. Please try again.",
+        variant: "destructive"
+      });
+      throw error; // Re-throw to be caught by the parent handler
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.user_id || !formData.start_time || !formData.end_time) {
-      return;
-    }
+    setIsLoading(true);
 
     try {
-      setIsLoading(true);
+      // Validate required fields
+      if (!formData.user_id || !formData.shift_type || !formData.start_time || !formData.end_time) {
+        toast({
+          title: "Error",
+          description: "Please fill in all required fields",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Convert time strings to ISO format
+      const startDate = new Date();
+      const endDate = new Date();
+      const [startHours, startMinutes] = formData.start_time.split(':');
+      const [endHours, endMinutes] = formData.end_time.split(':');
       
+      startDate.setHours(parseInt(startHours), parseInt(startMinutes), 0);
+      endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0);
+      
+      // If end time is before start time, assume it's for the next day
+      if (endDate < startDate) {
+        endDate.setDate(endDate.getDate() + 1);
+      }
+
+      const shiftData = {
+        user_id: formData.user_id,
+        shift_type: formData.shift_type,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        notes: formData.notes || '',
+        color: selectedTemplate ? 
+          templates.find(t => t.id === selectedTemplate)?.color || 
+          shiftTypes.find(t => t.value === formData.shift_type)?.defaultColor || 
+          '#E3F2FD' : 
+          shiftTypes.find(t => t.value === formData.shift_type)?.defaultColor || 
+          '#E3F2FD'
+      };
+
+      console.log('Submitting shift data:', shiftData);
+
       if (repeatEnabled && selectedDays.length > 0) {
-        // Create repeating shifts
-        await createRepeatingShifts(formData, selectedDays);
+        await createRepeatingShifts(shiftData, selectedDays);
       } else {
-        // Create a single shift for today
-        const today = new Date();
-        const [startHours, startMinutes] = formData.start_time.split(':');
-        const [endHours, endMinutes] = formData.end_time.split(':');
-        
-        const startDate = new Date(today);
-        startDate.setHours(parseInt(startHours), parseInt(startMinutes), 0);
-        
-        const endDate = new Date(today);
-        endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0);
-
-        // If end time is before start time, assume it's for the next day
-        if (endDate < startDate) {
-          endDate.setDate(endDate.getDate() + 1);
-        }
-
-        const shiftData = {
-          ...formData,
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
-        };
         await onSave(shiftData);
       }
-      
+
       onClose();
     } catch (error) {
-      console.error('Error saving shift:', error);
+      console.error('Error submitting shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save shift. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

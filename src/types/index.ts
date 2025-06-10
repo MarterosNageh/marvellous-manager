@@ -1,8 +1,13 @@
+export type RecurrenceAction = 'this' | 'future' | 'previous';
+
 export interface User {
   id: string;
   username: string;
-  password: string;
-  isAdmin: boolean;
+  email: string;
+  role: 'admin' | 'senior' | 'operator';
+  title?: string;
+  balance?: number;
+  isAdmin?: boolean;
 }
 
 export interface Project {
@@ -50,4 +55,20 @@ export interface PrintHistory {
   projectId: string | null;
   operatorName: string;
   timestamp: string;
+}
+
+export interface Shift {
+  id: string;
+  user_id: string;
+  shift_type: string;
+  start_time: string;
+  end_time: string;
+  title?: string;
+  description?: string;
+  notes?: string;
+  status?: 'active' | 'inactive';
+  created_by?: string;
+  repeat_days?: number[];
+  created_at?: string;
+  updated_at?: string;
 }

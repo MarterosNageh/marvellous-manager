@@ -16,11 +16,12 @@ import {
   Label,
   DialogDescription,
 } from '@/components/ui';
+import { useToast } from '@/hooks/use-toast';
 
 const shiftTypes = [
   { value: 'morning', label: 'Morning Shift', defaultColor: '#E3F2FD' },
   { value: 'night', label: 'Night Shift', defaultColor: '#EDE7F6' },
-  { value: 'overnight', label: 'Overnight Shift', defaultColor: '#FFF3E0' },
+  { value: 'over night', label: 'Over Night Shift', defaultColor: '#FFF3E0' },
 ];
 
 interface ShiftTemplateDialogProps {
@@ -42,6 +43,7 @@ export default function ShiftTemplateDialog({
   onClose,
   onSave,
 }: ShiftTemplateDialogProps) {
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<TemplateFormData>({
     name: '',
@@ -82,16 +84,39 @@ export default function ShiftTemplateDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
     if (!formData.name || !formData.start_time || !formData.end_time) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       setIsLoading(true);
-      await onSave(formData);
+      
+      // Convert time strings to proper format if needed
+      const templateData: Partial<ShiftTemplate> = {
+        name: formData.name,
+        shift_type: formData.shift_type,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        color: formData.color,
+      };
+
+      console.log('Saving template data:', templateData);
+      await onSave(templateData);
       onClose();
     } catch (error) {
       console.error('Error saving template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save template. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +146,7 @@ export default function ShiftTemplateDialog({
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
                 placeholder="Enter template name"
+                required
               />
             </div>
 
@@ -155,6 +181,7 @@ export default function ShiftTemplateDialog({
                     start_time: e.target.value,
                   }))
                 }
+                required
               />
             </div>
 
@@ -167,6 +194,7 @@ export default function ShiftTemplateDialog({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, end_time: e.target.value }))
                 }
+                required
               />
             </div>
 

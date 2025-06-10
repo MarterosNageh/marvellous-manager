@@ -193,16 +193,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const updateData: any = {
-        role: userData.role,
-        title: userData.title,
-      };
+      // Get current user data first
+      const { data: currentData, error: fetchError } = await supabase
+        .from('auth_users')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-      // Only admin can change admin status
-      if (currentUser?.isAdmin && userData.role === 'admin') {
-        updateData.is_admin = true;
-      } else if (currentUser?.isAdmin && userData.role !== 'admin') {
-        updateData.is_admin = false;
+      if (fetchError) {
+        console.error('Error fetching current user data:', fetchError);
+        toast.error('Failed to update user');
+        return false;
+      }
+
+      const updateData: any = {};
+
+      // Only include fields that are actually changing
+      if (userData.role !== undefined && userData.role !== currentData.role) {
+        updateData.role = userData.role;
+        updateData.is_admin = userData.role === 'admin';
+      }
+
+      if (userData.title !== undefined && userData.title !== currentData.title) {
+        updateData.title = userData.title;
+      }
+
+      // If no changes to make, return early
+      if (Object.keys(updateData).length === 0) {
+        return true;
       }
 
       console.log('Updating user with data:', {
@@ -211,13 +229,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser
       });
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('auth_users')
         .update(updateData)
         .eq('id', userId);
 
-      if (error) {
-        console.error('Update error:', error);
+      if (updateError) {
+        console.error('Update error:', updateError);
         toast.error('Failed to update user');
         return false;
       }
@@ -228,9 +246,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser && currentUser.id === userId) {
         const updatedUser = {
           ...currentUser,
-          ...userData,
-          role: userData.role || currentUser.role,
-          isAdmin: userData.role === 'admin'
+          ...updateData,
+          role: updateData.role || currentUser.role,
+          isAdmin: updateData.is_admin !== undefined ? updateData.is_admin : currentUser.isAdmin,
+          title: updateData.title !== undefined ? updateData.title : currentUser.title
         };
         setCurrentUser(updatedUser);
         localStorage.setItem('currentUser', JSON.stringify({

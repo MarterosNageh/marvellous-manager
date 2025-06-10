@@ -34,19 +34,53 @@ const Settings = () => {
   const [selectedRole, setSelectedRole] = useState<'admin' | 'senior' | 'operator'>('operator');
   const [selectedTitle, setSelectedTitle] = useState("");
 
+  // Reset form when dialog opens/closes
+  const handleDialogChange = (open: boolean) => {
+    if (open === false) {
+      setSelectedUser(null);
+      setSelectedRole('operator');
+      setSelectedTitle("");
+    }
+    setIsEditUserOpen(open);
+  };
+
+  // Initialize form when selecting a user
+  const handleSelectUser = (user: SelectedUser) => {
+    setSelectedUser(user);
+    setSelectedRole(user.role);
+    setSelectedTitle(user.title || "");
+    setIsEditUserOpen(true);
+  };
+
   const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'senior' | 'operator', newTitle?: string) => {
     try {
-      const success = await updateUser(userId, { 
-        role: newRole, 
-        title: newTitle 
-      });
+      if (!selectedUser) return;
+
+      const updateData: any = {};
+      
+      // Only include role in update if it's different from current
+      if (newRole !== selectedUser.role) {
+        updateData.role = newRole;
+      }
+      
+      // Only include title in update if it's different from current
+      if (newTitle !== selectedUser.title) {
+        updateData.title = newTitle;
+      }
+      
+      // Only proceed with update if there are changes
+      if (Object.keys(updateData).length > 0) {
+        const success = await updateUser(userId, updateData);
       
       if (success) {
-        toast.success("User role updated successfully");
-        setIsEditUserOpen(false);
+          toast.success("User information updated successfully");
+          handleDialogChange(false);
+        }
+      } else {
+        handleDialogChange(false);
       }
     } catch (error) {
-      toast.error("Failed to update user role");
+      toast.error("Failed to update user information");
     }
   };
 
@@ -145,8 +179,7 @@ const Settings = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedUser(user as SelectedUser);
-                                  setIsEditUserOpen(true);
+                                  handleSelectUser(user as SelectedUser);
                                 }}
                               >
                                 <Edit className="h-4 w-4" />
@@ -235,7 +268,7 @@ const Settings = () => {
         </Tabs>
 
         {/* Edit User Dialog */}
-        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <Dialog open={isEditUserOpen} onOpenChange={handleDialogChange}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit User Role & Title</DialogTitle>
@@ -248,7 +281,7 @@ const Settings = () => {
               <div className="space-y-2">
                 <Label>Role</Label>
                 <Select 
-                  defaultValue={selectedUser?.role || (selectedUser?.isAdmin ? 'admin' : 'operator')}
+                  value={selectedRole}
                   onValueChange={(value: 'admin' | 'senior' | 'operator') => setSelectedRole(value)}
                 >
                   <SelectTrigger>
@@ -265,7 +298,7 @@ const Settings = () => {
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input
-                  defaultValue={selectedUser?.title || ''}
+                  value={selectedTitle}
                   placeholder="e.g., Senior Developer, Team Lead"
                   onChange={(e) => setSelectedTitle(e.target.value)}
                 />

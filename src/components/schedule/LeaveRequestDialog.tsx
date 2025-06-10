@@ -15,12 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  Badge,
 } from '@/components/ui';
-import { LeaveRequest, LeaveType } from '../../types/schedule';
+import { LeaveRequest, LeaveType, ScheduleUser } from '../../types/schedule';
+import { useAuth } from '@/context/AuthContext';
 
 interface LeaveRequestDialogProps {
   open: boolean;
   request?: LeaveRequest;
+  users: ScheduleUser[];
   onClose: () => void;
   onSubmit: (request: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'>) => Promise<void>;
 }
@@ -28,9 +31,13 @@ interface LeaveRequestDialogProps {
 export default function LeaveRequestDialog({
   open,
   request,
+  users,
   onClose,
   onSubmit,
 }: LeaveRequestDialogProps) {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [formData, setFormData] = useState<Partial<LeaveRequest>>({
     leave_type: 'paid',
     start_date: format(new Date(), 'yyyy-MM-dd'),
@@ -50,7 +57,26 @@ export default function LeaveRequestDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData as Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'>);
+    if (isAdmin && selectedUsers.length > 0) {
+      // Submit request for each selected user
+      for (const userId of selectedUsers) {
+        await onSubmit({
+          ...formData,
+          user_id: userId,
+        } as Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'>);
+      }
+    } else {
+      await onSubmit(formData as Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'>);
+    }
+  };
+
+  const handleUserSelect = (userId: string) => {
+    setSelectedUsers(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      }
+      return [...prev, userId];
+    });
   };
 
   return (
@@ -61,6 +87,43 @@ export default function LeaveRequestDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label>Select Users</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {selectedUsers.map(userId => {
+                  const user = users.find(u => u.id === userId);
+                  return user ? (
+                    <Badge
+                      key={userId}
+                      variant="secondary"
+                      className="cursor-pointer"
+                      onClick={() => handleUserSelect(userId)}
+                    >
+                      {user.username} ×
+                    </Badge>
+                  ) : null;
+                })}
+              </div>
+              <Select onValueChange={handleUserSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select users..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map(user => (
+                    <SelectItem
+                      key={user.id}
+                      value={user.id}
+                      disabled={selectedUsers.includes(user.id)}
+                    >
+                      {user.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Leave Type</Label>
             <Select
@@ -76,7 +139,12 @@ export default function LeaveRequestDialog({
                 <SelectItem value="paid">Paid Leave</SelectItem>
                 <SelectItem value="unpaid">Unpaid Leave</SelectItem>
                 <SelectItem value="day-off">Day Off</SelectItem>
-                <SelectItem value="extra">Extra Days</SelectItem>
+                {isAdmin && (
+                  <>
+                    <SelectItem value="extra">Extra Days</SelectItem>
+                    <SelectItem value="public-holiday">Public Holiday</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>

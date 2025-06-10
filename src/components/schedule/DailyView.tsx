@@ -1,10 +1,15 @@
 import { format, addDays, subDays } from 'date-fns';
 import { DailyViewProps, Shift } from '@/types/schedule';
-import {
-  Button,
-} from '@/components/ui';
-import { Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Edit2, Trash2, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/components/ui/use-toast';
+import { RecurrenceAction } from '@/types';
 
 export default function DailyView({
   selectedDate,
@@ -12,136 +17,150 @@ export default function DailyView({
   onDeleteShift,
   onDateChange,
   users,
-  shifts,
+  shifts: initialShifts,
 }: DailyViewProps) {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  const [shifts, setShifts] = useState(initialShifts);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [recurrenceAction, setRecurrenceAction] = useState<RecurrenceAction>('this');
 
-  const handlePreviousDay = () => {
-    onDateChange(subDays(selectedDate, 1));
+  // Update local shifts when props change
+  useEffect(() => {
+    setShifts(initialShifts);
+  }, [initialShifts]);
+
+  const handleDeleteClick = (shift: Shift) => {
+    setSelectedShift(shift);
+    setShowDeleteConfirm(true);
   };
 
-  const handleNextDay = () => {
-    onDateChange(addDays(selectedDate, 1));
-  };
-
-  // Filter shifts for the selected date
-  const dailyShifts = shifts.filter((shift) => {
-    const shiftDate = new Date(shift.start_time);
-    return (
-      shiftDate.getFullYear() === selectedDate.getFullYear() &&
-      shiftDate.getMonth() === selectedDate.getMonth() &&
-      shiftDate.getDate() === selectedDate.getDate()
-    );
-  });
-
-  // Group shifts by time slots (morning, night, on-call)
-  const groupedShifts: Record<string, Shift[]> = {
-    morning: [],
-    night: [],
-    'on-call': [],
-  };
-
-  dailyShifts.forEach((shift) => {
-    groupedShifts[shift.shift_type].push(shift);
-  });
-
-  const getShiftTypeColor = (type: string) => {
-    switch (type) {
-      case 'morning':
-        return 'bg-blue-100 text-blue-800';
-      case 'night':
-        return 'bg-purple-100 text-purple-800';
-      case 'on-call':
-        return 'bg-orange-100 text-orange-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleDeleteConfirm = async () => {
+    if (selectedShift) {
+      await onDeleteShift(selectedShift.id, recurrenceAction);
+      setShowDeleteConfirm(false);
+      setSelectedShift(null);
+      setRecurrenceAction('this');
     }
-  };
-
-  const renderShiftCard = (shift: Shift) => {
-    const user = users.find((u) => u.id === shift.user_id);
-    const startTime = format(new Date(shift.start_time), 'HH:mm');
-    const endTime = format(new Date(shift.end_time), 'HH:mm');
-
-    return (
-      <div
-        key={shift.id}
-        className={`p-3 rounded-lg mb-2 ${getShiftTypeColor(shift.shift_type)}`}
-      >
-        <div className="flex justify-between items-start mb-1">
-          <div>
-            <div className="font-semibold">{user?.username}</div>
-            <div className="text-sm">
-              {startTime} - {endTime}
-            </div>
-          </div>
-          {isAdmin && (
-            <div className="flex space-x-2">
-              <button
-                onClick={() => onEditShift(shift)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <Edit2 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => onDeleteShift(shift.id)}
-                className="text-gray-600 hover:text-red-600"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-        {shift.notes && (
-          <div className="text-sm text-gray-600 mt-1">{shift.notes}</div>
-        )}
-      </div>
-    );
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-center">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handlePreviousDay}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-[200px] text-center font-medium">
-            {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleNextDay}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          onClick={() => onDateChange(subDays(selectedDate, 1))}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-lg font-semibold">
+          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+        </h2>
+        <Button
+          variant="ghost"
+          onClick={() => onDateChange(addDays(selectedDate, 1))}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="space-y-4">
-        {dailyShifts.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No shifts scheduled for this day
-          </div>
-        ) : (
-          Object.entries(groupedShifts).map(([type, shifts]) => (
-            <div key={type} className="space-y-4">
-              <h3 className="text-lg font-medium capitalize">{type} Shifts</h3>
-              {shifts.length > 0 ? (
-                shifts.map(renderShiftCard)
-              ) : (
-                <p className="text-muted-foreground">No {type} shifts scheduled</p>
-              )}
+        {shifts.map((shift) => {
+          const user = users.find((u) => u.id === shift.user_id);
+          return (
+            <div
+              key={shift.id}
+              className="flex items-center justify-between p-4 bg-white rounded-lg shadow"
+            >
+              <div>
+                <div className="font-semibold">
+                  {format(new Date(shift.start_time), 'h:mm a')} -{' '}
+                  {format(new Date(shift.end_time), 'h:mm a')}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {user?.username || 'Unknown User'}
+                </div>
+                {shift.notes && (
+                  <div className="text-sm text-gray-500 mt-1">
+                    {shift.notes}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onEditShift(shift)}
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDeleteClick(shift)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          ))
-        )}
+          );
+        })}
       </div>
+
+      {showDeleteConfirm && selectedShift && (
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Delete Shift</DialogTitle>
+              <DialogDescription>
+                How would you like to handle this shift?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+                <p className="font-semibold">Delete Shift</p>
+              </div>
+              <RadioGroup
+                value={recurrenceAction}
+                onValueChange={(value) => setRecurrenceAction(value as RecurrenceAction)}
+                className="space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="this" id="this" />
+                  <Label htmlFor="this">Delete this shift only</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="future" id="future" />
+                  <Label htmlFor="future">Delete this and future shifts</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="previous" id="previous" />
+                  <Label htmlFor="previous">Delete this and previous shifts</Label>
+                </div>
+              </RadioGroup>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteConfirm}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 } 
