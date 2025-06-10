@@ -3,7 +3,7 @@ import { RecurrenceAction, User } from './index';
 
 export type ViewType = 'daily' | 'weekly' | 'monthly';
 export type ShiftType = 'morning' | 'night' | 'on-call' | 'day-off' | 'public-holiday';
-export type LeaveType = 'day-off' | 'unpaid-leave' | 'extra-day' | 'public-holiday' | 'paid';
+export type LeaveType = 'day-off' | 'unpaid' | 'extra' | 'public-holiday';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type UserRole = 'admin' | 'senior' | 'operator';
 export type RequestType = 'leave' | 'swap';
@@ -51,29 +51,33 @@ export interface ShiftTemplate {
 export interface BaseRequest {
   id: string;
   user_id: string;
+  request_type: string;
   status: RequestStatus;
+  notes?: string;
+  review_notes?: string;
+  reviewer_id?: string;
   created_at: string;
   updated_at: string;
-  reviewer_id?: string;
-  start_date: string;
-  end_date: string;
 }
 
 export interface LeaveRequest extends BaseRequest {
   type: 'leave';
   leave_type: LeaveType;
+  request_type: LeaveType;
+  start_date: string;
+  end_date: string;
   reason: string;
-  notes?: string;
-  review_notes?: string;
 }
 
 export interface SwapRequest extends BaseRequest {
   type: 'swap';
-  notes: string;
-  requester_id: string;
-  requested_user_id: string;
+  request_type: 'swap';
   shift_id: string;
   proposed_shift_id?: string;
+  requester_id: string;
+  requested_user_id: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface SwapRequestDB extends Omit<SwapRequest, 'start_date' | 'end_date'> {
@@ -202,9 +206,7 @@ export interface ShiftSwapRequestTable {
   update(id: string, request: Partial<SwapRequest>): Promise<SwapRequest>;
   updateStatus(id: string, status: RequestStatus): Promise<SwapRequest>;
   delete(id: string): Promise<void>;
-} 
-
-// Helper type for converting DB requests to display requests
+} // Helper type for converting DB requests to display requests
 export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<DisplayRequest, 'originalRequest'> & {
   originalRequest: T;
 };
@@ -213,3 +215,4 @@ export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<Displa
 export type SwapRequestDBToRequest = Omit<SwapRequest, 'type'> & {
   type: 'swap';
 }; 
+

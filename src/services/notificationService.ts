@@ -349,32 +349,7 @@ export class NotificationService {
         type: 'request_approved',
         requestType,
         requestDate,
-        url: '/schedule',
-        timestamp: new Date().toISOString()
-      }
-    });
-  }
-
-  static async sendRequestRejectedNotification(
-    userIds: string[],
-    requestType: string,
-    requestDate: string
-  ): Promise<{ success: boolean; message?: string; error?: string }> {
-    const formatRequestType = (type: string) => {
-      return type.split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-    };
-
-    return this.sendNotification({
-      userIds,
-      title: `Request Rejected (${formatRequestType(requestType)})`,
-      body: `Your request for ${formatRequestType(requestType)} on ${requestDate} has been rejected`,
-      data: {
-        type: 'request_rejected',
-        requestType,
-        requestDate,
-        url: '/schedule',
+        url: '/requests',
         timestamp: new Date().toISOString()
       }
     });

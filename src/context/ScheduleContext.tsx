@@ -131,7 +131,7 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
       // Get the original shift to compare changes
       const originalShift = shifts.find(s => s.id === shiftId);
       if (!originalShift) throw new Error('Shift not found');
-
+      
       await shiftsTable.update(shiftId, updates, recurrenceAction);
       
       // Send notification to the affected user
@@ -186,7 +186,7 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
       // Get the shift before deleting it
       const shiftToDelete = shifts.find(s => s.id === shiftId);
       if (!shiftToDelete) throw new Error('Shift not found');
-
+      
       await shiftsTable.delete(shiftId, recurrenceAction);
       
       // Send notification to the affected user

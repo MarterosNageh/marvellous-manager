@@ -26,6 +26,7 @@ import {
   DialogTrigger,
   Input,
   Label,
+  DialogDescription,
 } from '@/components/ui';
 import { format } from 'date-fns';
 import { Plus, Clock, User, Edit, Eye, Users, Trash2, AlertCircle } from 'lucide-react';
@@ -38,9 +39,9 @@ import {
   Shift,
   LeaveType,
   AnyRequest,
-  DisplayRequest,
   RequestToDisplay,
   SwapRequestDBToRequest,
+  RequestType,
 } from '@/types/schedule';
 import { leaveRequestsTable, swapRequestsTable, shiftsTable } from '@/integrations/supabase/tables/schedule';
 import { ShiftRequestDialog } from '@/components/shifts/ShiftRequestDialog';
@@ -56,9 +57,8 @@ const statusColors = {
 };
 
 const leaveTypeColors = {
-  'paid': 'bg-blue-50',
-  'unpaid': 'bg-orange-50',
   'day-off': 'bg-purple-50',
+  'unpaid': 'bg-orange-50',
   'extra': 'bg-green-50',
   'public-holiday': 'bg-red-50'
 };
@@ -84,20 +84,23 @@ interface UserDetailsDialogState {
 type LeaveRequestWithType = LeaveRequest & { request_type: 'leave'; type: 'leave' };
 type SwapRequestWithType = SwapRequest & { request_type: 'swap'; type: 'swap' };
 
-interface DBRequest {
+interface DBRequestRow {
   id: string;
   user_id: string;
-  request_type: 'leave' | 'swap';
+  request_type: string;
   start_date: string;
   end_date: string;
-  reason: string;
+  reason: string | null;
   status: RequestStatus;
-  reviewer_id?: string;
-  review_notes?: string;
-  replacement_user_id?: string;
-  shift_id?: string;
-  proposed_shift_id?: string;
-  leave_type?: LeaveType;
+  reviewer_id: string | null;
+  review_notes: string | null;
+  notes: string | null;
+  replacement_user_id: string | null;
+  shift_id: string | null;
+  proposed_shift_id: string | null;
+  approved_shift_id: string | null;
+  admin_approval: string | null;
+  target_user_approval: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -121,34 +124,70 @@ interface BaseRequest {
   updated_at: string;
 }
 
-const mapToLeaveRequest = (dbRequest: DBRequest): LeaveRequest => ({
-  id: dbRequest.id,
-  type: 'leave',
-  user_id: dbRequest.user_id,
-  leave_type: dbRequest.leave_type || 'paid',
-  start_date: dbRequest.start_date,
-  end_date: dbRequest.end_date,
-  reason: dbRequest.reason,
-  status: dbRequest.status,
-  notes: dbRequest.review_notes,
-  reviewer_id: dbRequest.reviewer_id,
-  created_at: dbRequest.created_at,
-  updated_at: dbRequest.updated_at,
-});
+interface ExtendedDisplayRequest extends Omit<AnyRequest, 'start_date' | 'end_date' | 'reason'> {
+  displayStartDate: string;
+  displayEndDate: string;
+  displayReason: string;
+  originalRequest: AnyRequest;
+  leave_type?: LeaveType;
+  request_type: RequestType;
+}
 
-const mapToSwapRequest = (dbRequest: DBRequest): SwapRequest => ({
-  id: dbRequest.id,
-  type: 'swap',
-  user_id: dbRequest.user_id,
-  shift_id: dbRequest.shift_id || '',
-  proposed_shift_id: dbRequest.proposed_shift_id,
-  requester_id: dbRequest.user_id,
-  requested_user_id: dbRequest.replacement_user_id || '',
-  status: dbRequest.status,
-  notes: dbRequest.review_notes,
-  reviewer_id: dbRequest.reviewer_id,
-  created_at: dbRequest.created_at,
-  updated_at: dbRequest.updated_at,
+const mapToLeaveRequest = (dbRequest: DBRequestRow): LeaveRequest => {
+  console.log('Mapping leave request:', dbRequest);
+  return {
+    id: dbRequest.id,
+    type: 'leave',
+    user_id: dbRequest.user_id,
+    leave_type: dbRequest.request_type as LeaveType,
+    request_type: dbRequest.request_type,
+    start_date: dbRequest.start_date,
+    end_date: dbRequest.end_date,
+    reason: dbRequest.reason || '',
+    status: dbRequest.status || 'pending',
+    notes: dbRequest.notes || '',
+    review_notes: dbRequest.review_notes || '',
+    reviewer_id: dbRequest.reviewer_id || undefined,
+    created_at: dbRequest.created_at || new Date().toISOString(),
+    updated_at: dbRequest.updated_at || new Date().toISOString()
+  };
+};
+
+const mapToSwapRequest = (dbRequest: DBRequestRow): SwapRequest => {
+  console.log('Mapping swap request:', dbRequest);
+  return {
+    id: dbRequest.id,
+    type: 'swap',
+    user_id: dbRequest.user_id,
+    request_type: 'swap',
+    shift_id: dbRequest.shift_id || '',
+    proposed_shift_id: dbRequest.proposed_shift_id || undefined,
+    requester_id: dbRequest.user_id,
+    requested_user_id: dbRequest.replacement_user_id || '',
+    status: dbRequest.status || 'pending',
+    notes: dbRequest.notes || '',
+    review_notes: dbRequest.review_notes || '',
+    reviewer_id: dbRequest.reviewer_id || undefined,
+    start_date: dbRequest.start_date,
+    end_date: dbRequest.end_date,
+    created_at: dbRequest.created_at || new Date().toISOString(),
+    updated_at: dbRequest.updated_at || new Date().toISOString()
+  };
+};
+
+const mapRequestToDisplay = (request: AnyRequest): ExtendedDisplayRequest => ({
+  id: request.id,
+  user_id: request.user_id,
+  type: request.type,
+  status: request.status,
+  request_type: request.request_type,
+  created_at: request.created_at,
+  updated_at: request.updated_at,
+  displayStartDate: request.start_date,
+  displayEndDate: request.end_date,
+  displayReason: 'reason' in request ? request.reason : request.notes,
+  leave_type: 'leave_type' in request ? request.leave_type : undefined,
+  originalRequest: request
 });
 
 const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
@@ -282,48 +321,81 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
   };
 
   const refreshRequests = async () => {
-      try {
-        setLoading(true);
-        const [leaveData, swapData] = await Promise.all([
-          supabase
-            .from('shift_requests')
-            .select('*')
-            .eq('request_type', 'leave')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('shift_requests')
-            .select('*')
-            .eq('request_type', 'swap')
-            .order('created_at', { ascending: false })
-        ]);
+    try {
+      console.log('Starting to refresh requests...');
+      setLoading(true);
 
-        if (leaveData.error) throw leaveData.error;
-        if (swapData.error) throw swapData.error;
+      // First, let's check what's in the database
+      const { data: allData, error: checkError } = await supabase
+        .from('shift_requests')
+        .select('*');
 
-        const mappedLeaveRequests = (leaveData.data as DBRequest[]).map(mapToLeaveRequest);
-        const mappedSwapRequests = (swapData.data as DBRequest[]).map(mapToSwapRequest);
+      console.log('All requests in database:', allData);
 
-        setLeaveRequests(mappedLeaveRequests);
-        setSwapRequests(mappedSwapRequests);
-      onRequestsUpdate?.(mappedLeaveRequests, mappedSwapRequests);
-
-        // Calculate pending count
-        const pendingCount = [
-          ...mappedLeaveRequests,
-          ...mappedSwapRequests
-        ].filter(req => req.status === 'pending').length;
-      setPendingCount(pendingCount);
-      } catch (error) {
-        console.error('Error fetching requests:', error);
-        toast({
-          title: "Error loading requests",
-          description: "Please try again later",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+      if (checkError) {
+        console.error('Error checking all requests:', checkError);
       }
-    };
+
+      // Get leave requests (all request types except 'swap')
+      const { data: leaveData, error: leaveError } = await supabase
+        .from('shift_requests')
+        .select('*')
+        .not('request_type', 'eq', 'swap')
+        .order('created_at', { ascending: false });
+
+      if (leaveError) {
+        console.error('Error fetching leave requests:', leaveError);
+        throw leaveError;
+      }
+
+      // Get swap requests
+      const { data: swapData, error: swapError } = await supabase
+        .from('shift_requests')
+        .select('*')
+        .eq('request_type', 'swap')
+        .order('created_at', { ascending: false });
+
+      if (swapError) {
+        console.error('Error fetching swap requests:', swapError);
+        throw swapError;
+      }
+
+      console.log('Raw leave data:', leaveData);
+      console.log('Raw swap data:', swapData);
+
+      const mappedLeaveRequests = (leaveData || []).map(mapToLeaveRequest);
+      const mappedSwapRequests = (swapData || []).map(mapToSwapRequest);
+
+      console.log('Mapped leave requests:', mappedLeaveRequests);
+      console.log('Mapped swap requests:', mappedSwapRequests);
+
+      setLeaveRequests(mappedLeaveRequests);
+      setSwapRequests(mappedSwapRequests);
+
+      console.log('State after setting requests - Leave:', mappedLeaveRequests.length, 'Swap:', mappedSwapRequests.length);
+
+      if (onRequestsUpdate) {
+        console.log('Calling onRequestsUpdate with mapped requests');
+        onRequestsUpdate(mappedLeaveRequests, mappedSwapRequests);
+      }
+
+      // Update pending count
+      const pendingCount = [...mappedLeaveRequests, ...mappedSwapRequests].filter(
+        req => req.status === 'pending'
+      ).length;
+      console.log('New pending count:', pendingCount);
+      setPendingCount(pendingCount);
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+      toast({
+        title: 'Error fetching requests',
+        description: 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     refreshRequests();
@@ -336,16 +408,18 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         table: 'shift_requests',
       }, () => {
         refreshRequests();
-        updatePendingCount();
       })
       .subscribe();
 
-    // Initial pending count
-    updatePendingCount();
-
+    // Cleanup subscription on unmount
     return () => {
-      channel.unsubscribe();
+      void channel.unsubscribe();
     };
+  }, []); // Empty dependency array to run only once
+
+  // Separate effect for pending count
+  useEffect(() => {
+    updatePendingCount();
   }, []);
 
   const updatePendingCount = async () => {
@@ -358,16 +432,23 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
 
   const handleDeleteRequest = async (request: AnyRequest) => {
     try {
-      await supabase
+      console.log('Deleting request:', request);
+      const { error } = await supabase
         .from('shift_requests')
         .delete()
         .eq('id', request.id);
+
+      if (error) {
+        console.error('Error deleting request:', error);
+        throw error;
+      }
 
       toast({
         title: "Request deleted",
         description: "The request has been deleted successfully",
       });
 
+      setDeleteConfirmDialog({ open: false, request: null, type: 'leave' });
       refreshRequests();
     } catch (error) {
       console.error('Error deleting request:', error);
@@ -379,7 +460,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const handleStatusChange = async (request: DisplayRequest['originalRequest'], newStatus: RequestStatus) => {
+  const handleStatusChange = async (request: LeaveRequest | SwapRequest, newStatus: RequestStatus) => {
     try {
       const updateData = {
         status: newStatus,
@@ -391,28 +472,8 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         .update(updateData)
         .eq('id', request.id);
 
-      // Send notification based on status
-      try {
-        const { NotificationService } = await import('@/services/notificationService');
-        if (newStatus === 'approved') {
-          await NotificationService.sendRequestApprovedNotification(
-            [request.user_id],
-            'type' in request ? (request.type === 'leave' ? request.leave_type : 'swap') : 'day-off',
-            format(new Date('start_date' in request ? request.start_date : request.created_at), 'PPP')
-          );
-        } else if (newStatus === 'rejected') {
-          await NotificationService.sendRequestRejectedNotification(
-            [request.user_id],
-            'type' in request ? (request.type === 'leave' ? request.leave_type : 'swap') : 'day-off',
-            format(new Date('start_date' in request ? request.start_date : request.created_at), 'PPP')
-          );
-        }
-      } catch (notificationError) {
-        console.warn('⚠️ Error sending request status notification:', notificationError);
-      }
-
       if (newStatus === 'approved') {
-        if ('type' in request && request.type === 'leave') {
+        if (request.type === 'leave') {
           const shiftData = {
             user_id: request.user_id,
             shift_type: request.leave_type === 'public-holiday' ? 'public-holiday' : 'day-off',
@@ -429,7 +490,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
           };
 
           await supabase.from('shifts').insert([shiftData]);
-        } else if ('requested_user_id' in request) {
+        } else {
           await supabase
             .from('shifts')
             .update({
@@ -496,9 +557,10 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const handleEditRequest = (request: DisplayRequest) => {
-    if (request.originalRequest.type === 'leave') {
-      setEditingRequest(request.originalRequest);
+  const handleEditRequest = (request: ExtendedDisplayRequest) => {
+    console.log('Editing request:', request);
+    if (request.type === 'leave') {
+      setEditingRequest(request.originalRequest as LeaveRequest);
     } else {
       // Convert swap request to leave request format for editing
       const swapRequest = request.originalRequest;
@@ -506,102 +568,139 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         id: swapRequest.id,
         user_id: swapRequest.user_id,
         type: 'leave',
+        request_type: 'leave',
         leave_type: 'day-off',
         start_date: swapRequest.start_date,
         end_date: swapRequest.end_date,
-        reason: swapRequest.notes,
+        reason: swapRequest.notes || '',
         status: swapRequest.status,
+        notes: swapRequest.notes || '',
+        review_notes: swapRequest.review_notes || '',
+        reviewer_id: swapRequest.reviewer_id,
         created_at: swapRequest.created_at,
-        updated_at: swapRequest.updated_at,
+        updated_at: swapRequest.updated_at
       };
       setEditingRequest(leaveRequest);
     }
+    setShowRequestDialog(true);
   };
 
-  const handleSaveEdit = async (updatedRequest: any) => {
+  const handleSaveEdit = async (request: LeaveRequest | null) => {
+    if (!request) return;
+
     try {
-      if (editingRequest) {
-        if ('requester_id' in editingRequest) {
-          // Update swap request
-          await swapRequestsTable.updateStatus(editingRequest.id, updatedRequest.status);
-          setSwapRequests(prev => prev.map(req => 
-            req.id === editingRequest.id ? { ...req, ...updatedRequest } : req
-          ));
-        } else {
-          // Update leave request
-          await leaveRequestsTable.updateStatus(editingRequest.id, updatedRequest.status);
-          setLeaveRequests(prev => prev.map(req => 
-            req.id === editingRequest.id ? { ...req, ...updatedRequest } : req
-          ));
+      const dbRequest = {
+        user_id: request.user_id,
+        request_type: request.leave_type,
+        start_date: request.start_date,
+        end_date: request.end_date,
+        reason: request.reason || '',
+        status: request.status || 'pending',
+        notes: request.notes || '',
+        review_notes: request.review_notes || null,
+        reviewer_id: request.reviewer_id || null,
+        replacement_user_id: null,
+        shift_id: null,
+        approved_shift_id: null,
+        admin_approval: null,
+        target_user_approval: null
+      };
+
+      console.log('Saving request:', dbRequest);
+
+      if (request.id) {
+        // Update existing request
+        const { error } = await supabase
+          .from('shift_requests')
+          .update(dbRequest)
+          .eq('id', request.id);
+
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
         }
-        setEditingRequest(null);
-        toast({
-          title: "Success",
-          description: "Request updated successfully",
-        });
+      } else {
+        // Create new request
+        const { error } = await supabase
+          .from('shift_requests')
+          .insert([{
+            ...dbRequest,
+            user_id: currentUser?.id,
+            id: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]);
+
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
       }
-    } catch (error) {
-      console.error('Error updating request:', error);
+
       toast({
-        title: "Error",
-        description: "Failed to update request",
-        variant: "destructive",
+        title: `Request ${request.id ? 'updated' : 'created'} successfully`,
+        variant: 'default',
+      });
+
+      setShowRequestDialog(false);
+      setEditingRequest(null);
+      refreshRequests();
+    } catch (error) {
+      console.error('Error saving request:', error);
+      toast({
+        title: 'Error saving request',
+        description: error instanceof Error ? error.message : 'Please try again later',
+        variant: 'destructive',
       });
     }
   };
 
-  const filteredLeaveRequests = selectedStatus === 'all' ? leaveRequests : leaveRequests.filter(req => req.status === selectedStatus);
-  const filteredSwapRequests = selectedStatus === 'all' ? swapRequests : swapRequests.filter(req => req.status === selectedStatus);
+  const initializeNewRequest = (): LeaveRequest => ({
+    id: '',
+    user_id: currentUser?.id || '',
+    type: 'leave' as const,
+    request_type: 'day-off',
+    leave_type: 'day-off',
+    start_date: format(new Date(), 'yyyy-MM-dd'),
+    end_date: format(new Date(), 'yyyy-MM-dd'),
+    reason: '',
+    notes: '',
+    status: 'pending',
+    review_notes: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+
+  const filteredLeaveRequests = selectedStatus === 'all' 
+    ? leaveRequests 
+    : leaveRequests.filter(req => req.status === selectedStatus);
+  
+  const filteredSwapRequests = selectedStatus === 'all' 
+    ? swapRequests 
+    : swapRequests.filter(req => req.status === selectedStatus);
+
+  console.log('Filtering state:', {
+    selectedStatus,
+    totalLeaveRequests: leaveRequests.length,
+    totalSwapRequests: swapRequests.length,
+    filteredLeaveRequests: filteredLeaveRequests.length,
+    filteredSwapRequests: filteredSwapRequests.length
+  });
 
   // Transform requests for display
-  const allRequests = [
-    ...leaveRequests.map((req: LeaveRequest) => ({
-      id: req.id,
-      user_id: req.user_id,
-      type: 'leave' as const,
-      status: req.status,
-      created_at: req.created_at,
-      updated_at: req.updated_at,
-      displayStartDate: req.start_date,
-      displayEndDate: req.end_date,
-      displayReason: req.reason,
-      leave_type: req.leave_type,
-      originalRequest: req,
-    })),
-    ...swapRequests.map((req: SwapRequestDB) => {
-      const start_date = req.shift?.start_time || req.start_date || '';
-      const end_date = req.shift?.end_time || req.end_date || '';
-      const swapRequest: SwapRequest = {
-        id: req.id,
-        user_id: req.user_id,
-        type: 'swap',
-        status: req.status,
-        start_date,
-        end_date,
-        notes: req.notes || '',
-        requester_id: req.requester_id,
-        requested_user_id: req.requested_user_id,
-        shift_id: req.shift_id,
-        proposed_shift_id: req.proposed_shift_id,
-        created_at: req.created_at,
-        updated_at: req.updated_at,
-        reviewer_id: req.reviewer_id,
-      };
+  const allRequests = [...filteredLeaveRequests, ...filteredSwapRequests]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map(mapRequestToDisplay);
 
-      return {
-        id: req.id,
-        user_id: req.user_id,
-        type: 'swap' as const,
-        status: req.status,
-        created_at: req.created_at,
-        updated_at: req.updated_at,
-        displayStartDate: start_date,
-        displayEndDate: end_date,
-        displayReason: req.notes || '',
-        originalRequest: swapRequest,
-      };
-    })
-  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  console.log('All requests to display:', allRequests);
+
+  const getAvailableLeaveTypes = () => {
+    const baseTypes = ['day-off', 'unpaid'];
+    if (isAdmin) {
+      return [...baseTypes, 'extra', 'public-holiday'] as LeaveType[];
+    }
+    return baseTypes as LeaveType[];
+  };
 
   if (loading) {
     return (
@@ -611,83 +710,95 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     );
   }
 
-  const renderRequest = (request: DisplayRequest) => {
-    const user = users.find(u => u.id === request.user_id);
-    const isLeaveRequest = request.type === 'leave';
+  const renderRequest = (request: ExtendedDisplayRequest) => {
+    const requestUser = users.find(u => u.id === request.user_id);
+    const isOwnRequest = request.user_id === currentUser?.id;
+    const isPending = request.status === 'pending';
+    const isAdmin = currentUser?.role === 'admin';
+    const canEditDelete = isAdmin;
 
     return (
-      <div key={request.id} className="border rounded-lg p-4 hover:bg-accent">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isLeaveRequest ? (
-              <Clock className="h-4 w-4" />
-            ) : (
-              <Users className="h-4 w-4" />
-            )}
-            <span className="font-medium">
-              {user?.username || 'Unknown User'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {currentUser?.role === 'admin' && (
+      <Card key={request.id} className="mb-4">
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center space-x-2">
+              <User className="h-5 w-5 text-gray-500" />
+              <span className="font-medium">{requestUser?.username || 'Unknown User'}</span>
+              <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                Type: {request.originalRequest.request_type}
+              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant={request.status === 'approved' ? 'default' : request.status === 'rejected' ? 'destructive' : 'outline'} 
+                  className={
+                    request.status === 'approved' 
+                      ? 'bg-green-500 text-white' 
+                      : request.status === 'rejected'
+                      ? 'bg-red-500 text-white'
+                      : ''
+                  }
+                >
+                  {request.status}
+                </Badge>
+              </div>
+            </div>
+            {canEditDelete && (
+              <div className="flex items-center space-x-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                onClick={() => handleDeleteRequest(request.originalRequest)}
+                  onClick={() => handleEditRequest(request)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDeleteConfirmDialog({
+                    open: true,
+                    request: request.originalRequest,
+                    type: request.type
+                  })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+              </div>
             )}
           </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={
-                request.status === 'approved'
-                  ? 'default'
-                  : request.status === 'rejected'
-                  ? 'destructive'
-                  : 'secondary'
-              }
-            >
-              {request.status}
-            </Badge>
-            {request.type === 'leave' && (
-              <Badge variant="outline">{request.leave_type}</Badge>
-            )}
-          </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="space-y-2">
+
+            <div className="text-sm text-muted-foreground">
               <p>
                 <span className="font-medium">Period:</span>{' '}
-              {format(new Date(request.displayStartDate), 'PPP')} -{' '}
-              {format(new Date(request.displayEndDate), 'PPP')}
+                {format(new Date(request.displayStartDate), 'PPP')} -{' '}
+                {format(new Date(request.displayEndDate), 'PPP')}
               </p>
               <p>
                 <span className="font-medium">Reason:</span>{' '}
-              {request.displayReason}
+                {request.displayReason}
               </p>
-          </div>
-          {request.status === 'pending' && currentUser?.role === 'admin' && (
-            <div className="flex items-center gap-2 mt-4">
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => handleStatusChange(request.originalRequest, 'approved')}
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleStatusChange(request.originalRequest, 'rejected')}
-              >
-                Reject
-              </Button>
             </div>
-          )}
-        </div>
-      </div>
+            {request.status === 'pending' && isAdmin && (
+              <div className="flex items-center gap-2 mt-4">
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => handleStatusChange(request.originalRequest, 'approved')}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => handleStatusChange(request.originalRequest, 'rejected')}
+                >
+                  Reject
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -717,12 +828,12 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
 
         <Card>
           <CardContent className="p-4">
-              <div className="space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between text-sm text-gray-500 border-b pb-2">
                 <span>User name</span>
                 <span>Approved</span>
                 <span>Remaining</span>
-                      </div>
+              </div>
               
               {users.map(user => {
                 const approvedDays = getApprovedDays(user.id);
@@ -750,7 +861,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
               })}
             </div>
           </CardContent>
-                  </Card>
+        </Card>
       </div>
 
       {/* Right Column - All Requests */}
@@ -763,7 +874,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
                 {pendingCount} pending
               </Badge>
             )}
-              </div>
+          </div>
           <div className="flex gap-2">
             {currentUser?.role === 'admin' && (
               <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as RequestStatus | 'all')}>
@@ -788,93 +899,161 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         {/* Combined Requests View */}
         <div className="space-y-4">
           {allRequests.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No requests found</p>
-            ) : (
-            allRequests.map(request => (
-                  <Card key={request.id} className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      {request.type === 'leave' ? (
-                        <Clock className="h-4 w-4" />
-                      ) : (
-                        <Users className="h-4 w-4" />
-                      )}
-                      <p className="font-medium">
-                        {users.find(u => u.id === request.user_id)?.username}
-                      </p>
-                    </div>
-                        <p className="text-sm text-muted-foreground">
-                      {format(new Date(request.displayStartDate), 'PPP')} - {format(new Date(request.displayEndDate), 'PPP')}
-                    </p>
-                    {request.type === 'leave' && request.leave_type && (
-                      <p className="text-sm mt-1">
-                        <span className="font-medium">Type:</span> {request.leave_type}
-                        </p>
-                    )}
-                    {request.displayReason && (
-                      <p className="text-sm mt-1">
-                        <span className="font-medium">Reason:</span> {request.displayReason}
-                      </p>
-                        )}
-                      </div>
-                  <div className="flex items-center gap-2">
-                    {currentUser?.role === 'admin' && request.status === 'pending' && (
-                      <div className="flex items-center gap-2 mr-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                          onClick={() => handleStatusChange(request.originalRequest, 'approved')}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleStatusChange(request.originalRequest, 'rejected')}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    )}
-                    {currentUser?.role === 'admin' && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditRequest(request)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setDeleteConfirmDialog({
-                              open: true,
-                              request: request.originalRequest,
-                              type: request.type,
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                    <Badge className={statusColors[request.status]}>
-                          {request.status}
-                    </Badge>
-                      </div>
-                    </div>
-                  </Card>
-            ))
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No requests found</p>
+              {selectedStatus !== 'all' && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Try changing the status filter to see more requests
+                </p>
+              )}
+            </div>
+          ) : (
+            allRequests.map(request => renderRequest(request))
           )}
         </div>
       </div>
 
       {/* Dialogs */}
+      <Dialog open={showRequestDialog} onOpenChange={(open) => {
+        setShowRequestDialog(open);
+        if (!open) {
+          setEditingRequest(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingRequest?.id ? 'Edit Request' : 'New Leave Request'}</DialogTitle>
+            <DialogDescription>
+              {editingRequest?.id ? 'Edit the request details below.' : 'Create a new leave request by filling out the form below.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {isAdmin && editingRequest?.id && (
+              <div className="grid gap-2">
+                <Label>Status</Label>
+                <Select
+                  value={editingRequest.status}
+                  onValueChange={(value) => {
+                    const status = value as RequestStatus;
+                    setEditingRequest(prev => 
+                      prev ? { 
+                        ...prev, 
+                        status,
+                      } : null
+                    );
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label>Leave Type</Label>
+              <Select
+                value={editingRequest?.leave_type || 'day-off'}
+                onValueChange={(value) => {
+                  const leaveType = value as LeaveType;
+                  setEditingRequest(prev => 
+                    prev ? { 
+                      ...prev, 
+                      leave_type: leaveType,
+                    } : initializeNewRequest()
+                  );
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select leave type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableLeaveTypes().map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={editingRequest?.start_date || ''}
+                onChange={(e) => {
+                  const startDate = e.target.value;
+                  setEditingRequest(prev => 
+                    prev ? { 
+                      ...prev, 
+                      start_date: startDate,
+                    } : null
+                  );
+                }}
+                required
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>End Date</Label>
+              <Input
+                type="date"
+                value={editingRequest?.end_date || ''}
+                onChange={(e) => {
+                  const endDate = e.target.value;
+                  setEditingRequest(prev => 
+                    prev ? { 
+                      ...prev, 
+                      end_date: endDate,
+                    } : null
+                  );
+                }}
+                required
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Reason</Label>
+              <Input
+                value={editingRequest?.reason || ''}
+                onChange={(e) => {
+                  const reason = e.target.value;
+                  setEditingRequest(prev => 
+                    prev ? { 
+                      ...prev, 
+                      reason,
+                    } : null
+                  );
+                }}
+                placeholder="Enter reason for leave"
+                required
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowRequestDialog(false);
+              setEditingRequest(null);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => handleSaveEdit(editingRequest)} 
+              disabled={!editingRequest || !editingRequest.start_date || !editingRequest.end_date || !editingRequest.reason}
+            >
+              {editingRequest?.id ? 'Update' : 'Create'} Request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Balance Dialog */}
       <Dialog open={userBalanceDialog.open} onOpenChange={(open) => !open && setUserBalanceDialog({ open: false, user: null, balance: 0 })}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -950,16 +1129,33 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         </DialogContent>
       </Dialog>
 
-      {showRequestDialog && currentUser && (
-        <ShiftRequestDialog
-          open={showRequestDialog}
-          onOpenChange={setShowRequestDialog}
-          currentUser={currentUser}
-          users={users}
-          onRequestsUpdate={refreshRequests}
-        />
-      )}
-      </div>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmDialog.open} onOpenChange={(open) => {
+        if (!open) setDeleteConfirmDialog({ open: false, request: null, type: 'leave' });
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Request</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this request? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => 
+              setDeleteConfirmDialog({ open: false, request: null, type: 'leave' })
+            }>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteConfirmDialog.request && handleDeleteRequest(deleteConfirmDialog.request)}
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 
