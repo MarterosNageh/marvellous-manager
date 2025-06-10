@@ -216,6 +216,7 @@ export default function ShiftDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
 
     try {
@@ -265,6 +266,7 @@ export default function ShiftDialog({
         await onSave(shiftData);
       }
 
+      // Only close if we successfully saved
       onClose();
     } catch (error) {
       console.error('Error submitting shift:', error);
@@ -279,8 +281,13 @@ export default function ShiftDialog({
   };
 
   return (
-    <Dialog open={true} onOpenChange={() => onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]" onInteractOutside={(e) => {
+        // Prevent closing when submitting
+        if (isLoading) {
+          e.preventDefault();
+        }
+      }}>
         <DialogHeader>
           <DialogTitle>
             {shift ? 'Edit Shift' : 'Create Shift'}
@@ -291,7 +298,10 @@ export default function ShiftDialog({
               : 'Create a new shift by filling out the details below.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          await handleSubmit(e);
+        }}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="template">Template (Optional)</Label>

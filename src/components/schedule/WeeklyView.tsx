@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { WeeklyViewProps, Shift, ScheduleUser } from '@/types/schedule';
 import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { RecurrenceAction } from '@/types';
 import {
@@ -24,6 +24,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useAuth } from '@/context/AuthContext';
 
 const getInitials = (name: string) => {
   return name
@@ -170,12 +171,13 @@ const WeeklyView = ({
   onUpdateShift,
   refreshData
 }: WeeklyViewProps) => {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Calculate week start from Sunday (weekStartsOn: 0)
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
+  const [weekStart, setWeekStart] = useState(startOfWeek(startDate, { weekStartsOn: 0 }));
+  const [draggedShift, setDraggedShift] = useState<Shift | null>(null);
 
   // Load data from database
   useEffect(() => {
@@ -223,7 +225,7 @@ const WeeklyView = ({
 
   const handleDeleteShift = async (shiftId: string, recurrenceAction: RecurrenceAction) => {
     try {
-      await shiftsTable.delete(shiftId, recurrenceAction);
+      await onDeleteShift(shiftId, recurrenceAction);
       toast({
         title: "Success",
         description: "Shift deleted successfully",

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationService } from "@/services/notificationService";
 import { RecurrenceAction } from '@/types';
 import { realtimeService } from "@/services/realtimeService";
+import { format } from 'date-fns';
 
 interface ScheduleContextType {
   shifts: Shift[];
@@ -51,7 +52,10 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
     created_by: dbShift.created_by || dbShift.user_id,
     repeat_days: dbShift.repeat_days || [],
     created_at: dbShift.created_at || new Date().toISOString(),
-    updated_at: dbShift.updated_at || new Date().toISOString()
+    updated_at: dbShift.updated_at || new Date().toISOString(),
+    title: dbShift.title || '',
+    description: dbShift.description || '',
+    color: dbShift.color || '#E3F2FD'
   });
 
   // Helper function to map database template to domain template
@@ -63,7 +67,7 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
     end_time: dbTemplate.end_time,
     color: dbTemplate.color,
     created_at: dbTemplate.created_at || new Date().toISOString(),
-    updated_at: dbTemplate.updated_at || new Date().toISOString()
+    user_id: dbTemplate.user_id || currentUser?.id || ''
   });
 
   const refreshData = async () => {
@@ -93,6 +97,18 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
       console.log('📝 Creating shift...');
       await shiftsTable.create(data);
       
+      // Send notification to the assigned user
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        await NotificationService.sendShiftCreatedNotification(
+          [data.user_id],
+          format(new Date(data.start_time), 'yyyy-MM-dd'),
+          format(new Date(data.start_time), 'HH:mm')
+        );
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending shift creation notification:', notificationError);
+      }
+      
       toast({
         title: "Success",
         description: "Shift created successfully",
@@ -112,7 +128,41 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('📝 Updating shift:', shiftId, updates);
       
+      // Get the original shift to compare changes
+      const originalShift = shifts.find(s => s.id === shiftId);
+      if (!originalShift) throw new Error('Shift not found');
+
       await shiftsTable.update(shiftId, updates, recurrenceAction);
+      
+      // Send notification to the affected user
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        const changes: string[] = [];
+        
+        if (updates.start_time && updates.start_time !== originalShift.start_time) {
+          changes.push('start time');
+        }
+        if (updates.end_time && updates.end_time !== originalShift.end_time) {
+          changes.push('end time');
+        }
+        if (updates.shift_type && updates.shift_type !== originalShift.shift_type) {
+          changes.push('shift type');
+        }
+        if (updates.notes && updates.notes !== originalShift.notes) {
+          changes.push('notes');
+        }
+        
+        if (changes.length > 0) {
+          await NotificationService.sendShiftModifiedNotification(
+            [originalShift.user_id],
+            format(new Date(originalShift.start_time), 'yyyy-MM-dd'),
+            format(new Date(originalShift.start_time), 'HH:mm'),
+            changes
+          );
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending shift modification notification:', notificationError);
+      }
       
       toast({
         title: "Success",
@@ -133,7 +183,23 @@ export const ScheduleProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('🗑️ Deleting shift:', shiftId);
       
+      // Get the shift before deleting it
+      const shiftToDelete = shifts.find(s => s.id === shiftId);
+      if (!shiftToDelete) throw new Error('Shift not found');
+
       await shiftsTable.delete(shiftId, recurrenceAction);
+      
+      // Send notification to the affected user
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        await NotificationService.sendShiftDeletedNotification(
+          [shiftToDelete.user_id],
+          format(new Date(shiftToDelete.start_time), 'yyyy-MM-dd'),
+          format(new Date(shiftToDelete.start_time), 'HH:mm')
+        );
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending shift deletion notification:', notificationError);
+      }
       
       toast({
         title: "Success",

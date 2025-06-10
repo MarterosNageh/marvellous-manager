@@ -65,9 +65,10 @@ const ShiftsView = () => {
   const handleCreateShift = async (data: Omit<Shift, 'id'>) => {
     try {
       await createShift(data);
-      setShowShiftDialog(false);
     } catch (error) {
       console.error('Error creating shift:', error);
+    } finally {
+      setShowShiftDialog(false);
     }
   };
 

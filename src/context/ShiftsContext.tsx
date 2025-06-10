@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { shiftRequestsTable } from '@/integrations/supabase/tables/schedule';
 import { ShiftRequest } from '@/types/shiftTypes';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ShiftsContextType {
   shiftRequests: ShiftRequest[];
@@ -60,33 +61,19 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Map frontend request types to database values
   const mapRequestTypeToDb = (type: ShiftRequest['request_type']): string => {
-    switch (type) {
-      case 'time_off':
-        return 'leave';
-      case 'extra_work':
-        return 'extra';
-      case 'shift_change':
-        return 'swap';
-      case 'custom_shift':
-        return 'custom';
-      default:
-        return 'leave';
-    }
+    return type; // No mapping needed since they are the same
   };
 
   // Map database request types to frontend values
   const mapRequestType = (type: string): ShiftRequest['request_type'] => {
     switch (type) {
-      case 'leave':
-        return 'time_off';
-      case 'extra':
-        return 'extra_work';
-      case 'swap':
-        return 'shift_change';
-      case 'custom':
-        return 'custom_shift';
+      case 'day-off':
+      case 'unpaid-leave':
+      case 'extra-days':
+      case 'public-holiday':
+        return type;
       default:
-        return 'time_off';
+        return 'day-off';
     }
   };
 
@@ -124,6 +111,27 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       const newRequest = await shiftRequestsTable.create(dbRequest);
       console.log('Request created successfully:', newRequest);
+
+      // Send notification to admin users
+      try {
+        const { data: adminUsers } = await supabase
+          .from('auth_users')
+          .select('id')
+          .eq('role', 'admin')
+          .or('is_admin.eq.true');
+
+        if (adminUsers && adminUsers.length > 0) {
+          const { NotificationService } = await import('@/services/notificationService');
+          await NotificationService.sendRequestSubmittedNotification(
+            adminUsers.map(u => u.id),
+            request.request_type,
+            request.start_date,
+            currentUser.username || currentUser.id
+          );
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending request submission notification:', notificationError);
+      }
       
       await refreshRequests();
       toast({
@@ -160,8 +168,25 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       console.log('Updating request:', id, dbRequest);
       
-      const { data, error } = await shiftRequestsTable.update(id, dbRequest);
-      if (error) throw error;
+      const updatedRequest = await shiftRequestsTable.update(id, dbRequest);
+
+      // Send notification if request is approved
+      if (request.status === 'approved') {
+        try {
+          // Get the original request to get the user_id
+          const originalRequest = shiftRequests.find(r => r.id === id);
+          if (originalRequest) {
+            const { NotificationService } = await import('@/services/notificationService');
+            await NotificationService.sendRequestApprovedNotification(
+              [originalRequest.user_id],
+              originalRequest.request_type,
+              originalRequest.start_date
+            );
+          }
+        } catch (notificationError) {
+          console.warn('⚠️ Error sending request approval notification:', notificationError);
+        }
+      }
       
       await refreshRequests();
       toast({

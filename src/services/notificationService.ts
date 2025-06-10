@@ -266,6 +266,146 @@ export class NotificationService {
       };
     }
   }
+
+  static async sendShiftCreatedNotification(
+    userIds: string[],
+    shiftDate: string,
+    shiftTime: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `New Shift Assigned (${shiftDate})`,
+      body: `You have been assigned a new shift at ${shiftTime}`,
+      data: {
+        type: 'shift_created',
+        shiftDate,
+        shiftTime,
+        url: '/schedule',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendShiftModifiedNotification(
+    userIds: string[],
+    shiftDate: string,
+    shiftTime: string,
+    changes: string[]
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatChanges = (changes: string[]) => {
+      return changes.map(change => change.charAt(0).toUpperCase() + change.slice(1));
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `Shift Updated (${shiftDate})`,
+      body: `Changes made to your shift at ${shiftTime}: ${formatChanges(changes).join(', ')}`,
+      data: {
+        type: 'shift_modified',
+        shiftDate,
+        shiftTime,
+        changes,
+        url: '/schedule',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendShiftDeletedNotification(
+    userIds: string[],
+    shiftDate: string,
+    shiftTime: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `Shift Deleted (${shiftDate})`,
+      body: `Your shift at ${shiftTime} has been deleted`,
+      data: {
+        type: 'shift_deleted',
+        shiftDate,
+        shiftTime,
+        url: '/schedule',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendRequestApprovedNotification(
+    userIds: string[],
+    requestType: string,
+    requestDate: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatRequestType = (type: string) => {
+      return type.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `Request Approved (${formatRequestType(requestType)})`,
+      body: `Your request for ${formatRequestType(requestType)} on ${requestDate} has been approved`,
+      data: {
+        type: 'request_approved',
+        requestType,
+        requestDate,
+        url: '/schedule',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendRequestRejectedNotification(
+    userIds: string[],
+    requestType: string,
+    requestDate: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatRequestType = (type: string) => {
+      return type.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `Request Rejected (${formatRequestType(requestType)})`,
+      body: `Your request for ${formatRequestType(requestType)} on ${requestDate} has been rejected`,
+      data: {
+        type: 'request_rejected',
+        requestType,
+        requestDate,
+        url: '/schedule',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendRequestSubmittedNotification(
+    userIds: string[],
+    requestType: string,
+    requestDate: string,
+    submittedBy: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatRequestType = (type: string) => {
+      return type.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `New Request Submitted`,
+      body: `${submittedBy} has submitted a request for ${formatRequestType(requestType)} on ${requestDate}`,
+      data: {
+        type: 'request_submitted',
+        requestType,
+        requestDate,
+        submittedBy,
+        url: '/requests',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
 }
 
 // Make this function accessible from the console for testing

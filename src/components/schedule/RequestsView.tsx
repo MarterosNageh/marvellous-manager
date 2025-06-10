@@ -379,7 +379,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const handleStatusChange = async (request: LeaveRequest | SwapRequest, newStatus: RequestStatus) => {
+  const handleStatusChange = async (request: DisplayRequest['originalRequest'], newStatus: RequestStatus) => {
     try {
       const updateData = {
         status: newStatus,
@@ -391,8 +391,28 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         .update(updateData)
         .eq('id', request.id);
 
+      // Send notification based on status
+      try {
+        const { NotificationService } = await import('@/services/notificationService');
+        if (newStatus === 'approved') {
+          await NotificationService.sendRequestApprovedNotification(
+            [request.user_id],
+            'type' in request ? (request.type === 'leave' ? request.leave_type : 'swap') : 'day-off',
+            format(new Date('start_date' in request ? request.start_date : request.created_at), 'PPP')
+          );
+        } else if (newStatus === 'rejected') {
+          await NotificationService.sendRequestRejectedNotification(
+            [request.user_id],
+            'type' in request ? (request.type === 'leave' ? request.leave_type : 'swap') : 'day-off',
+            format(new Date('start_date' in request ? request.start_date : request.created_at), 'PPP')
+          );
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending request status notification:', notificationError);
+      }
+
       if (newStatus === 'approved') {
-        if (request.type === 'leave') {
+        if ('type' in request && request.type === 'leave') {
           const shiftData = {
             user_id: request.user_id,
             shift_type: request.leave_type === 'public-holiday' ? 'public-holiday' : 'day-off',
@@ -409,7 +429,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
           };
 
           await supabase.from('shifts').insert([shiftData]);
-        } else {
+        } else if ('requested_user_id' in request) {
           await supabase
             .from('shifts')
             .update({
@@ -625,10 +645,10 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
             <Badge
               variant={
                 request.status === 'approved'
-                  ? 'success'
+                  ? 'default'
                   : request.status === 'rejected'
                   ? 'destructive'
-                  : 'default'
+                  : 'secondary'
               }
             >
               {request.status}
