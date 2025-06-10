@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { LeaveType } from '@/types/schedule';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -54,3 +55,39 @@ export function getStatusColor(status: string): string {
       return 'bg-gray-100 text-gray-800 border-gray-300';
   }
 }
+
+// Helper function to get shift color based on leave type
+export const getShiftColorByLeaveType = (leaveType: LeaveType): string => {
+  switch (leaveType) {
+    case 'day-off':
+      return '#FF9800'; // Orange
+    case 'unpaid-leave':
+      return '#F44336'; // Red
+    case 'public-holiday':
+      return '#2196F3'; // Blue
+    case 'extra-day':
+      return '#9C27B0'; // Purple
+    case 'paid':
+      return '#4CAF50'; // Green
+    default:
+      return '#757575'; // Grey
+  }
+};
+
+// Helper function to get shift title based on leave type
+export const getShiftTitleByLeaveType = (leaveType: LeaveType): string => {
+  switch (leaveType) {
+    case 'day-off':
+      return 'Day Off';
+    case 'unpaid-leave':
+      return 'Unpaid Leave';
+    case 'public-holiday':
+      return 'Public Holiday';
+    case 'extra-day':
+      return 'Extra Day';
+    case 'paid':
+      return 'Paid Leave';
+    default:
+      return 'Time Off';
+  }
+};

@@ -3,10 +3,11 @@ import { RecurrenceAction, User } from './index';
 
 export type ViewType = 'daily' | 'weekly' | 'monthly';
 export type ShiftType = 'morning' | 'night' | 'on-call' | 'day-off' | 'public-holiday';
-export type LeaveType = 'paid' | 'unpaid' | 'day-off' | 'extra' | 'public-holiday';
-export type RequestStatus = 'pending' | 'pending_user' | 'pending_admin' | 'approved' | 'rejected';
+export type LeaveType = 'day-off' | 'unpaid-leave' | 'extra-day' | 'public-holiday' | 'paid';
+export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type UserRole = 'admin' | 'senior' | 'operator';
 export type RequestType = 'leave' | 'swap';
+export type ShiftStatus = 'active' | 'inactive' | 'pending_swap';
 
 export interface ScheduleUser {
   id: string;
@@ -24,15 +25,16 @@ export interface Shift {
   shift_type: string;
   start_time: string;
   end_time: string;
-  title?: string;
-  description?: string;
-  notes?: string;
-  status?: 'active' | 'inactive';
-  created_by?: string;
-  repeat_days?: number[];
+  title: string;
+  description: string;
+  notes: string;
+  status: ShiftStatus;
+  created_by: string;
+  color: string;
+  repeat_days: string[];
+  is_all_day?: boolean;
   created_at?: string;
   updated_at?: string;
-  color?: string;
 }
 
 export interface ShiftTemplate {
@@ -52,28 +54,53 @@ export interface BaseRequest {
   status: RequestStatus;
   created_at: string;
   updated_at: string;
-  notes?: string;
   reviewer_id?: string;
-  review_notes?: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface LeaveRequest extends BaseRequest {
   type: 'leave';
   leave_type: LeaveType;
-  start_date: string;
-  end_date: string;
   reason: string;
+  notes?: string;
+  review_notes?: string;
 }
 
 export interface SwapRequest extends BaseRequest {
   type: 'swap';
-  shift_id: string;
-  proposed_shift_id?: string;
+  notes: string;
   requester_id: string;
   requested_user_id: string;
+  shift_id: string;
+  proposed_shift_id?: string;
 }
 
+export interface SwapRequestDB extends Omit<SwapRequest, 'start_date' | 'end_date'> {
+  shift?: {
+    start_time: string;
+    end_time: string;
+  };
+  start_date?: string;
+  end_date?: string;
+}
+
+export type DBRequest = LeaveRequest | SwapRequestDB;
 export type AnyRequest = LeaveRequest | SwapRequest;
+
+export interface DisplayRequest {
+  id: string;
+  user_id: string;
+  type: 'leave' | 'swap';
+  status: RequestStatus;
+  created_at: string;
+  updated_at: string;
+  displayStartDate: string;
+  displayEndDate: string;
+  displayReason: string;
+  leave_type?: LeaveType;
+  originalRequest: LeaveRequest | SwapRequest;
+}
 
 // Props Types
 export interface ShiftViewProps {
@@ -146,6 +173,18 @@ export interface ShiftRequestDB {
   updated_at: string;
 }
 
+export interface ShiftRequest {
+  id: string;
+  user_id: string;
+  request_type: 'day-off' | 'unpaid-leave' | 'extra-days' | 'public-holiday';
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: RequestStatus;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Database Table Interfaces
 export interface LeaveRequestTable {
   getAll(): Promise<LeaveRequest[]>;
@@ -164,3 +203,13 @@ export interface ShiftSwapRequestTable {
   updateStatus(id: string, status: RequestStatus): Promise<SwapRequest>;
   delete(id: string): Promise<void>;
 } 
+
+// Helper type for converting DB requests to display requests
+export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<DisplayRequest, 'originalRequest'> & {
+  originalRequest: T;
+};
+
+// Helper type for converting SwapRequestDB to SwapRequest
+export type SwapRequestDBToRequest = Omit<SwapRequest, 'type'> & {
+  type: 'swap';
+}; 

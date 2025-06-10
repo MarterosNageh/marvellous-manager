@@ -626,6 +626,26 @@ export const leaveRequestsTable = {
 
     if (error) throw error;
   },
+
+  count: async (filters?: { status?: RequestStatus }): Promise<number> => {
+    let query = supabase
+      .from('shift_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('request_type', 'leave');
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      console.error('Error counting leave requests:', error);
+      return 0;
+    }
+
+    return count || 0;
+  },
 };
 
 // Swap Requests table operations
@@ -788,6 +808,26 @@ export const swapRequestsTable = {
     
     if (error) throw error;
   },
+
+  count: async (filters?: { status?: RequestStatus }): Promise<number> => {
+    let query = supabase
+      .from('shift_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('request_type', 'swap');
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      console.error('Error counting swap requests:', error);
+      return 0;
+    }
+
+    return count || 0;
+  },
 };
 
 // Users table operations for schedule
@@ -808,6 +848,41 @@ export const usersTable = {
       .select('*')
       .eq('id', id)
       .single();
+    
+    if (error) throw error;
+    return data;
+  }
+};
+
+export const userBalancesTable = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('user_balances')
+      .select('*');
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async getByUserId(userId: string) {
+    const { data, error } = await supabase
+      .from('user_balances')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  async upsert(userId: string, balance: number) {
+    const { data, error } = await supabase
+      .from('user_balances')
+      .upsert({
+        user_id: userId,
+        balance,
+        updated_at: new Date().toISOString()
+      });
     
     if (error) throw error;
     return data;

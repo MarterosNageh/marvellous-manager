@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useSchedule } from '@/context/ScheduleContext';
+import { useShifts } from '@/context/ShiftsContext';
 import {
   Card,
   CardContent,
@@ -28,10 +29,23 @@ import {
 } from '@/components/ui';
 import { format } from 'date-fns';
 import { Plus, Clock, User, Edit, Eye, Users, Trash2, AlertCircle } from 'lucide-react';
-import { LeaveRequest, SwapRequest, RequestStatus, ScheduleUser, Shift, LeaveType, AnyRequest } from '@/types/schedule';
+import {
+  LeaveRequest,
+  SwapRequest,
+  SwapRequestDB,
+  RequestStatus,
+  ScheduleUser,
+  Shift,
+  LeaveType,
+  AnyRequest,
+  DisplayRequest,
+  RequestToDisplay,
+  SwapRequestDBToRequest,
+} from '@/types/schedule';
 import { leaveRequestsTable, swapRequestsTable, shiftsTable } from '@/integrations/supabase/tables/schedule';
 import { ShiftRequestDialog } from '@/components/shifts/ShiftRequestDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { getShiftColorByLeaveType, getShiftTitleByLeaveType } from '@/lib/utils';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -88,6 +102,25 @@ interface DBRequest {
   updated_at: string;
 }
 
+interface AuthUser {
+  id: string;
+  username: string;
+  is_admin: boolean;
+  balance: number;
+  role?: string;
+  title?: string;
+  team_name?: string;
+  department?: string;
+}
+
+interface BaseRequest {
+  id: string;
+  user_id: string;
+  status: RequestStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 const mapToLeaveRequest = (dbRequest: DBRequest): LeaveRequest => ({
   id: dbRequest.id,
   type: 'leave',
@@ -121,6 +154,7 @@ const mapToSwapRequest = (dbRequest: DBRequest): SwapRequest => ({
 const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const { createShiftRequest } = useShifts();
   const [loading, setLoading] = useState(true);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [swapRequests, setSwapRequests] = useState<SwapRequest[]>([]);
@@ -128,12 +162,12 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
   const [selectedStatus, setSelectedStatus] = useState<RequestStatus | 'all'>('all');
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
+  const [userBalances, setUserBalances] = useState<{ [key: string]: number }>({});
   const [userBalanceDialog, setUserBalanceDialog] = useState<UserBalanceDialog>({
     open: false,
     user: null,
     balance: 0
   });
-  const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   const [userDetailsDialog, setUserDetailsDialog] = useState<UserDetailsDialogState>({
     open: false,
     user: null,
@@ -149,10 +183,105 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     request: null,
     type: 'leave',
   });
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const isAdmin = currentUser?.role === 'admin';
 
+  // Constants for time calculations
+  const HOURS_PER_DAY = 8;
+
+  const convertHoursToDays = (hours: number) => {
+    return Math.round((hours / HOURS_PER_DAY) * 10) / 10; // Round to 1 decimal place
+  };
+
+  const convertDaysToHours = (days: number) => {
+    return days * HOURS_PER_DAY;
+  };
+
+  const getApprovedDays = (userId: string) => {
+    const userLeaveRequests = leaveRequests.filter(req => 
+      req.user_id === userId && req.status === 'approved'
+    );
+    
+    return userLeaveRequests.reduce((total, req) => {
+      const start = new Date(req.start_date);
+      const end = new Date(req.end_date);
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return total + days;
+    }, 0);
+  };
+
+  const getRemainingDays = (userId: string) => {
+    const approvedDays = getApprovedDays(userId);
+    const userBalanceDays = convertHoursToDays(userBalances[userId] || 80); // Convert default 80 hours to days
+    return Math.max(0, userBalanceDays - approvedDays);
+  };
+
+  // Fetch initial balances and set up real-time subscription
   useEffect(() => {
-    const fetchRequests = async () => {
+    // Initial fetch of balances
+    const fetchBalances = async () => {
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('id, balance')
+        .returns<Pick<AuthUser, 'id' | 'balance'>[]>();
+      
+      if (error) {
+        console.error('Error fetching balances:', error);
+        return;
+      }
+
+      const balances = data.reduce((acc, user) => ({
+        ...acc,
+        [user.id]: user.balance ?? 80
+      }), {} as { [key: string]: number });
+
+      setUserBalances(balances);
+    };
+
+    fetchBalances();
+
+    // Set up real-time subscription for balance updates
+    const balanceSubscription = supabase
+      .channel('balance_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'auth_users',
+          filter: 'balance=neq.null'
+        },
+        (payload: { new: Partial<AuthUser> }) => {
+          if (payload.new?.id && typeof payload.new.balance === 'number') {
+            setUserBalances(prev => ({
+              ...prev,
+              [payload.new.id!]: payload.new.balance!
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      balanceSubscription.unsubscribe();
+    };
+  }, []);
+
+  const handleUpdateBalance = async (userId: string, newBalance: number) => {
+    const { error } = await supabase
+      .from('auth_users')
+      .update({ balance: newBalance } as Partial<AuthUser>)
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating balance:', error);
+      return;
+    }
+
+    setUserBalanceDialog({ open: false, user: null, balance: 0 });
+  };
+
+  const refreshRequests = async () => {
       try {
         setLoading(true);
         const [leaveData, swapData] = await Promise.all([
@@ -176,13 +305,14 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
 
         setLeaveRequests(mappedLeaveRequests);
         setSwapRequests(mappedSwapRequests);
+      onRequestsUpdate?.(mappedLeaveRequests, mappedSwapRequests);
 
         // Calculate pending count
         const pendingCount = [
           ...mappedLeaveRequests,
           ...mappedSwapRequests
         ].filter(req => req.status === 'pending').length;
-        setPendingRequestsCount(pendingCount);
+      setPendingCount(pendingCount);
       } catch (error) {
         console.error('Error fetching requests:', error);
         toast({
@@ -195,132 +325,50 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
       }
     };
 
-    fetchRequests();
+  useEffect(() => {
+    refreshRequests();
 
-    // Set up realtime subscriptions
-    const channel = supabase
-      .channel('requests-changes')
+    // Set up real-time subscription for requests
+    const channel = supabase.channel('requests-changes')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'shift_requests',
-        filter: 'request_type=eq.leave'
       }, () => {
-        fetchRequests(); // Refresh data on any change
-      })
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'shift_requests',
-        filter: 'request_type=eq.swap'
-      }, () => {
-        fetchRequests(); // Refresh data on any change
+        refreshRequests();
+        updatePendingCount();
       })
       .subscribe();
 
+    // Initial pending count
+    updatePendingCount();
+
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
-  }, [toast]);
+  }, []);
 
-  const handleStatusChange = async (requestId: string, newStatus: RequestStatus, type: 'leave' | 'swap') => {
-    try {
-      if (type === 'leave') {
-        await leaveRequestsTable.updateStatus(requestId, newStatus);
-        setLeaveRequests(prev => prev.map(req => 
-          req.id === requestId ? {
-            ...req,
-            status: newStatus,
-            type: 'leave',
-          } : req
-        ));
-
-        // If approved, update the shifts view
-        if (newStatus === 'approved') {
-          const request = leaveRequests.find(req => req.id === requestId);
-          if (request) {
-            // Create a shift for the approved leave request
-            const shift: Omit<Shift, 'id'> = {
-              user_id: request.user_id,
-              shift_type: request.leave_type === 'public-holiday' ? 'public-holiday' : 'day-off',
-              start_time: request.start_date,
-              end_time: request.end_date,
-              title: request.leave_type === 'public-holiday' ? 'Public Holiday' : 'Day Off',
-              description: request.reason,
-              notes: request.notes || '',
-              status: 'active',
-              created_by: currentUser?.id || '',
-              repeat_days: [],
-            };
-            await shiftsTable.create(shift);
-          }
-        }
-      } else {
-        await swapRequestsTable.updateStatus(requestId, newStatus);
-        setSwapRequests(prev => prev.map(req => 
-          req.id === requestId ? {
-            ...req,
-            status: newStatus,
-            type: 'swap',
-          } : req
-        ));
-      }
-
-      // Update the pending requests count
-      onRequestsUpdate?.(leaveRequests, swapRequests);
-
-      toast({
-        title: "Status updated",
-        description: `Request has been ${newStatus}`,
-      });
-    } catch (error) {
-      console.error('Error updating status:', error);
-      toast({
-        title: "Error updating status",
-        description: "Please try again later",
-        variant: "destructive",
-      });
-    }
+  const updatePendingCount = async () => {
+    const [leaveCount, swapCount] = await Promise.all([
+      leaveRequestsTable.count({ status: 'pending' }),
+      swapRequestsTable.count({ status: 'pending' }),
+    ]);
+    setPendingCount(leaveCount + swapCount);
   };
 
-  const handleUpdateBalance = async (userId: string, newBalance: number) => {
+  const handleDeleteRequest = async (request: AnyRequest) => {
     try {
-      // Update user balance in database (assuming a user_balances table exists)
-      setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
-      
-      toast({
-        title: "Balance updated",
-        description: "User balance has been updated successfully",
-      });
-      
-      setUserBalanceDialog({ open: false, user: null, balance: 0 });
-    } catch (error) {
-      console.error('Error updating balance:', error);
-      toast({
-        title: "Error updating balance",
-        description: "Please try again later",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteRequest = async (request: AnyRequest, type: 'leave' | 'swap') => {
-    try {
-      if (type === 'leave') {
-        await leaveRequestsTable.delete(request.id);
-        setLeaveRequests(prev => prev.filter(r => r.id !== request.id));
-      } else {
-        await swapRequestsTable.delete(request.id);
-        setSwapRequests(prev => prev.filter(r => r.id !== request.id));
-      }
-
-      // Update the pending requests count
-      onRequestsUpdate?.(leaveRequests, swapRequests);
+      await supabase
+        .from('shift_requests')
+        .delete()
+        .eq('id', request.id);
 
       toast({
         title: "Request deleted",
         description: "The request has been deleted successfully",
       });
+
+      refreshRequests();
     } catch (error) {
       console.error('Error deleting request:', error);
       toast({
@@ -331,10 +379,73 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const HOURS_PER_DAY = 8; // Standard work day hours
+  const handleStatusChange = async (request: LeaveRequest | SwapRequest, newStatus: RequestStatus) => {
+    try {
+      const updateData = {
+        status: newStatus,
+        reviewer_id: currentUser?.id,
+      };
 
-  const convertHoursToDays = (hours: number) => {
-    return Math.round((hours / HOURS_PER_DAY) * 10) / 10; // Round to 1 decimal place
+      await supabase
+        .from('shift_requests')
+        .update(updateData)
+        .eq('id', request.id);
+
+      if (newStatus === 'approved') {
+        if (request.type === 'leave') {
+          const shiftData = {
+            user_id: request.user_id,
+            shift_type: request.leave_type === 'public-holiday' ? 'public-holiday' : 'day-off',
+            start_time: `${request.start_date}T00:00:00`,
+            end_time: `${request.end_date}T23:59:59`,
+            title: getShiftTitleByLeaveType(request.leave_type),
+            description: request.reason || '',
+            notes: '',
+            status: 'active',
+            created_by: currentUser?.id || '',
+            color: getShiftColorByLeaveType(request.leave_type),
+            repeat_days: [],
+            is_all_day: true,
+          };
+
+          await supabase.from('shifts').insert([shiftData]);
+        } else {
+          await supabase
+            .from('shifts')
+            .update({
+              user_id: request.requested_user_id,
+              color: '#4CAF50',
+              notes: `Swapped with ${users.find(u => u.id === request.user_id)?.username}`,
+            })
+            .eq('id', request.shift_id);
+
+          if (request.proposed_shift_id) {
+            await supabase
+              .from('shifts')
+              .update({
+                user_id: request.user_id,
+                color: '#4CAF50',
+                notes: `Swapped with ${users.find(u => u.id === request.requested_user_id)?.username}`,
+              })
+              .eq('id', request.proposed_shift_id);
+          }
+        }
+      }
+
+      toast({
+        title: `Request ${newStatus}`,
+        description: `The request has been ${newStatus}`,
+      });
+
+      refreshRequests();
+    } catch (error) {
+      console.error('Error updating request status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update request status',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleUserClick = async (user: ScheduleUser) => {
@@ -345,7 +456,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         swapRequestsTable.getAllForUser(user.id)
       ]);
 
-      const balance = await getRemainingBalance(user.id);
+      const balance = await getRemainingDays(user.id);
       
       setUserDetailsDialog({
         open: true,
@@ -365,24 +476,25 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const handleEditRequest = (request: LeaveRequest | SwapRequest) => {
-    if ('requester_id' in request) {
-      // Handle swap request editing
-      setEditingRequest({
-        id: request.id,
-        user_id: request.requester_id,
-        leave_type: 'day-off',
-        start_date: new Date().toISOString(),
-        end_date: new Date().toISOString(),
-        reason: request.notes || '',
-        status: request.status as RequestStatus,
-        created_at: request.created_at,
-        updated_at: request.updated_at,
-        type: 'leave'
-      });
+  const handleEditRequest = (request: DisplayRequest) => {
+    if (request.originalRequest.type === 'leave') {
+      setEditingRequest(request.originalRequest);
     } else {
-      // Handle leave request editing
-      setEditingRequest(request);
+      // Convert swap request to leave request format for editing
+      const swapRequest = request.originalRequest;
+      const leaveRequest: LeaveRequest = {
+        id: swapRequest.id,
+        user_id: swapRequest.user_id,
+        type: 'leave',
+        leave_type: 'day-off',
+        start_date: swapRequest.start_date,
+        end_date: swapRequest.end_date,
+        reason: swapRequest.notes,
+        status: swapRequest.status,
+        created_at: swapRequest.created_at,
+        updated_at: swapRequest.updated_at,
+      };
+      setEditingRequest(leaveRequest);
     }
   };
 
@@ -421,29 +533,55 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
   const filteredLeaveRequests = selectedStatus === 'all' ? leaveRequests : leaveRequests.filter(req => req.status === selectedStatus);
   const filteredSwapRequests = selectedStatus === 'all' ? swapRequests : swapRequests.filter(req => req.status === selectedStatus);
 
-  const getApprovedHours = (userId: string) => {
-    const userLeaveRequests = leaveRequests.filter(req => 
-      req.user_id === userId && req.status === 'approved'
-    );
-    
-    return userLeaveRequests.reduce((total, req) => {
-      const start = new Date(req.start_date);
-      const end = new Date(req.end_date);
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      return total + (days * 8); // Assuming 8 hours per day
-    }, 0);
-  };
+  // Transform requests for display
+  const allRequests = [
+    ...leaveRequests.map((req: LeaveRequest) => ({
+      id: req.id,
+      user_id: req.user_id,
+      type: 'leave' as const,
+      status: req.status,
+      created_at: req.created_at,
+      updated_at: req.updated_at,
+      displayStartDate: req.start_date,
+      displayEndDate: req.end_date,
+      displayReason: req.reason,
+      leave_type: req.leave_type,
+      originalRequest: req,
+    })),
+    ...swapRequests.map((req: SwapRequestDB) => {
+      const start_date = req.shift?.start_time || req.start_date || '';
+      const end_date = req.shift?.end_time || req.end_date || '';
+      const swapRequest: SwapRequest = {
+        id: req.id,
+        user_id: req.user_id,
+        type: 'swap',
+        status: req.status,
+        start_date,
+        end_date,
+        notes: req.notes || '',
+        requester_id: req.requester_id,
+        requested_user_id: req.requested_user_id,
+        shift_id: req.shift_id,
+        proposed_shift_id: req.proposed_shift_id,
+        created_at: req.created_at,
+        updated_at: req.updated_at,
+        reviewer_id: req.reviewer_id,
+      };
 
-  const getRemainingBalance = (userId: string) => {
-    const approvedHours = getApprovedHours(userId);
-    const userBalance = userBalances[userId] || 80; // Default 80 hours
-    return Math.max(0, userBalance - approvedHours);
-  };
-
-  // Render all requests in one view
-  const allRequests = [...leaveRequests, ...swapRequests].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+      return {
+        id: req.id,
+        user_id: req.user_id,
+        type: 'swap' as const,
+        status: req.status,
+        created_at: req.created_at,
+        updated_at: req.updated_at,
+        displayStartDate: start_date,
+        displayEndDate: end_date,
+        displayReason: req.notes || '',
+        originalRequest: swapRequest,
+      };
+    })
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   if (loading) {
     return (
@@ -453,7 +591,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     );
   }
 
-  const renderRequest = (request: AnyRequest) => {
+  const renderRequest = (request: DisplayRequest) => {
     const user = users.find(u => u.id === request.user_id);
     const isLeaveRequest = request.type === 'leave';
 
@@ -472,69 +610,61 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
           </div>
           <div className="flex items-center gap-2">
             {currentUser?.role === 'admin' && (
-              <>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleEditRequest(request)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    setDeleteConfirmDialog({
-                      open: true,
-                      request,
-                      type: isLeaveRequest ? 'leave' : 'swap',
-                    })
-                  }
+                onClick={() => handleDeleteRequest(request.originalRequest)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </>
             )}
-            <Badge className={statusColors[request.status]}>
-              {request.status}
-            </Badge>
           </div>
         </div>
-        <div className="text-sm space-y-1">
-          {isLeaveRequest ? (
-            <>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                request.status === 'approved'
+                  ? 'success'
+                  : request.status === 'rejected'
+                  ? 'destructive'
+                  : 'default'
+              }
+            >
+              {request.status}
+            </Badge>
+            {request.type === 'leave' && (
+              <Badge variant="outline">{request.leave_type}</Badge>
+            )}
+          </div>
+          <div className="text-sm text-muted-foreground">
               <p>
                 <span className="font-medium">Period:</span>{' '}
-                {format(new Date(request.start_date), 'PPP')} -{' '}
-                {format(new Date(request.end_date), 'PPP')}
-              </p>
-              <p>
-                <span className="font-medium">Type:</span>{' '}
-                {request.leave_type}
+              {format(new Date(request.displayStartDate), 'PPP')} -{' '}
+              {format(new Date(request.displayEndDate), 'PPP')}
               </p>
               <p>
                 <span className="font-medium">Reason:</span>{' '}
-                {request.reason}
+              {request.displayReason}
               </p>
-            </>
-          ) : (
-            <>
-              <p>
-                <span className="font-medium">Shift ID:</span>{' '}
-                {request.shift_id}
-              </p>
-              {request.proposed_shift_id && (
-                <p>
-                  <span className="font-medium">Proposed Shift:</span>{' '}
-                  {request.proposed_shift_id}
-                </p>
-              )}
-            </>
-          )}
-          {request.notes && (
-            <p>
-              <span className="font-medium">Notes:</span> {request.notes}
-            </p>
+          </div>
+          {request.status === 'pending' && currentUser?.role === 'admin' && (
+            <div className="flex items-center gap-2 mt-4">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => handleStatusChange(request.originalRequest, 'approved')}
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleStatusChange(request.originalRequest, 'rejected')}
+              >
+                Reject
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -549,92 +679,267 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
       };
 
   return (
-    <Card>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">Requests</h2>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Left Column - Approved Time Off */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Approved Time Off
+          </h3>
           {currentUser?.role === 'admin' && (
-            <Button onClick={() => {}}>
+            <Button onClick={() => setUserBalanceDialog({ open: true, user: null, balance: 0 })}>
               <Plus className="h-4 w-4 mr-1" />
-              New Request
+              Add Balance
             </Button>
           )}
         </div>
 
-        <Tabs defaultValue="leave">
-          <TabsList>
-            <TabsTrigger value="leave">Leave Requests</TabsTrigger>
-            <TabsTrigger value="swap">Swap Requests</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="leave" className="mt-4">
-            {userRequests.leaveRequests.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">No leave requests found</p>
-            ) : (
+        <Card>
+          <CardContent className="p-4">
               <div className="space-y-4">
-                {userRequests.leaveRequests.map(request => (
-                  <Card key={request.id} className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{request.leave_type} Leave</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
-                        </p>
-                        {request.notes && (
-                          <p className="text-sm mt-2">{request.notes}</p>
-                        )}
+              <div className="flex items-center justify-between text-sm text-gray-500 border-b pb-2">
+                <span>User name</span>
+                <span>Approved</span>
+                <span>Remaining</span>
                       </div>
-                      <div className="text-right">
-                        <span className={`inline-block px-2 py-1 rounded text-xs ${
-                          request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          request.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {request.status}
-                        </span>
+              
+              {users.map(user => {
+                const approvedDays = getApprovedDays(user.id);
+                const remainingDays = getRemainingDays(user.id);
+                return (
+                  <div 
+                    key={user.id} 
+                    className="flex items-center justify-between py-2 cursor-pointer hover:bg-gray-50 rounded px-2"
+                    onClick={() => isAdmin && setUserBalanceDialog({
+                      open: true,
+                      user,
+                      balance: userBalances[user.id] || 80
+                    })}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
+                        {user.username.substring(0, 2).toUpperCase()}
                       </div>
+                      <span className="font-medium">{user.username}</span>
                     </div>
+                    <span className="text-sm">{approvedDays} days</span>
+                    <span className="text-sm text-gray-500">{remainingDays} days</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
                   </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="swap" className="mt-4">
-            {userRequests.swapRequests.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">No swap requests found</p>
-            ) : (
-              <div className="space-y-4">
-                {userRequests.swapRequests.map(request => (
-                  <Card key={request.id} className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">Shift Swap Request</p>
-                        <p className="text-sm text-muted-foreground">
-                          With: {request.requested_user_id}
-                        </p>
-                        {request.notes && (
-                          <p className="text-sm mt-2">{request.notes}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <span className={`inline-block px-2 py-1 rounded text-xs ${
-                          request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          request.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {request.status}
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
       </div>
-    </Card>
+
+      {/* Right Column - All Requests */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Requests</h2>
+            {pendingCount > 0 && (
+              <Badge variant="secondary" className="bg-primary/10">
+                {pendingCount} pending
+              </Badge>
+            )}
+              </div>
+          <div className="flex gap-2">
+            {currentUser?.role === 'admin' && (
+              <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as RequestStatus | 'all')}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={() => setShowRequestDialog(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Request
+            </Button>
+          </div>
+        </div>
+
+        {/* Combined Requests View */}
+        <div className="space-y-4">
+          {allRequests.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No requests found</p>
+            ) : (
+            allRequests.map(request => (
+                  <Card key={request.id} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      {request.type === 'leave' ? (
+                        <Clock className="h-4 w-4" />
+                      ) : (
+                        <Users className="h-4 w-4" />
+                      )}
+                      <p className="font-medium">
+                        {users.find(u => u.id === request.user_id)?.username}
+                      </p>
+                    </div>
+                        <p className="text-sm text-muted-foreground">
+                      {format(new Date(request.displayStartDate), 'PPP')} - {format(new Date(request.displayEndDate), 'PPP')}
+                    </p>
+                    {request.type === 'leave' && request.leave_type && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Type:</span> {request.leave_type}
+                        </p>
+                    )}
+                    {request.displayReason && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Reason:</span> {request.displayReason}
+                      </p>
+                        )}
+                      </div>
+                  <div className="flex items-center gap-2">
+                    {currentUser?.role === 'admin' && request.status === 'pending' && (
+                      <div className="flex items-center gap-2 mr-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => handleStatusChange(request.originalRequest, 'approved')}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleStatusChange(request.originalRequest, 'rejected')}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                    {currentUser?.role === 'admin' && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditRequest(request)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            setDeleteConfirmDialog({
+                              open: true,
+                              request: request.originalRequest,
+                              type: request.type,
+                            })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                    <Badge className={statusColors[request.status]}>
+                          {request.status}
+                    </Badge>
+                      </div>
+                    </div>
+                  </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <Dialog open={userBalanceDialog.open} onOpenChange={(open) => !open && setUserBalanceDialog({ open: false, user: null, balance: 0 })}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Manage Time Off Balance</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Select User</Label>
+              <Select
+                value={userBalanceDialog.user?.id || ''}
+                onValueChange={(userId) => {
+                  const user = users.find(u => u.id === userId);
+                  if (user) {
+                    const balance = userBalances[userId] || 80;
+                    setUserBalanceDialog(prev => ({
+                      ...prev,
+                      user,
+                      balance
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {userBalanceDialog.user && (
+              <div className="grid gap-2">
+                <Label>Days Balance</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={convertHoursToDays(userBalanceDialog.balance)}
+                    onChange={(e) => setUserBalanceDialog(prev => ({
+                      ...prev,
+                      balance: convertDaysToHours(parseFloat(e.target.value) || 0)
+                    }))}
+                    min="0"
+                    step="0.5"
+                  />
+                  <span className="text-sm text-muted-foreground">days</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setUserBalanceDialog({ open: false, user: null, balance: 0 })}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (userBalanceDialog.user) {
+                  handleUpdateBalance(userBalanceDialog.user.id, userBalanceDialog.balance);
+                }
+              }}
+              disabled={!userBalanceDialog.user}
+            >
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {showRequestDialog && currentUser && (
+        <ShiftRequestDialog
+          open={showRequestDialog}
+          onOpenChange={setShowRequestDialog}
+          currentUser={currentUser}
+          users={users}
+          onRequestsUpdate={refreshRequests}
+        />
+      )}
+      </div>
   );
 };
 
