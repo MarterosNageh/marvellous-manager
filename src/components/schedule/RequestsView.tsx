@@ -47,6 +47,7 @@ import { leaveRequestsTable, swapRequestsTable, shiftsTable } from '@/integratio
 import { ShiftRequestDialog } from '@/components/shifts/ShiftRequestDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { getShiftColorByLeaveType, getShiftTitleByLeaveType } from '@/lib/utils';
+import { UserInfoDialog } from './UserInfoDialog';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -190,7 +191,7 @@ const mapRequestToDisplay = (request: AnyRequest): ExtendedDisplayRequest => ({
   originalRequest: request
 });
 
-const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
+const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { createShiftRequest } = useShifts();
@@ -223,6 +224,8 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     type: 'leave',
   });
   const [pendingCount, setPendingCount] = useState(0);
+  const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
+  const [userInfoDialogOpen, setUserInfoDialogOpen] = useState(false);
   const isAdmin = currentUser?.role === 'admin';
 
   // Constants for time calculations
@@ -430,31 +433,29 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     setPendingCount(leaveCount + swapCount);
   };
 
-  const handleDeleteRequest = async (request: AnyRequest) => {
+  const handleDeleteRequest = async (requestId: string) => {
     try {
-      console.log('Deleting request:', request);
-      const { error } = await supabase
-        .from('shift_requests')
-        .delete()
-        .eq('id', request.id);
+      const request = allRequests.find(r => r.id === requestId);
+      if (!request) return;
 
-      if (error) {
-        console.error('Error deleting request:', error);
-        throw error;
+      if (request.type === 'leave') {
+        await leaveRequestsTable.delete(requestId);
+      } else {
+        await swapRequestsTable.delete(requestId);
       }
 
       toast({
-        title: "Request deleted",
-        description: "The request has been deleted successfully",
+        title: "Success",
+        description: "Request deleted successfully",
       });
 
-      setDeleteConfirmDialog({ open: false, request: null, type: 'leave' });
-      refreshRequests();
+      await loadData();
+      onRequestsUpdate?.(leaveRequests, swapRequests);
     } catch (error) {
       console.error('Error deleting request:', error);
       toast({
-        title: "Error deleting request",
-        description: "Please try again later",
+        title: "Error",
+        description: "Failed to delete request",
         variant: "destructive",
       });
     }
@@ -529,32 +530,9 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     }
   };
 
-  const handleUserClick = async (user: ScheduleUser) => {
-    try {
-      // Get all requests for this user
-      const [leaveData, swapData] = await Promise.all([
-        leaveRequestsTable.getAllForUser(user.id),
-        swapRequestsTable.getAllForUser(user.id)
-      ]);
-
-      const balance = await getRemainingDays(user.id);
-      
-      setUserDetailsDialog({
-        open: true,
-        user,
-        requests: [...leaveData, ...swapData].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        ),
-        balance
-      });
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load user details",
-        variant: "destructive",
-      });
-    }
+  const handleUserClick = (user: ScheduleUser) => {
+    setSelectedUser(user);
+    setUserInfoDialogOpen(true);
   };
 
   const handleEditRequest = (request: ExtendedDisplayRequest) => {
@@ -810,7 +788,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
       };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6">
       {/* Left Column - Approved Time Off */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -1155,6 +1133,23 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add user info dialog */}
+      <UserInfoDialog
+        open={userInfoDialogOpen}
+        onClose={() => setUserInfoDialogOpen(false)}
+        user={selectedUser}
+        currentUser={currentUser}
+      />
+      
+      {/* Shift Request Dialog */}
+      <ShiftRequestDialog
+        open={showRequestDialog}
+        onClose={() => setShowRequestDialog(false)}
+        currentUser={currentUser}
+        users={users}
+        onRequestsUpdate={onRequestsUpdate}
+      />
     </div>
   );
 };

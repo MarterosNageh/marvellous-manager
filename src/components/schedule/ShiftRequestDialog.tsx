@@ -1,3 +1,4 @@
+
 import { Calendar, Clock, User, Users } from 'lucide-react';
 import {
   Button,
@@ -20,6 +21,8 @@ import { LeaveRequest, LeaveType, ScheduleUser } from '../../types/schedule';
 import { useAuth } from '@/context/AuthContext';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { useShifts } from '@/context/ShiftsContext';
+import { toast } from '@/hooks/use-toast';
 
 interface ShiftRequestDialogProps {
   open: boolean;
@@ -30,9 +33,9 @@ interface ShiftRequestDialogProps {
 }
 
 const requestTypeOptions = [
-  { value: 'day-off', label: 'Day Off Request', icon: Calendar },
-  { value: 'unpaid-leave', label: 'Unpaid Leave', icon: Clock },
-  { value: 'extra-days', label: 'Extra Days', icon: User, adminOnly: true },
+  { value: 'day-off', label: 'Day Off Request', icon: Calendar, adminOnly: false },
+  { value: 'unpaid', label: 'Unpaid Leave', icon: Clock, adminOnly: false },
+  { value: 'extra', label: 'Extra Days', icon: User, adminOnly: true },
   { value: 'public-holiday', label: 'Public Holiday', icon: Users, adminOnly: true },
 ];
 
@@ -45,29 +48,80 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [formData, setFormData] = useState<Partial<LeaveRequest>>({
-    leave_type: 'paid',
+  const { createShiftRequest } = useShifts();
+  const [formData, setFormData] = useState({
+    leave_type: 'day-off' as LeaveType,
     start_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: format(new Date(), 'yyyy-MM-dd'),
     reason: '',
   });
 
-  useEffect(() => {
-    // If request prop is provided, populate the form data
-    if (request) {
-      setFormData({
-        ...request,
-        start_date: format(new Date(request.start_date), 'yyyy-MM-dd'),
-        end_date: format(new Date(request.end_date), 'yyyy-MM-dd'),
-      });
-    }
-  }, [request]);
+  const handleUserSelect = (userId: string) => {
+    setSelectedUsers(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission logic here
-    console.log('Form submitted with data:', formData);
-    onClose();
+    
+    try {
+      if (isAdmin && selectedUsers.length > 0) {
+        // Admin creating requests for multiple users
+        for (const userId of selectedUsers) {
+          const requestData = {
+            user_id: userId,
+            request_type: formData.leave_type,
+            start_date: formData.start_date,
+            end_date: formData.end_date,
+            reason: formData.reason,
+            status: 'approved' as const, // Auto-approve admin requests
+          };
+          
+          await createShiftRequest(requestData);
+        }
+        
+        toast({
+          title: "Success",
+          description: `Leave requests created for ${selectedUsers.length} users`,
+        });
+      } else {
+        // Regular user creating request for themselves
+        const requestData = {
+          user_id: currentUser.id,
+          request_type: formData.leave_type,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          reason: formData.reason,
+          status: 'pending' as const,
+        };
+        
+        await createShiftRequest(requestData);
+      }
+      
+      onRequestsUpdate?.();
+      onClose();
+      
+      // Reset form
+      setSelectedUsers([]);
+      setFormData({
+        leave_type: 'day-off',
+        start_date: format(new Date(), 'yyyy-MM-dd'),
+        end_date: format(new Date(), 'yyyy-MM-dd'),
+        reason: '',
+      });
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit request",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -127,15 +181,16 @@ export const ShiftRequestDialog: React.FC<ShiftRequestDialogProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="paid">Paid Leave</SelectItem>
-                <SelectItem value="unpaid">Unpaid Leave</SelectItem>
-                <SelectItem value="day-off">Day Off</SelectItem>
-                {isAdmin && (
-                  <>
-                    <SelectItem value="extra">Extra Days</SelectItem>
-                    <SelectItem value="public-holiday">Public Holiday</SelectItem>
-                  </>
-                )}
+                {requestTypeOptions
+                  .filter(option => !option.adminOnly || isAdmin)
+                  .map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center gap-2">
+                        <option.icon className="h-4 w-4" />
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
