@@ -285,20 +285,25 @@ export function ShiftRequestDialog({
                 {users.map(user => (
                   <div
                     key={user.id}
-                    className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-accent ${
+                    className={`flex items-center gap-2 p-2 rounded ${
                       selectedUsers.includes(user.id) ? 'bg-primary/10 border border-primary/20' : ''
                     }`}
-                    onClick={() => handleUserToggle(user.id)}
                   >
                     <Checkbox 
+                      id={`user-${user.id}`}
                       checked={selectedUsers.includes(user.id)}
-                      onChange={() => handleUserToggle(user.id)}
+                      onCheckedChange={() => handleUserToggle(user.id)}
                     />
-                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
-                      {user.username[0].toUpperCase()}
-                    </div>
-                    <span>{user.username}</span>
-                    <span className="text-xs text-muted-foreground">({user.role})</span>
+                    <label 
+                      htmlFor={`user-${user.id}`}
+                      className="flex items-center gap-2 flex-1 cursor-pointer"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+                        {user.username[0].toUpperCase()}
+                      </div>
+                      <span>{user.username}</span>
+                      <span className="text-xs text-muted-foreground">({user.role})</span>
+                    </label>
                   </div>
                 ))}
               </div>

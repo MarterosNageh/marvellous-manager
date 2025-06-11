@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, isSameDay, startOfWeek } from 'date-fns';
+import { format, addDays, isSameDay, startOfWeek, isWithinInterval } from 'date-fns';
 import { Plus, Settings, Calendar, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { WeeklyViewProps, Shift, ScheduleUser } from '@/types/schedule';
-import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
+import { Badge } from '@/components/ui/badge';
+import { WeeklyViewProps, Shift, ScheduleUser, LeaveRequest } from '@/types/schedule';
+import { shiftsTable, usersTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
 import { toast } from '@/hooks/use-toast';
 import { RecurrenceAction } from '@/types';
 import {
@@ -43,6 +44,41 @@ const getShiftColor = (shiftType: string, color?: string) => {
     'day-off': '#6B7280'
   };
   return defaultColors[shiftType as keyof typeof defaultColors] || '#3B82F6';
+};
+
+const LeaveBlock = ({ 
+  request,
+  user
+}: { 
+  request: LeaveRequest;
+  user?: ScheduleUser;
+}) => {
+  const leaveColor = '#6B7280'; // Gray color for leave requests
+  const requestType = request.leave_type === 'day-off' ? 'Day Off' : 
+                     request.leave_type === 'unpaid' ? 'Unpaid Leave' :
+                     request.leave_type === 'extra' ? 'Extra Days' :
+                     request.leave_type === 'public-holiday' ? 'Public Holiday' :
+                     'Leave';
+
+  return (
+    <div
+      className={cn(
+        "rounded-md p-2 text-xs h-full bg-gray-100 border-l-4",
+        "border-gray-500"
+      )}
+    >
+      <div className="font-semibold text-gray-800">{requestType}</div>
+      <div className="text-gray-600 truncate">{request.reason || 'No reason provided'}</div>
+      <div className="mt-1 flex items-center gap-2">
+        <Badge variant="secondary" className="capitalize">
+          {request.leave_type}
+        </Badge>
+        <span className="text-gray-500 text-[10px]">
+          {format(new Date(request.start_date), 'MMM d')} - {format(new Date(request.end_date), 'MMM d')}
+        </span>
+      </div>
+    </div>
+  );
 };
 
 const ShiftBlock = ({ 
@@ -187,6 +223,7 @@ const WeeklyView = ({
   const isAdmin = currentUser?.role === 'admin';
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState(startDate);
   const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number, targetDate: Date} | null>(null);
@@ -202,13 +239,13 @@ const WeeklyView = ({
       try {
         setIsLoading(true);
         
-        const [usersData, shiftsData] = await Promise.all([
+        const [usersData, shiftsData, leaveRequestsData] = await Promise.all([
           usersTable.getAll(),
-          shiftsTable.getAll()
+          shiftsTable.getAll(),
+          leaveRequestsTable.getAll()
         ]);
 
-        console.log('Loaded users:', usersData);
-        console.log('Loaded shifts:', shiftsData);
+        console.log('Loaded leave requests:', leaveRequestsData);
 
         setUsers(usersData.map(user => ({
           id: user.id,
@@ -219,6 +256,11 @@ const WeeklyView = ({
         })));
         
         setShifts(shiftsData);
+        
+        // Filter leave requests to only show approved ones
+        const approvedLeaveRequests = leaveRequestsData.filter(request => request.status === 'approved');
+        console.log('Approved leave requests:', approvedLeaveRequests);
+        setLeaveRequests(approvedLeaveRequests);
       } catch (error) {
         console.error('Error loading schedule data:', error);
         toast({
@@ -306,6 +348,29 @@ const WeeklyView = ({
     acc[user.id] = Math.round(totalHours * 10) / 10;
     return acc;
   }, {} as Record<string, number>);
+
+  // Helper function to check if a date has an approved leave request
+  const getLeaveRequestForDate = (userId: string, date: Date) => {
+    const request = leaveRequests.find(request => {
+      if (request.user_id !== userId || request.status !== 'approved') {
+        return false;
+      }
+
+      const requestStartDate = new Date(request.start_date);
+      const requestEndDate = new Date(request.end_date);
+      requestStartDate.setHours(0, 0, 0, 0);
+      requestEndDate.setHours(23, 59, 59, 999);
+      date.setHours(0, 0, 0, 0);
+
+      return date >= requestStartDate && date <= requestEndDate;
+    });
+    
+    if (request) {
+      console.log('Found leave request for user', userId, 'on date', format(date, 'yyyy-MM-dd'), ':', request);
+    }
+    
+    return request;
+  };
 
   const handleDragEnd = async (result: any) => {
     if (!result.destination) return;
@@ -452,6 +517,7 @@ const WeeklyView = ({
                           shift.user_id === user.id
                         );
 
+                        const leaveRequest = getLeaveRequestForDate(user.id, date);
                         const isHovered = hoveredCell?.userId === user.id && hoveredCell?.dateIndex === dateIndex;
 
                         return (
@@ -483,10 +549,16 @@ const WeeklyView = ({
                                     index={shiftIndex}
                                   />
                                 ))}
+                                {leaveRequest && (
+                                  <LeaveBlock
+                                    request={leaveRequest}
+                                    user={user}
+                                  />
+                                )}
                                 {provided.placeholder}
                                 
                                 {/* Quick add button on hover */}
-                                {isHovered && isAdmin && dayShifts.length === 0 && (
+                                {isHovered && isAdmin && dayShifts.length === 0 && !leaveRequest && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -501,7 +573,7 @@ const WeeklyView = ({
                                   </Button>
                                 )}
                                 
-                                {dayShifts.length === 0 && !isHovered && (
+                                {dayShifts.length === 0 && !leaveRequest && !isHovered && (
                                   <div className="flex-1 flex items-center justify-center">
                                     <span className="text-xs text-gray-400">-</span>
                                   </div>

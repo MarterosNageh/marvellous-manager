@@ -432,7 +432,7 @@ export const leaveRequestsTable = {
     const { data, error } = await supabase
       .from('shift_requests')
       .select('*')
-      .eq('request_type', 'leave')
+      .or('request_type.eq.leave,request_type.eq.day-off')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -457,7 +457,7 @@ export const leaveRequestsTable = {
       .from('shift_requests')
       .select('*')
       .eq('user_id', userId)
-      .eq('request_type', 'leave')
+      .or('request_type.eq.leave,request_type.eq.day-off')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

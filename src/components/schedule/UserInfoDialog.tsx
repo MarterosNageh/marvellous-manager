@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -10,11 +9,13 @@ import {
   Label,
   Badge,
 } from '@/components/ui';
-import { User, Calendar, Clock, Award } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { User, Calendar, Clock, Award, History } from 'lucide-react';
 import { ScheduleUser, LeaveRequest } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 import { userBalancesTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UserInfoDialogProps {
   open: boolean;
@@ -49,14 +50,58 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
     setIsLoading(true);
     try {
       // Load user balance
-      const balanceData = await userBalancesTable.getByUserId(user.id);
-      const userBalance = balanceData?.balance || user.balance || 80;
+      const { data: userData, error: userError } = await supabase
+        .from('auth_users')
+        .select('balance')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
+      
+      const userBalance = userData?.balance || 80;
       setBalance(userBalance);
       setOriginalBalance(userBalance);
 
       // Load request history
-      const requests = await leaveRequestsTable.getAllForUser(user.id);
-      setRequestHistory(requests);
+      const { data: requests, error: requestsError } = await supabase
+        .from('shift_requests')
+        .select(`
+          id,
+          user_id,
+          leave_type,
+          request_type,
+          start_date,
+          end_date,
+          reason,
+          status,
+          notes,
+          created_at,
+          updated_at,
+          reviewer_id,
+          reviewer:auth_users!shift_requests_reviewer_id_fkey(username)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (requestsError) throw requestsError;
+      
+      const mappedRequests: LeaveRequest[] = (requests || []).map(req => ({
+        id: req.id,
+        user_id: req.user_id,
+        leave_type: req.leave_type || '',
+        request_type: req.request_type || 'leave',
+        start_date: req.start_date,
+        end_date: req.end_date,
+        reason: req.reason || '',
+        status: req.status || 'pending',
+        notes: req.notes,
+        created_at: req.created_at,
+        updated_at: req.updated_at,
+        reviewer_id: req.reviewer_id,
+        reviewer: req.reviewer ? { username: req.reviewer.username } : undefined
+      }));
+      
+      setRequestHistory(mappedRequests);
     } catch (error) {
       console.error('Error loading user data:', error);
       toast({
@@ -74,7 +119,13 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
     
     setIsSaving(true);
     try {
-      await userBalancesTable.upsert(user.id, balance);
+      const { error } = await supabase
+        .from('auth_users')
+        .update({ balance })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
       setOriginalBalance(balance);
       toast({
         title: "Success",
@@ -87,17 +138,20 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
         description: "Failed to update balance",
         variant: "destructive",
       });
+      setBalance(originalBalance); // Reset to original value on error
     } finally {
       setIsSaving(false);
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'default';
-      case 'pending': return 'secondary';
-      case 'rejected': return 'destructive';
-      default: return 'secondary';
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-yellow-100 text-yellow-800';
     }
   };
 
@@ -105,7 +159,7 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -114,7 +168,7 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center h-[400px]">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         ) : (
@@ -145,7 +199,7 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Award className="h-4 w-4" />
-                <Label className="font-medium">Remaining Balance</Label>
+                <Label className="font-medium">Leave Balance</Label>
               </div>
               
               {isAdmin ? (
@@ -176,48 +230,44 @@ export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
             {/* Request History */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
+                <History className="h-4 w-4" />
                 <Label className="font-medium">Request History</Label>
               </div>
               
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {requestHistory.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    No requests found
-                  </p>
-                ) : (
-                  requestHistory.map((request) => (
-                    <div 
-                      key={request.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium capitalize">
-                            {request.leave_type.replace('-', ' ')}
-                          </span>
-                          <Badge variant={getStatusBadgeVariant(request.status)}>
+              <ScrollArea className="h-[200px] rounded-md border">
+                <div className="space-y-2 p-4">
+                  {requestHistory.length === 0 ? (
+                    <p className="text-sm text-gray-500">No request history available</p>
+                  ) : (
+                    requestHistory.map((request) => (
+                      <div
+                        key={request.id}
+                        className="flex flex-col gap-2 p-3 rounded-lg border bg-gray-50"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium">
+                              {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                            </span>
+                          </div>
+                          <Badge className={getStatusBadgeColor(request.status)}>
                             {request.status}
                           </Badge>
                         </div>
-                        <p className="text-xs text-gray-500">
-                          {format(new Date(request.start_date), 'MMM d, yyyy')} - {format(new Date(request.end_date), 'MMM d, yyyy')}
-                        </p>
-                        {request.reason && (
-                          <p className="text-xs text-gray-600 mt-1">{request.reason}</p>
-                        )}
+                        <p className="text-sm text-gray-600">{request.reason}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(request.created_at), 'MMM dd, yyyy HH:mm')}
+                          {request.reviewer && (
+                            <span>• Reviewed by {request.reviewer.username}</span>
+                          )}
+                        </div>
                       </div>
-                      <Clock className="h-4 w-4 text-gray-400" />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={onClose}>
-                Close
-              </Button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
           </div>
         )}
