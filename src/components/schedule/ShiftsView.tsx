@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
@@ -5,14 +6,16 @@ import { useSchedule } from '@/context/ScheduleContext';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import WeeklyView from './WeeklyView';
 import DailyView from './DailyView';
 import MonthlyView from './MonthlyView';
+import MobileScheduleView from './MobileScheduleView';
 import ShiftDialog from './ShiftDialog';
 import EditShiftDialog from './EditShiftDialog';
 import ShiftTemplateDialog from './ShiftTemplateDialog';
 import ManageTemplatesDialog from './ManageTemplatesDialog';
-import { Plus, ChevronLeft, ChevronRight, Settings, Calendar, User as LucideUser } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Settings, Calendar, Filter } from 'lucide-react';
 import { Shift, ShiftTemplate, ViewType } from '@/types/schedule';
 import { RecurrenceAction } from '@/types';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -30,6 +33,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
 const ShiftsView = () => {
   const { currentUser } = useAuth();
   const { shifts, templates, loading, createShift, updateShift, deleteShift, createTemplate, updateTemplate, deleteTemplate, refreshData } = useSchedule();
+  const isMobile = useIsMobile();
   const [viewType, setViewType] = useState<ViewType>('weekly');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showShiftDialog, setShowShiftDialog] = useState(false);
@@ -38,7 +42,7 @@ const ShiftsView = () => {
   const [showManageTemplatesDialog, setShowManageTemplatesDialog] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<ShiftTemplate | null>(null);
-  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [shiftTypeFilter, setShiftTypeFilter] = useState<string>("all");
 
   // Calculate week start from Sunday (weekStartsOn: 0)
   const startDate = startOfWeek(selectedDate, { weekStartsOn: 0 });
@@ -128,10 +132,18 @@ const ShiftsView = () => {
     );
   }
 
-  // Filter shifts based on role
-  const filteredShifts = roleFilter === 'all' 
+  // Get unique shift types for filter
+  const shiftTypes = [...new Set(shifts.map(shift => shift.shift_type))];
+
+  // Filter shifts based on shift type
+  const filteredShifts = shiftTypeFilter === 'all' 
     ? shifts 
-    : shifts.filter(shift => shift.user_id === currentUser?.id);
+    : shifts.filter(shift => shift.shift_type === shiftTypeFilter);
+
+  // Mobile view
+  if (isMobile) {
+    return <MobileScheduleView />;
+  }
 
   return (
     <Card>
@@ -148,20 +160,20 @@ const ShiftsView = () => {
             </SelectContent>
           </Select>
 
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <Select value={shiftTypeFilter} onValueChange={setShiftTypeFilter}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by role">
+              <SelectValue placeholder="Filter by shift type">
                 <div className="flex items-center gap-2">
-                  <LucideUser className="h-4 w-4" />
-                  {roleFilter === "all" ? "All Roles" : roleFilter}
+                  <Filter className="h-4 w-4" />
+                  {shiftTypeFilter === "all" ? "All Shifts" : shiftTypeFilter}
                 </div>
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="operator">Operators</SelectItem>
-              <SelectItem value="senior">Senior Staff</SelectItem>
-              <SelectItem value="admin">Admins</SelectItem>
+              <SelectItem value="all">All Shifts</SelectItem>
+              {shiftTypes.map(type => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -204,7 +216,7 @@ const ShiftsView = () => {
               onDeleteShift={handleDeleteShift}
               onDateChange={setSelectedDate}
               shifts={filteredShifts}
-              users={[]} // Will be added in future update
+              users={[]}
             />
           )}
           {viewType === 'weekly' && (
@@ -217,7 +229,7 @@ const ShiftsView = () => {
               onEditShift={handleOpenEditDialog}
               onDeleteShift={handleDeleteShift}
               onUpdateShift={handleUpdateShift}
-              users={[]} // Will be added in future update
+              users={[]}
               refreshData={refreshData}
             />
           )}
@@ -228,7 +240,7 @@ const ShiftsView = () => {
               onDeleteShift={handleDeleteShift}
               onDateChange={setSelectedDate}
               shifts={filteredShifts}
-              users={[]} // Will be added in future update
+              users={[]}
             />
           )}
         </ErrorBoundary>
@@ -280,4 +292,4 @@ const ShiftsView = () => {
   );
 };
 
-export default ShiftsView; 
+export default ShiftsView;

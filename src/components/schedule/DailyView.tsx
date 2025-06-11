@@ -1,166 +1,336 @@
-import { format, addDays, subDays } from 'date-fns';
-import { DailyViewProps, Shift } from '@/types/schedule';
+
+import React, { useState, useEffect } from 'react';
+import { format, addHours, startOfDay, endOfDay } from 'date-fns';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Edit2, Trash2, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/components/ui/use-toast';
-import { RecurrenceAction } from '@/types';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Plus, Clock, User, Calendar } from 'lucide-react';
+import { DailyViewProps, Shift, ScheduleUser } from '@/types/schedule';
+import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
+import { cn } from '@/lib/utils';
 
-export default function DailyView({
-  selectedDate,
-  onEditShift,
-  onDeleteShift,
+const getInitials = (name: string) => {
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase();
+};
+
+const getShiftColor = (shiftType: string, color?: string) => {
+  if (color) return color;
+  
+  const defaultColors = {
+    'morning': '#10B981',
+    'night': '#8B5CF6',
+    'over night': '#F59E0B',
+    'day-off': '#6B7280'
+  };
+  return defaultColors[shiftType as keyof typeof defaultColors] || '#3B82F6';
+};
+
+const DailyView = ({ 
+  selectedDate, 
+  onEditShift, 
+  onDeleteShift, 
   onDateChange,
-  users,
-  shifts: initialShifts,
-}: DailyViewProps) {
-  const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'admin';
-  const [shifts, setShifts] = useState(initialShifts);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-  const [recurrenceAction, setRecurrenceAction] = useState<RecurrenceAction>('this');
+  shifts: propShifts, 
+  users: propUsers 
+}: DailyViewProps) => {
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [users, setUsers] = useState<ScheduleUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Update local shifts when props change
   useEffect(() => {
-    setShifts(initialShifts);
-  }, [initialShifts]);
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        
+        const [usersData, shiftsData] = await Promise.all([
+          usersTable.getAll(),
+          shiftsTable.getAll()
+        ]);
 
-  const handleDeleteClick = (shift: Shift) => {
-    setSelectedShift(shift);
-    setShowDeleteConfirm(true);
+        setUsers(usersData.map(user => ({
+          id: user.id,
+          username: user.username,
+          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+          title: user.title || '',
+          balance: 0
+        })));
+        
+        // Filter shifts for selected date
+        const dayStart = startOfDay(selectedDate);
+        const dayEnd = endOfDay(selectedDate);
+        const dayShifts = shiftsData.filter(shift => {
+          const shiftStart = new Date(shift.start_time);
+          return shiftStart >= dayStart && shiftStart <= dayEnd;
+        });
+        
+        setShifts(dayShifts);
+      } catch (error) {
+        console.error('Error loading daily data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [selectedDate]);
+
+  // Generate time slots (24 hours)
+  const timeSlots = Array.from({ length: 24 }, (_, i) => {
+    const hour = addHours(startOfDay(selectedDate), i);
+    return {
+      time: hour,
+      label: format(hour, 'h:mm a'),
+      hour24: format(hour, 'HH:mm')
+    };
+  });
+
+  // Group shifts by user and time
+  const shiftsByUser = users.reduce((acc, user) => {
+    acc[user.id] = shifts.filter(shift => shift.user_id === user.id);
+    return acc;
+  }, {} as Record<string, Shift[]>);
+
+  const getShiftForTimeSlot = (userId: string, timeSlot: Date) => {
+    const userShifts = shiftsByUser[userId] || [];
+    return userShifts.find(shift => {
+      const shiftStart = new Date(shift.start_time);
+      const shiftEnd = new Date(shift.end_time);
+      return timeSlot >= shiftStart && timeSlot < shiftEnd;
+    });
   };
 
-  const handleDeleteConfirm = async () => {
-    if (selectedShift) {
-      await onDeleteShift(selectedShift.id, recurrenceAction);
-      setShowDeleteConfirm(false);
-      setSelectedShift(null);
-      setRecurrenceAction('this');
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Date header */}
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => onDateChange(subDays(selectedDate, 1))}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold">
-          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-        </h2>
-        <Button
-          variant="ghost"
-          onClick={() => onDateChange(addDays(selectedDate, 1))}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        <div>
+          <h2 className="text-2xl font-bold">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</h2>
+          <p className="text-gray-500">{shifts.length} shifts scheduled</p>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            Daily View
+          </Badge>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {shifts.map((shift) => {
-          const user = users.find((u) => u.id === shift.user_id);
-          return (
-            <div
-              key={shift.id}
-              className="flex items-center justify-between p-4 bg-white rounded-lg shadow"
-            >
-              <div>
-                <div className="font-semibold">
-                  {format(new Date(shift.start_time), 'h:mm a')} -{' '}
-                  {format(new Date(shift.end_time), 'h:mm a')}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {user?.username || 'Unknown User'}
-                </div>
-                {shift.notes && (
-                  <div className="text-sm text-gray-500 mt-1">
-                    {shift.notes}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onEditShift(shift)}
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDeleteClick(shift)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+      {/* Quick stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <User className="h-5 w-5 text-blue-600" />
             </div>
-          );
-        })}
+            <div>
+              <p className="text-sm text-gray-500">Staff on duty</p>
+              <p className="text-xl font-semibold">{new Set(shifts.map(s => s.user_id)).size}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Clock className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total shifts</p>
+              <p className="text-xl font-semibold">{shifts.length}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Calendar className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Coverage hours</p>
+              <p className="text-xl font-semibold">
+                {shifts.reduce((total, shift) => {
+                  const start = new Date(shift.start_time);
+                  const end = new Date(shift.end_time);
+                  return total + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                }, 0).toFixed(1)}h
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      {showDeleteConfirm && selectedShift && (
-        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Delete Shift</DialogTitle>
-              <DialogDescription>
-                How would you like to handle this shift?
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="h-5 w-5" />
-                <p className="font-semibold">Delete Shift</p>
-              </div>
-              <RadioGroup
-                value={recurrenceAction}
-                onValueChange={(value) => setRecurrenceAction(value as RecurrenceAction)}
-                className="space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="this" id="this" />
-                  <Label htmlFor="this">Delete this shift only</Label>
+      {/* Timeline view */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Daily Timeline</h3>
+            <Button variant="outline" size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Shift
+            </Button>
+          </div>
+          
+          {users.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No staff members found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="min-w-[800px]">
+                {/* Header with time slots */}
+                <div className="grid grid-cols-[200px_repeat(24,1fr)] gap-px bg-gray-200 rounded-t-lg overflow-hidden">
+                  <div className="bg-gray-50 p-2 font-medium text-sm">Staff</div>
+                  {timeSlots.map((slot, index) => (
+                    <div key={index} className="bg-gray-50 p-1 text-xs text-center">
+                      {index % 4 === 0 ? slot.label : slot.hour24}
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="future" id="future" />
-                  <Label htmlFor="future">Delete this and future shifts</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="previous" id="previous" />
-                  <Label htmlFor="previous">Delete this and previous shifts</Label>
-                </div>
-              </RadioGroup>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDeleteConfirm}
-                >
-                  Delete
-                </Button>
+                
+                {/* User rows */}
+                {users.map((user) => {
+                  const userShifts = shiftsByUser[user.id] || [];
+                  
+                  return (
+                    <div key={user.id} className="grid grid-cols-[200px_repeat(24,1fr)] gap-px bg-gray-200">
+                      {/* User info */}
+                      <div className="bg-white p-3 flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                            {getInitials(user.username)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{user.username}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {user.title || user.role}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Time slots */}
+                      {timeSlots.map((slot, slotIndex) => {
+                        const shift = getShiftForTimeSlot(user.id, slot.time);
+                        
+                        return (
+                          <div
+                            key={slotIndex}
+                            className={cn(
+                              "bg-white min-h-[60px] border-r border-gray-100 relative",
+                              shift && "cursor-pointer"
+                            )}
+                            onClick={() => shift && onEditShift(shift)}
+                          >
+                            {shift && (
+                              <div
+                                className="absolute inset-0 p-1 rounded-sm flex items-center justify-center"
+                                style={{
+                                  backgroundColor: getShiftColor(shift.shift_type, shift.color) + '33',
+                                  borderLeft: `3px solid ${getShiftColor(shift.shift_type, shift.color)}`
+                                }}
+                              >
+                                <div className="text-xs text-center">
+                                  <div className="font-medium">{shift.shift_type}</div>
+                                  {shift.notes && (
+                                    <div className="text-gray-600 truncate">{shift.notes}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          )}
+        </div>
+      </Card>
+
+      {/* Shifts list */}
+      <Card>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">All Shifts</h3>
+          
+          {shifts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No shifts scheduled for this day</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {shifts
+                .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                .map((shift) => {
+                  const user = users.find(u => u.id === shift.user_id);
+                  const startTime = format(new Date(shift.start_time), 'h:mm a');
+                  const endTime = format(new Date(shift.end_time), 'h:mm a');
+                  const shiftColor = getShiftColor(shift.shift_type, shift.color);
+                  
+                  return (
+                    <div
+                      key={shift.id}
+                      className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => onEditShift(shift)}
+                    >
+                      <div
+                        className="w-1 h-12 rounded-full"
+                        style={{ backgroundColor: shiftColor }}
+                      />
+                      
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className="text-sm bg-blue-100 text-blue-700">
+                          {getInitials(user?.username || 'U')}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{user?.username || 'Unknown User'}</span>
+                          <Badge variant="secondary" className="capitalize">
+                            {shift.shift_type}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {startTime} - {endTime}
+                        </div>
+                        {shift.notes && (
+                          <div className="text-sm text-gray-600 mt-1">{shift.notes}</div>
+                        )}
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-sm font-medium">
+                          {((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60 * 60)).toFixed(1)}h
+                        </div>
+                        <div className="text-xs text-gray-500">Duration</div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      </Card>
     </div>
   );
-} 
+};
+
+export default DailyView;
