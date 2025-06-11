@@ -11,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { z } from 'zod';
 import { SwapRequest, LeaveRequest, LeaveType, Shift } from '@/types/schedule';
 import { shiftsTable, swapRequestsTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
+import { supabase } from '@/integrations/supabase/client';
+import { SHIFT_TEMPLATES } from '@/lib/constants';
 
 // Form schema
 const formSchema = z.object({
@@ -33,6 +35,7 @@ interface ShiftRequestDialogProps {
   initialData?: Partial<Shift>;
   selectedShift?: Shift;
   onRequestsUpdate?: () => void;
+  editingRequest?: LeaveRequest | null;
 }
 
 const requestTypes = [
@@ -53,6 +56,7 @@ export function ShiftRequestDialog({
   initialData,
   selectedShift,
   onRequestsUpdate,
+  editingRequest,
 }: ShiftRequestDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -63,6 +67,37 @@ export function ShiftRequestDialog({
     notes: '',
     requested_users: [],
   });
+
+  // Add helper functions at the top of the component
+  const getShiftTitleByLeaveType = (leaveType: string) => {
+    switch (leaveType) {
+      case 'sick-leave':
+        return 'Sick Leave';
+      case 'annual-leave':
+        return 'Annual Leave';
+      case 'public-holiday':
+        return 'Public Holiday';
+      case 'day-off':
+        return 'Day Off';
+      default:
+        return leaveType.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+  };
+
+  const getShiftColorByLeaveType = (leaveType: string) => {
+    switch (leaveType) {
+      case 'sick-leave':
+        return '#FF6B6B'; // Red
+      case 'annual-leave':
+        return '#4ECDC4'; // Teal
+      case 'public-holiday':
+        return '#FFD93D'; // Yellow
+      case 'day-off':
+        return '#95A5A6'; // Gray
+      default:
+        return '#6C5CE7'; // Purple for unknown types
+    }
+  };
 
   // If currentUser is not available, don't render the dialog
   if (!currentUser) {
@@ -87,6 +122,7 @@ export function ShiftRequestDialog({
         // Create a new swap request
         const swapRequest: Omit<SwapRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
           type: 'swap',
+          request_type: 'swap',
           user_id: currentUser.id,
           requester_id: currentUser.id,
           requested_user_id: formData.requested_users?.[0] || '',
@@ -115,6 +151,7 @@ export function ShiftRequestDialog({
         // Handle leave request
         const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
           type: 'leave',
+          request_type: 'leave',
           user_id: currentUser.id,
           leave_type: formData.request_type as LeaveType,
           start_date: formData.start_date,
@@ -257,6 +294,153 @@ export function ShiftRequestDialog({
             >
               Cancel
             </Button>
+            {currentUser.role === 'admin' && editingRequest?.id && (
+              <>
+                {editingRequest.status !== 'approved' && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={async () => {
+                      setIsSubmitting(true);
+                      try {
+                        await supabase
+                          .from('shift_requests')
+                          .update({ 
+                            status: 'approved', 
+                            reviewer_id: currentUser.id,
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', editingRequest.id);
+
+                        // Create or update shift
+                        if (editingRequest.type === 'leave') {
+                          console.log('Processing leave request:', editingRequest);
+                          
+                          // Find any existing shifts in this date range
+                          const { data: existingShifts, error: searchError } = await supabase
+                            .from('shifts')
+                            .select('*')
+                            .eq('user_id', editingRequest.user_id)
+                            .gte('start_time', `${editingRequest.start_date}T00:00:00`)
+                            .lte('end_time', `${editingRequest.end_date}T23:59:59`);
+
+                          if (searchError) {
+                            console.error('Error searching for existing shifts:', searchError);
+                            throw searchError;
+                          }
+
+                          console.log('Found existing shifts:', existingShifts);
+
+                          // Get the appropriate template based on leave type
+                          const template = editingRequest.leave_type === 'public-holiday' 
+                            ? SHIFT_TEMPLATES.PUBLIC_HOLIDAY 
+                            : SHIFT_TEMPLATES.DAY_OFF;
+
+                          const shiftData = {
+                            ...template,
+                            description: editingRequest.reason || '',
+                            notes: '',
+                            status: 'active',
+                            // Set standard times for day off (00:00 to 23:59)
+                            start_time: `${editingRequest.start_date}T00:00:00`,
+                            end_time: `${editingRequest.end_date}T23:59:59`,
+                          };
+
+                          if (existingShifts && existingShifts.length > 0) {
+                            console.log('Updating existing shifts');
+                            // Update existing shifts instead of deleting
+                            for (const shift of existingShifts) {
+                              const { error: updateError } = await supabase
+                                .from('shifts')
+                                .update({
+                                  ...shiftData,
+                                  notes: `Original shift replaced by ${template.title}`,
+                                })
+                                .eq('id', shift.id);
+
+                              if (updateError) {
+                                console.error('Error updating shift:', updateError);
+                                throw updateError;
+                              }
+                            }
+                          } else {
+                            console.log('Creating new shift');
+                            // Create new shift if none exists
+                            const { error: insertError } = await supabase.from('shifts').insert([{
+                              ...shiftData,
+                              user_id: editingRequest.user_id,
+                              created_by: currentUser.id,
+                              repeat_days: [],
+                            }]);
+
+                            if (insertError) {
+                              console.error('Error creating shift:', insertError);
+                              throw insertError;
+                            }
+                          }
+                        }
+                        
+                        toast({
+                          title: 'Request approved',
+                          description: 'The request has been approved successfully.',
+                        });
+                        onOpenChange(false);
+                        onRequestsUpdate?.();
+                      } catch (error) {
+                        console.error('Error approving request:', error);
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to approve request',
+                          variant: 'destructive',
+                        });
+                      }
+                      setIsSubmitting(false);
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Approve
+                  </Button>
+                )}
+                {editingRequest.status !== 'rejected' && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={async () => {
+                      setIsSubmitting(true);
+                      try {
+                        await supabase
+                          .from('shift_requests')
+                          .update({ 
+                            status: 'rejected', 
+                            reviewer_id: currentUser.id,
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', editingRequest.id);
+                        
+                        toast({
+                          title: 'Request rejected',
+                          description: 'The request has been rejected.',
+                        });
+                        onOpenChange(false);
+                        onRequestsUpdate?.();
+                      } catch (error) {
+                        console.error('Error rejecting request:', error);
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to reject request',
+                          variant: 'destructive',
+                        });
+                      }
+                      setIsSubmitting(false);
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Reject
+                  </Button>
+                )}
+              </>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Submitting...' : 'Submit Request'}
             </Button>

@@ -51,7 +51,7 @@ export interface ShiftTemplate {
 export interface BaseRequest {
   id: string;
   user_id: string;
-  request_type: string;
+  request_type: RequestType;
   status: RequestStatus;
   notes?: string;
   review_notes?: string;
@@ -60,13 +60,22 @@ export interface BaseRequest {
   updated_at: string;
 }
 
-export interface LeaveRequest extends BaseRequest {
-  type: 'leave';
-  leave_type: LeaveType;
-  request_type: LeaveType;
+export interface LeaveRequest {
+  id: string;
+  user_id: string;
+  leave_type: string;
+  request_type: string;
   start_date: string;
   end_date: string;
   reason: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  reviewer_id?: string;
+  reviewer?: {
+    username: string;
+  };
 }
 
 export interface SwapRequest extends BaseRequest {
@@ -206,7 +215,9 @@ export interface ShiftSwapRequestTable {
   update(id: string, request: Partial<SwapRequest>): Promise<SwapRequest>;
   updateStatus(id: string, status: RequestStatus): Promise<SwapRequest>;
   delete(id: string): Promise<void>;
-} // Helper type for converting DB requests to display requests
+}
+
+// Helper type for converting DB requests to display requests
 export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<DisplayRequest, 'originalRequest'> & {
   originalRequest: T;
 };
@@ -214,5 +225,4 @@ export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<Displa
 // Helper type for converting SwapRequestDB to SwapRequest
 export type SwapRequestDBToRequest = Omit<SwapRequest, 'type'> & {
   type: 'swap';
-}; 
-
+};

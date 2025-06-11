@@ -47,35 +47,6 @@ interface DBRequest {
   requested_user_id?: string;
 }
 
-// Helper function to ensure correct types
-const mapShiftType = (type: string): ShiftType => {
-  if (type === 'morning' || type === 'night' || type === 'on-call') {
-    return type;
-  }
-  return 'morning'; // Default value
-};
-
-const mapRequestStatus = (status: string): RequestStatus => {
-  if (status === 'pending' || status === 'pending_user' || status === 'pending_admin' || status === 'approved' || status === 'rejected') {
-    return status;
-  }
-  return 'pending'; // Default value
-};
-
-const mapRequestType = (type: string): RequestType => {
-  if (type === 'leave' || type === 'swap') {
-    return type;
-  }
-  return 'leave'; // Default value
-};
-
-const mapLeaveType = (type: string | undefined): LeaveType => {
-  if (type === 'paid' || type === 'unpaid' || type === 'day-off' || type === 'extra') {
-    return type;
-  }
-  return 'paid'; // Default value
-};
-
 // Helper function to map database shift to frontend shift
 const mapDBShiftToShift = (dbShift: DBShift): Shift => ({
   id: dbShift.id,
@@ -88,40 +59,10 @@ const mapDBShiftToShift = (dbShift: DBShift): Shift => ({
   notes: dbShift.notes || '',
   status: dbShift.status || 'active',
   created_by: dbShift.created_by || dbShift.user_id,
-  repeat_days: dbShift.repeat_days || [],
+  repeat_days: (dbShift.repeat_days || []).map(String),
   created_at: dbShift.created_at || new Date().toISOString(),
   updated_at: dbShift.updated_at,
   color: dbShift.color || (dbShift.shift_type === 'night' ? '#EDE7F6' : dbShift.shift_type === 'over night' ? '#FFF3E0' : '#E3F2FD')
-});
-
-// Helper function to map database request to leave request
-const mapDBRequestToLeaveRequest = (request: DBRequest): LeaveRequest => ({
-  id: request.id,
-  user_id: request.user_id,
-  type: 'leave',
-  leave_type: request.leave_type!,
-  start_date: request.start_date!,
-  end_date: request.end_date!,
-  status: mapRequestStatus(request.status),
-  reason: request.reason || '',
-  notes: request.notes || '',
-  created_at: request.created_at,
-  updated_at: request.updated_at
-});
-
-// Helper function to map database request to swap request
-const mapDBRequestToSwapRequest = (request: DBRequest): SwapRequest => ({
-  id: request.id,
-  user_id: request.user_id,
-  type: 'swap',
-  requester_id: request.requester_id!,
-  requested_user_id: request.requested_user_id!,
-  shift_id: request.shift_id || '',
-  proposed_shift_id: request.proposed_shift_id,
-  status: mapRequestStatus(request.status),
-  notes: request.notes || '',
-  created_at: request.created_at,
-  updated_at: request.updated_at
 });
 
 const sanitizeShiftForDB = (shift: Partial<Shift>): Partial<Database['public']['Tables']['shifts']['Row']> => {
@@ -346,7 +287,10 @@ export const templatesTable = {
       .order('name', { ascending: true });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map(template => ({
+      ...template,
+      user_id: template.user_id || 'system'
+    }));
   },
 
   async create(template: Omit<ShiftTemplate, 'id' | 'created_at'>): Promise<ShiftTemplate> {
@@ -357,7 +301,10 @@ export const templatesTable = {
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      user_id: data.user_id || 'system'
+    };
   },
 
   async update(id: string, template: Partial<ShiftTemplate>): Promise<ShiftTemplate> {
@@ -369,7 +316,10 @@ export const templatesTable = {
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      user_id: data.user_id || 'system'
+    };
   },
 
   async delete(id: string): Promise<void> {
@@ -442,7 +392,10 @@ export const shiftRequestsTable = {
   async create(request: any) {
     const { data, error } = await supabase
       .from('shift_requests')
-      .insert([request])
+      .insert({
+        ...request,
+        notes: request.notes || ''
+      })
       .select()
       .single();
     
@@ -479,17 +432,18 @@ export const leaveRequestsTable = {
     const { data, error } = await supabase
       .from('shift_requests')
       .select('*')
-      .eq('request_type', 'leave')
+      .or('request_type.eq.leave,request_type.eq.day-off')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data as DBRequest[]).map(row => ({
+    return (data as any[]).map(row => ({
       id: row.id,
       user_id: row.user_id,
       type: 'leave',
-      leave_type: row.leave_type!,
-      start_date: row.start_date!,
-      end_date: row.end_date!,
+      request_type: 'leave',
+      leave_type: row.leave_type || 'day-off',
+      start_date: row.start_date,
+      end_date: row.end_date,
       reason: row.reason || '',
       notes: row.notes || '',
       status: row.status,
@@ -503,17 +457,18 @@ export const leaveRequestsTable = {
       .from('shift_requests')
       .select('*')
       .eq('user_id', userId)
-      .eq('request_type', 'leave')
+      .or('request_type.eq.leave,request_type.eq.day-off')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data as DBRequest[]).map(row => ({
+    return (data as any[]).map(row => ({
       id: row.id,
       user_id: row.user_id,
       type: 'leave',
-      leave_type: row.leave_type!,
-      start_date: row.start_date!,
-      end_date: row.end_date!,
+      request_type: 'leave',
+      leave_type: row.leave_type || 'day-off',
+      start_date: row.start_date,
+      end_date: row.end_date,
       reason: row.reason || '',
       notes: row.notes || '',
       status: row.status,
@@ -522,33 +477,34 @@ export const leaveRequestsTable = {
     })) as LeaveRequest[];
   },
 
-  async create(request: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at' | 'type'>): Promise<LeaveRequest> {
+  async create(request: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at' | 'type' | 'request_type'>): Promise<LeaveRequest> {
     const { data, error } = await supabase
       .from('shift_requests')
-      .insert([
-        {
-          user_id: request.user_id,
-          start_date: request.start_date,
-          end_date: request.end_date,
-          reason: request.reason || request.notes,
-          request_type: 'leave',
-          status: 'pending',
-        },
-      ])
+      .insert({
+        user_id: request.user_id,
+        start_date: request.start_date,
+        end_date: request.end_date,
+        reason: request.reason,
+        notes: request.notes || '',
+        request_type: 'leave',
+        leave_type: request.leave_type,
+        status: 'pending',
+      })
       .select()
       .single();
 
     if (error) throw error;
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'leave',
-      leave_type: 'paid', // Hardcoded default as it's not in DB
-      start_date: row.start_date!,
-      end_date: row.end_date!,
+      request_type: 'leave',
+      leave_type: row.leave_type,
+      start_date: row.start_date,
+      end_date: row.end_date,
       reason: row.reason || '',
-      notes: row.reason || '', // Map DB 'reason' to frontend 'notes'
+      notes: row.notes || '',
       status: row.status,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -556,33 +512,33 @@ export const leaveRequestsTable = {
   },
 
   async update(id: string, request: Partial<LeaveRequest>): Promise<LeaveRequest> {
-    const dbRequest: Partial<DBRequest> = {
-      user_id: request.user_id,
-      leave_type: request.leave_type,
-      start_date: request.start_date,
-      end_date: request.end_date,
-      reason: request.reason,
-      notes: request.notes,
-      status: request.status,
-    };
+    const updateData: any = {};
+    if (request.user_id) updateData.user_id = request.user_id;
+    if (request.leave_type) updateData.leave_type = request.leave_type;
+    if (request.start_date) updateData.start_date = request.start_date;
+    if (request.end_date) updateData.end_date = request.end_date;
+    if (request.reason !== undefined) updateData.reason = request.reason;
+    if (request.notes !== undefined) updateData.notes = request.notes;
+    if (request.status) updateData.status = request.status;
 
     const { data, error } = await supabase
       .from('shift_requests')
-      .update(dbRequest)
+      .update(updateData)
       .eq('id', id)
       .eq('request_type', 'leave')
       .select()
       .single();
 
     if (error) throw error;
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'leave',
-      leave_type: row.leave_type!,
-      start_date: row.start_date!,
-      end_date: row.end_date!,
+      request_type: 'leave',
+      leave_type: row.leave_type,
+      start_date: row.start_date,
+      end_date: row.end_date,
       reason: row.reason || '',
       notes: row.notes || '',
       status: row.status,
@@ -601,14 +557,15 @@ export const leaveRequestsTable = {
       .single();
 
     if (error) throw error;
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'leave',
-      leave_type: row.leave_type!,
-      start_date: row.start_date!,
-      end_date: row.end_date!,
+      request_type: 'leave',
+      leave_type: row.leave_type,
+      start_date: row.start_date,
+      end_date: row.end_date,
       reason: row.reason || '',
       notes: row.notes || '',
       status: row.status,
@@ -658,16 +615,19 @@ export const swapRequestsTable = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return (data as DBRequest[]).map(row => ({
+    return (data as any[]).map(row => ({
       id: row.id,
       user_id: row.user_id,
       type: 'swap',
-      shift_id: row.shift_id!,
+      request_type: 'swap',
+      shift_id: row.shift_id || '',
       proposed_shift_id: row.proposed_shift_id,
-      requester_id: row.requester_id!,
-      requested_user_id: row.requested_user_id!,
+      requester_id: row.user_id,
+      requested_user_id: row.replacement_user_id || '',
       notes: row.notes || '',
       status: row.status,
+      start_date: row.start_date || '',
+      end_date: row.end_date || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     })) as SwapRequest[];
@@ -678,41 +638,42 @@ export const swapRequestsTable = {
       .from('shift_requests')
       .select('*')
       .eq('request_type', 'swap')
-      .or(`user_id.eq.${userId},requested_user_id.eq.${userId}`)
+      .or(`user_id.eq.${userId},replacement_user_id.eq.${userId}`)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return (data as DBRequest[]).map(row => ({
+    return (data as any[]).map(row => ({
       id: row.id,
       user_id: row.user_id,
       type: 'swap',
-      shift_id: row.shift_id!,
+      request_type: 'swap',
+      shift_id: row.shift_id || '',
       proposed_shift_id: row.proposed_shift_id,
-      requester_id: row.requester_id!,
-      requested_user_id: row.requested_user_id!,
+      requester_id: row.user_id,
+      requested_user_id: row.replacement_user_id || '',
       notes: row.notes || '',
       status: row.status,
+      start_date: row.start_date || '',
+      end_date: row.end_date || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     })) as SwapRequest[];
   },
 
-  async create(request: Omit<SwapRequest, 'id' | 'status' | 'created_at' | 'updated_at' | 'type'>): Promise<SwapRequest> {
+  async create(request: Omit<SwapRequest, 'id' | 'status' | 'created_at' | 'updated_at' | 'type' | 'request_type'>): Promise<SwapRequest> {
     const { data, error } = await supabase
       .from('shift_requests')
-      .insert([
-        {
-          user_id: request.requester_id,
-          replacement_user_id: request.requested_user_id,
-          shift_id: request.shift_id,
-          proposed_shift_id: request.proposed_shift_id,
-          request_type: 'swap',
-          status: 'pending',
-          notes: request.notes,
-          start_date: new Date().toISOString(), // Placeholder
-          end_date: new Date().toISOString(), // Placeholder
-        },
-      ])
+      .insert({
+        user_id: request.requester_id,
+        replacement_user_id: request.requested_user_id,
+        shift_id: request.shift_id,
+        proposed_shift_id: request.proposed_shift_id,
+        request_type: 'swap',
+        status: 'pending',
+        notes: request.notes,
+        start_date: request.start_date,
+        end_date: request.end_date,
+      })
       .select()
       .single();
 
@@ -721,53 +682,58 @@ export const swapRequestsTable = {
       throw error;
     }
 
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'swap',
-      shift_id: row.shift_id!,
+      request_type: 'swap',
+      shift_id: row.shift_id || '',
       proposed_shift_id: row.proposed_shift_id,
       requester_id: row.user_id,
       requested_user_id: row.replacement_user_id || '',
       notes: row.notes || '',
       status: row.status,
+      start_date: row.start_date || '',
+      end_date: row.end_date || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     } as SwapRequest;
   },
 
   async update(id: string, request: Partial<SwapRequest>): Promise<SwapRequest> {
-    const dbRequest: Partial<DBRequest> = {
-      user_id: request.user_id,
-      shift_id: request.shift_id,
-      proposed_shift_id: request.proposed_shift_id,
-      requester_id: request.requester_id,
-      requested_user_id: request.requested_user_id,
-      notes: request.notes,
-      status: request.status,
-    };
+    const updateData: any = {};
+    if (request.user_id) updateData.user_id = request.user_id;
+    if (request.shift_id) updateData.shift_id = request.shift_id;
+    if (request.proposed_shift_id) updateData.proposed_shift_id = request.proposed_shift_id;
+    if (request.requester_id) updateData.user_id = request.requester_id;
+    if (request.requested_user_id) updateData.replacement_user_id = request.requested_user_id;
+    if (request.notes !== undefined) updateData.notes = request.notes;
+    if (request.status) updateData.status = request.status;
 
     const { data, error } = await supabase
       .from('shift_requests')
-      .update(dbRequest)
+      .update(updateData)
       .eq('id', id)
       .eq('request_type', 'swap')
       .select()
       .single();
 
     if (error) throw error;
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'swap',
-      shift_id: row.shift_id!,
+      request_type: 'swap',
+      shift_id: row.shift_id || '',
       proposed_shift_id: row.proposed_shift_id,
-      requester_id: row.requester_id!,
-      requested_user_id: row.requested_user_id!,
+      requester_id: row.user_id,
+      requested_user_id: row.replacement_user_id || '',
       notes: row.notes || '',
       status: row.status,
+      start_date: row.start_date || '',
+      end_date: row.end_date || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     } as SwapRequest;
@@ -783,17 +749,20 @@ export const swapRequestsTable = {
       .single();
     
     if (error) throw error;
-    const row = data as DBRequest;
+    const row = data as any;
     return {
       id: row.id,
       user_id: row.user_id,
       type: 'swap',
-      shift_id: row.shift_id!,
+      request_type: 'swap',
+      shift_id: row.shift_id || '',
       proposed_shift_id: row.proposed_shift_id,
-      requester_id: row.requester_id!,
-      requested_user_id: row.requested_user_id!,
+      requester_id: row.user_id,
+      requested_user_id: row.replacement_user_id || '',
       notes: row.notes || '',
       status: row.status,
+      start_date: row.start_date || '',
+      end_date: row.end_date || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     } as SwapRequest;

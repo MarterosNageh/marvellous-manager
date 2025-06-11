@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       auth_users: {
         Row: {
+          balance: number | null
           created_at: string
           department: string | null
           id: string
@@ -22,6 +23,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          balance?: number | null
           created_at?: string
           department?: string | null
           id?: string
@@ -33,6 +35,7 @@ export type Database = {
           username: string
         }
         Update: {
+          balance?: number | null
           created_at?: string
           department?: string | null
           id?: string
@@ -332,11 +335,54 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_modifications: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          modification_type: string
+          original_shift_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          modification_type: string
+          original_shift_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          modification_type?: string
+          original_shift_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_modifications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "auth_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_modifications_original_shift_id_fkey"
+            columns: ["original_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_requests: {
         Row: {
+          admin_approval: string | null
+          approved_shift_id: string | null
           created_at: string | null
           end_date: string
           id: string
+          leave_type: string | null
+          notes: string
           reason: string | null
           replacement_user_id: string | null
           request_type: string
@@ -345,13 +391,18 @@ export type Database = {
           shift_id: string | null
           start_date: string
           status: string | null
+          target_user_approval: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          admin_approval?: string | null
+          approved_shift_id?: string | null
           created_at?: string | null
           end_date: string
           id?: string
+          leave_type?: string | null
+          notes: string
           reason?: string | null
           replacement_user_id?: string | null
           request_type: string
@@ -360,13 +411,18 @@ export type Database = {
           shift_id?: string | null
           start_date: string
           status?: string | null
+          target_user_approval?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          admin_approval?: string | null
+          approved_shift_id?: string | null
           created_at?: string | null
           end_date?: string
           id?: string
+          leave_type?: string | null
+          notes?: string
           reason?: string | null
           replacement_user_id?: string | null
           request_type?: string
@@ -375,10 +431,18 @@ export type Database = {
           shift_id?: string | null
           start_date?: string
           status?: string | null
+          target_user_approval?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "shift_requests_approved_shift_id_fkey"
+            columns: ["approved_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shift_requests_replacement_user_id_fkey"
             columns: ["replacement_user_id"]

@@ -1,9 +1,21 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { shiftRequestsTable } from '@/integrations/supabase/tables/schedule';
-import { ShiftRequest } from '@/types/shiftTypes';
 import { supabase } from '@/integrations/supabase/client';
+
+interface ShiftRequest {
+  id: string;
+  user_id: string;
+  request_type: 'day-off' | 'unpaid-leave' | 'extra-days' | 'public-holiday';
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at?: string;
+  updated_at?: string;
+}
 
 interface ShiftsContextType {
   shiftRequests: ShiftRequest[];
@@ -61,7 +73,13 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Map frontend request types to database values
   const mapRequestTypeToDb = (type: ShiftRequest['request_type']): string => {
-    return type; // No mapping needed since they are the same
+    switch (type) {
+      case 'day-off': return 'day-off';
+      case 'unpaid-leave': return 'unpaid-leave';
+      case 'extra-days': return 'extra-days';
+      case 'public-holiday': return 'public-holiday';
+      default: return 'day-off';
+    }
   };
 
   // Map database request types to frontend values
@@ -72,6 +90,8 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       case 'extra-days':
       case 'public-holiday':
         return type;
+      case 'leave':
+        return 'day-off'; // Default mapping for 'leave' type
       default:
         return 'day-off';
     }
@@ -99,12 +119,14 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const dbRequest = {
-        user_id: currentUser.id,
-        request_type: mapRequestTypeToDb(request.request_type),
+        user_id: request.user_id || currentUser.id,
+        request_type: 'leave', // Store as 'leave' in database
+        leave_type: mapRequestTypeToDb(request.request_type),
         start_date: request.start_date,
         end_date: request.end_date || request.start_date,
         reason: request.reason,
-        status: 'pending'
+        status: request.status || 'pending',
+        notes: ''
       };
 
       console.log('Sending to database:', dbRequest);
@@ -161,9 +183,10 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return false;
       }
 
-      const dbRequest = {
+      const dbRequest: any = {
         ...request,
-        request_type: request.request_type ? mapRequestTypeToDb(request.request_type) : undefined,
+        request_type: 'leave',
+        leave_type: request.request_type ? mapRequestTypeToDb(request.request_type) : undefined,
       };
 
       console.log('Updating request:', id, dbRequest);
