@@ -189,7 +189,7 @@ const WeeklyView = ({
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState(startDate);
-  const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number} | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number, targetDate: Date} | null>(null);
 
   // Update weekStart when startDate changes
   useEffect(() => {
@@ -256,11 +256,18 @@ const WeeklyView = ({
     }
   };
 
-  const handleQuickAddShift = (userId: string, dateIndex: number) => {
+  const handleQuickAddShift = (userId: string, targetDate: Date) => {
     if (!isAdmin) return;
     
-    const targetDate = addDays(weekStart, dateIndex);
-    // This would open a quick add dialog or create a default shift
+    // Store the target date and user information for the shift dialog
+    const shiftData = {
+      user_id: userId,
+      start_time: format(targetDate, 'yyyy-MM-dd') + 'T09:00:00',
+      end_time: format(targetDate, 'yyyy-MM-dd') + 'T17:00:00',
+    };
+    
+    // You can extend this to open a proper shift creation dialog
+    console.log('Quick add shift for user:', userId, 'on date:', format(targetDate, 'yyyy-MM-dd'));
     onAddShift();
   };
   
@@ -453,7 +460,11 @@ const WeeklyView = ({
                               <div
                                 ref={provided.innerRef}
                                 {...provided.droppableProps}
-                                onMouseEnter={() => setHoveredCell({userId: user.id, dateIndex})}
+                                onMouseEnter={() => setHoveredCell({
+                                  userId: user.id, 
+                                  dateIndex, 
+                                  targetDate: date
+                                })}
                                 onMouseLeave={() => setHoveredCell(null)}
                                 className={cn(
                                   'relative p-2 min-h-[80px] border-l flex flex-col gap-1 transition-colors',
@@ -479,10 +490,14 @@ const WeeklyView = ({
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="absolute inset-0 w-full h-full opacity-70 hover:opacity-100"
-                                    onClick={() => handleQuickAddShift(user.id, dateIndex)}
+                                    className="absolute inset-0 w-full h-full opacity-70 hover:opacity-100 flex items-center justify-center"
+                                    onClick={() => handleQuickAddShift(user.id, date)}
+                                    title={`Add shift for ${user.username} on ${format(date, 'MMM dd')}`}
                                   >
                                     <Plus className="h-4 w-4" />
+                                    <span className="ml-1 text-xs">
+                                      Add to {format(date, 'MMM dd')}
+                                    </span>
                                   </Button>
                                 )}
                                 
@@ -518,3 +533,5 @@ const WeeklyView = ({
 };
 
 export default WeeklyView;
+
+}
