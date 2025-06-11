@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useShifts } from '@/context/ShiftsContext';
 import { ShiftRequestDialog } from './ShiftRequestDialog';
 import { UserInfoDialog } from './UserInfoDialog';
-// You will need to create this new dialog component
-// import { UserBalanceDialog } from './UserBalanceDialog'; 
+import { UserBalanceDialog } from './UserBalanceDialog';
 import type { ScheduleUser, RequestStatus } from '@/types/schedule';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -40,24 +40,21 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
   const { shiftRequests, refreshRequests } = useShifts();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
-  // State for the new UserBalanceDialog. You'll need to create this component.
   const [userBalanceDialog, setUserBalanceDialog] = useState<{ open: boolean; user: ScheduleUser | null; balance: number; }>({ open: false, user: null, balance: 0 });
   const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
   const [editingRequest, setEditingRequest] = useState<any>(null);
   const [requests, setRequests] = useState<ShiftRequestDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State to manage user leave balances. You might fetch this from a DB.
   const [userBalances, setUserBalances] = useState<{[key: string]: number}>({});
 
   const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     loadRequests();
-    // Initialize default balances for all users for demonstration
     const initialBalances: {[key: string]: number} = {};
     users.forEach(user => {
-      initialBalances[user.id] = 80; // Default 80 hours (10 days)
+      initialBalances[user.id] = user.balance || 80;
     });
     setUserBalances(initialBalances);
   }, [currentUser, users]);
@@ -105,27 +102,75 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
     }
   };
   
-  // --- New Helper Functions for Approved Time Off ---
   const getApprovedDays = (userId: string) => {
     return requests
       .filter(req => req.user_id === userId && req.status === 'approved')
       .reduce((acc, req) => {
         const startDate = new Date(req.start_date);
         const endDate = new Date(req.end_date);
-        // +1 because differenceInDays is exclusive of the end date
         const days = differenceInDays(endDate, startDate) + 1;
         return acc + days;
       }, 0);
   };
 
   const getRemainingDays = (userId: string) => {
-    const totalBalanceHours = userBalances[userId] || 80; // Default to 80 hours
+    const totalBalanceHours = userBalances[userId] || 80;
     const approvedDays = getApprovedDays(userId);
-    const approvedHours = approvedDays * 8; // Assuming 8-hour workdays
+    const approvedHours = approvedDays * 8;
     const remainingHours = totalBalanceHours - approvedHours;
-    return remainingHours / 8; // Convert back to days
+    return remainingHours / 8;
   };
 
+  const sendNotificationToAdmins = async (requestType: string, startDate: string, username: string) => {
+    try {
+      const { data: adminUsers } = await supabase
+        .from('auth_users')
+        .select('id')
+        .eq('role', 'admin');
+
+      if (adminUsers && adminUsers.length > 0) {
+        const { data, error } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            userIds: adminUsers.map(u => u.id),
+            title: 'New Leave Request',
+            body: `${username} submitted a ${requestType} request for ${format(new Date(startDate), 'MMM dd, yyyy')}`,
+            data: {
+              type: 'leave_request',
+              url: '/schedule?tab=requests'
+            }
+          }
+        });
+
+        if (error) {
+          console.warn('Failed to send notification to admins:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('Error sending notification:', error);
+    }
+  };
+
+  const sendNotificationToUser = async (userId: string, action: string, requestType: string, startDate: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userIds: [userId],
+          title: `Request ${action}`,
+          body: `Your ${requestType} request for ${format(new Date(startDate), 'MMM dd, yyyy')} has been ${action}`,
+          data: {
+            type: 'leave_request_response',
+            url: '/schedule?tab=requests'
+          }
+        }
+      });
+
+      if (error) {
+        console.warn('Failed to send notification to user:', error);
+      }
+    } catch (error) {
+      console.warn('Error sending notification:', error);
+    }
+  };
 
   const handleApproveRequest = async (request: ShiftRequestDisplay) => {
     try {
@@ -139,6 +184,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         .eq('id', request.id);
 
       await createDayOffShift(request);
+      await sendNotificationToUser(request.user_id, 'approved', request.leave_type || request.request_type, request.start_date);
 
       toast({
         title: "Request approved",
@@ -159,6 +205,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   const handleRejectRequest = async (requestId: string) => {
     try {
+      const request = requests.find(r => r.id === requestId);
+      if (!request) return;
+
       await supabase
         .from('shift_requests')
         .update({ 
@@ -167,6 +216,8 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
           updated_at: new Date().toISOString()
         })
         .eq('id', requestId);
+
+      await sendNotificationToUser(request.user_id, 'rejected', request.leave_type || request.request_type, request.start_date);
 
       toast({
         title: "Request rejected",
@@ -297,6 +348,19 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
     }
   };
 
+  const handleBalanceClick = (user: ScheduleUser) => {
+    if (!isAdmin) return;
+    setUserBalanceDialog({
+      open: true,
+      user,
+      balance: userBalances[user.id] || 80
+    });
+  };
+
+  const handleBalanceSave = (userId: string, newBalance: number) => {
+    setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[400px]">
@@ -307,19 +371,12 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* --- START: New "Approved Time Off" Section --- */}
       <div className="lg:col-span-1 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Clock className="h-5 w-5" />
             Time Off Balances
           </h3>
-          {isAdmin && (
-            <Button size="sm" onClick={() => setUserBalanceDialog({ open: true, user: null, balance: 0 })}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add/Edit Balance
-            </Button>
-          )}
         </div>
 
         <Card>
@@ -338,11 +395,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
                   <div 
                     key={user.id} 
                     className={`flex items-center justify-between py-2 px-2 rounded ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                    onClick={() => isAdmin && setUserBalanceDialog({
-                      open: true,
-                      user,
-                      balance: userBalances[user.id] || 80
-                    })}
+                    onClick={() => handleBalanceClick(user)}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
@@ -351,7 +404,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
                       <span className="font-medium">{user.username}</span>
                     </div>
                     <span className="text-sm">{approvedDays} days</span>
-                    <span className="text-sm text-muted-foreground">{remainingDays} days</span>
+                    <span className="text-sm text-muted-foreground">{remainingDays.toFixed(1)} days</span>
                   </div>
                 );
               })}
@@ -359,9 +412,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
           </CardContent>
         </Card>
       </div>
-      {/* --- END: New "Approved Time Off" Section --- */}
       
-      {/* --- Existing Leave Requests Section --- */}
       <div className="lg:col-span-2 space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Leave Requests</h2>
@@ -520,21 +571,15 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         />
       )}
       
-      {/* You would also need to render your UserBalanceDialog here */}
-      {/* {userBalanceDialog.open && (
+      {userBalanceDialog.open && (
         <UserBalanceDialog
           open={userBalanceDialog.open}
           user={userBalanceDialog.user}
           initialBalance={userBalanceDialog.balance}
           onClose={() => setUserBalanceDialog({ open: false, user: null, balance: 0 })}
-          onSave={(userId, newBalance) => {
-            setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
-            // Here you would also update the balance in your database
-            setUserBalanceDialog({ open: false, user: null, balance: 0 });
-          }}
+          onSave={handleBalanceSave}
         />
       )}
-      */}
     </div>
   );
 };

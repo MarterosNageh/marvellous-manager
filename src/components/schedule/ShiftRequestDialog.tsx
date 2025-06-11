@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
 import { useAuth } from '@/context/AuthContext';
 
-// Form schema
 const formSchema = z.object({
   request_type: z.enum(['day-off', 'unpaid-leave', 'extra-days', 'public-holiday', 'swap']),
   start_date: z.string(),
@@ -43,7 +43,6 @@ const requestTypes = [
   { value: 'unpaid-leave' as const, label: 'Unpaid Leave', icon: Clock, adminOnly: false },
   { value: 'extra-days' as const, label: 'Extra Days', icon: User, adminOnly: true },
   { value: 'public-holiday' as const, label: 'Public Holiday', icon: Users, adminOnly: true },
-  { value: 'swap' as const, label: 'Swap', icon: User, adminOnly: false },
 ] as const;
 
 type RequestType = typeof requestTypes[number]['value'];
@@ -82,7 +81,6 @@ export function ShiftRequestDialog({
 
   useEffect(() => {
     if (!open) {
-      // Reset form when dialog closes
       setSelectedUsers([]);
       setFormData({
         request_type: 'day-off',
@@ -95,18 +93,6 @@ export function ShiftRequestDialog({
     }
   }, [open]);
 
-  const resetForm = () => {
-    setSelectedUsers([]);
-    setFormData({
-      request_type: 'day-off',
-      start_date: format(new Date(), 'yyyy-MM-dd'),
-      end_date: format(new Date(), 'yyyy-MM-dd'),
-      reason: '',
-      notes: '',
-      requested_users: [],
-    });
-  };
-
   const handleUserToggle = (userId: string) => {
     setSelectedUsers(prev => {
       if (prev.includes(userId)) {
@@ -117,72 +103,74 @@ export function ShiftRequestDialog({
     });
   };
 
+  const sendNotificationToAdmins = async (requestType: string, startDate: string, username: string) => {
+    try {
+      const { data: adminUsers } = await supabase
+        .from('auth_users')
+        .select('id')
+        .eq('role', 'admin');
+
+      if (adminUsers && adminUsers.length > 0) {
+        await supabase.functions.invoke('send-push-notification', {
+          body: {
+            userIds: adminUsers.map(u => u.id),
+            title: 'New Leave Request',
+            body: `${username} submitted a ${requestType} request for ${format(new Date(startDate), 'MMM dd, yyyy')}`,
+            data: {
+              type: 'leave_request',
+              url: '/schedule?tab=requests'
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Error sending notification to admins:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
       
-      if (formData.request_type === 'swap') {
-        // Create a new swap request
-        const swapRequest: Omit<SwapRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
-          type: 'swap',
-          request_type: 'swap',
-          user_id: currentUser?.id || '',
-          requester_id: currentUser?.id || '',
-          requested_user_id: formData.requested_users?.[0] || '',
-          shift_id: selectedShift?.id || '',
-          proposed_shift_id: formData.proposed_shift_id,
-          notes: formData.reason || '',
-          start_date: selectedShift?.start_time || '',
-          end_date: selectedShift?.end_time || '',
+      const usersToProcess = isAdmin && selectedUsers.length > 0 ? selectedUsers : [currentUser?.id || ''];
+      
+      for (const userId of usersToProcess) {
+        const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
+          type: 'leave',
+          request_type: 'leave',
+          user_id: userId,
+          leave_type: formData.request_type as LeaveType,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          reason: formData.reason,
+          notes: formData.notes || '',
         };
 
-        await swapRequestsTable.create(swapRequest);
-
-        // Update the shifts to mark them as pending swap
-        if (selectedShift?.id) {
-          await shiftsTable.update(selectedShift.id, {
-            status: 'pending_swap',
-          });
-        }
-
-        if (formData.proposed_shift_id) {
-          await shiftsTable.update(formData.proposed_shift_id, {
-            status: 'pending_swap',
-          });
-        }
-      } else {
-        // Handle leave request - for admins with multiple users or single user
-        const usersToProcess = isAdmin && selectedUsers.length > 0 ? selectedUsers : [currentUser?.id || ''];
-        
-        for (const userId of usersToProcess) {
-          const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
-            type: 'leave',
-            request_type: 'leave',
+        const { data: createdRequest, error } = await supabase
+          .from('shift_requests')
+          .insert({
             user_id: userId,
-            leave_type: formData.request_type as LeaveType,
+            request_type: 'leave',
+            leave_type: formData.request_type,
             start_date: formData.start_date,
             end_date: formData.end_date,
             reason: formData.reason,
-            notes: formData.notes || '',
-          };
+            status: isAdmin ? 'approved' : 'pending',
+            reviewer_id: isAdmin ? currentUser?.id : null,
+            notes: formData.notes || ''
+          })
+          .select()
+          .single();
 
-          const createdRequest = await leaveRequestsTable.create(leaveRequest);
+        if (error) throw error;
 
-          // For admins, auto-approve and create/replace shifts immediately
-          if (isAdmin) {
-            await supabase
-              .from('shift_requests')
-              .update({ 
-                status: 'approved', 
-                reviewer_id: currentUser?.id,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', createdRequest.id);
-
-            // Replace existing shifts with day-off shifts
-            await replaceShiftsWithDayOff(userId, formData.start_date, formData.end_date, formData.request_type);
-          }
+        // For admins, auto-approve and create/replace shifts immediately
+        if (isAdmin && createdRequest) {
+          await replaceShiftsWithDayOff(userId, formData.start_date, formData.end_date, formData.request_type);
+        } else {
+          // Send notification to admins for non-admin requests
+          await sendNotificationToAdmins(formData.request_type, formData.start_date, currentUser?.username || 'User');
         }
       }
 
@@ -207,7 +195,6 @@ export function ShiftRequestDialog({
 
   const replaceShiftsWithDayOff = async (userId: string, startDate: string, endDate: string, leaveType: string) => {
     try {
-      // Find existing shifts in the date range
       const { data: existingShifts, error: searchError } = await supabase
         .from('shifts')
         .select('*')
@@ -220,7 +207,6 @@ export function ShiftRequestDialog({
         return;
       }
 
-      // Get the appropriate template based on leave type
       const template = leaveType === 'public-holiday' 
         ? SHIFT_TEMPLATES.PUBLIC_HOLIDAY 
         : SHIFT_TEMPLATES.DAY_OFF;
@@ -234,11 +220,10 @@ export function ShiftRequestDialog({
         notes: `Leave request: ${leaveType}`,
         start_time: `${startDate}T00:00:00`,
         end_time: `${endDate}T23:59:59`,
-        created_by: currentUser.id,
+        created_by: currentUser?.id,
       };
 
       if (existingShifts && existingShifts.length > 0) {
-        // Update existing shifts
         for (const shift of existingShifts) {
           await supabase
             .from('shifts')
@@ -250,7 +235,6 @@ export function ShiftRequestDialog({
             .eq('id', shift.id);
         }
       } else {
-        // Create new day-off shift
         await supabase.from('shifts').insert([shiftData]);
       }
     } catch (error) {
@@ -352,26 +336,24 @@ export function ShiftRequestDialog({
           </div>
 
           {/* Date Range */}
-          {formData.request_type !== 'swap' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={formData.end_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={formData.start_date}
+                onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
+              />
             </div>
-          )}
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Input
+                type="date"
+                value={formData.end_date}
+                onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
+              />
+            </div>
+          </div>
 
           {/* Reason/Notes */}
           <div className="space-y-2">
