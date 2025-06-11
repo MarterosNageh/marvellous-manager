@@ -375,8 +375,6 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       setLeaveRequests(mappedLeaveRequests);
       setSwapRequests(mappedSwapRequests);
 
-      console.log('State after setting requests - Leave:', mappedLeaveRequests.length, 'Swap:', mappedSwapRequests.length);
-
       if (onRequestsUpdate) {
         console.log('Calling onRequestsUpdate with mapped requests');
         onRequestsUpdate(mappedLeaveRequests, mappedSwapRequests);
@@ -409,8 +407,11 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         event: '*', 
         schema: 'public', 
         table: 'shift_requests',
-      }, () => {
-        refreshRequests();
+      }, (payload) => {
+        // Only refresh if it's not a delete event
+        if (payload.eventType !== 'DELETE') {
+          refreshRequests();
+        }
       })
       .subscribe();
 
@@ -475,6 +476,22 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
       if (newStatus === 'approved') {
         if (request.type === 'leave') {
+          // Delete any existing shifts in this date range for this user
+          const { data: existingShifts } = await supabase
+            .from('shifts')
+            .select('id')
+            .eq('user_id', request.user_id)
+            .gte('start_time', `${request.start_date}T00:00:00`)
+            .lte('end_time', `${request.end_date}T23:59:59`);
+
+          if (existingShifts && existingShifts.length > 0) {
+            await supabase
+              .from('shifts')
+              .delete()
+              .in('id', existingShifts.map(shift => shift.id));
+          }
+
+          // Create the new leave shift
           const shiftData = {
             user_id: request.user_id,
             shift_type: request.leave_type === 'public-holiday' ? 'public-holiday' : 'day-off',
@@ -492,6 +509,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
           await supabase.from('shifts').insert([shiftData]);
         } else {
+          // For swap requests
           await supabase
             .from('shifts')
             .update({
@@ -788,7 +806,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       };
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Left Column - Approved Time Off */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -892,140 +910,27 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       </div>
 
       {/* Dialogs */}
-      <Dialog open={showRequestDialog} onOpenChange={(open) => {
-        setShowRequestDialog(open);
-        if (!open) {
-          setEditingRequest(null);
-        }
+      <Dialog open={deleteConfirmDialog.open} onOpenChange={(open) => {
+        if (!open) setDeleteConfirmDialog({ open: false, request: null, type: 'leave' });
       }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingRequest?.id ? 'Edit Request' : 'New Leave Request'}</DialogTitle>
+            <DialogTitle>Delete Request</DialogTitle>
             <DialogDescription>
-              {editingRequest?.id ? 'Edit the request details below.' : 'Create a new leave request by filling out the form below.'}
+              Are you sure you want to delete this request? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {isAdmin && editingRequest?.id && (
-              <div className="grid gap-2">
-                <Label>Status</Label>
-                <Select
-                  value={editingRequest.status}
-                  onValueChange={(value) => {
-                    const status = value as RequestStatus;
-                    setEditingRequest(prev => 
-                      prev ? { 
-                        ...prev, 
-                        status,
-                      } : null
-                    );
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="grid gap-2">
-              <Label>Leave Type</Label>
-              <Select
-                value={editingRequest?.leave_type || 'day-off'}
-                onValueChange={(value) => {
-                  const leaveType = value as LeaveType;
-                  setEditingRequest(prev => 
-                    prev ? { 
-                      ...prev, 
-                      leave_type: leaveType,
-                    } : initializeNewRequest()
-                  );
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select leave type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableLeaveTypes().map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={editingRequest?.start_date || ''}
-                onChange={(e) => {
-                  const startDate = e.target.value;
-                  setEditingRequest(prev => 
-                    prev ? { 
-                      ...prev, 
-                      start_date: startDate,
-                    } : null
-                  );
-                }}
-                required
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                value={editingRequest?.end_date || ''}
-                onChange={(e) => {
-                  const endDate = e.target.value;
-                  setEditingRequest(prev => 
-                    prev ? { 
-                      ...prev, 
-                      end_date: endDate,
-                    } : null
-                  );
-                }}
-                required
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Reason</Label>
-              <Input
-                value={editingRequest?.reason || ''}
-                onChange={(e) => {
-                  const reason = e.target.value;
-                  setEditingRequest(prev => 
-                    prev ? { 
-                      ...prev, 
-                      reason,
-                    } : null
-                  );
-                }}
-                placeholder="Enter reason for leave"
-                required
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowRequestDialog(false);
-              setEditingRequest(null);
-            }}>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => 
+              setDeleteConfirmDialog({ open: false, request: null, type: 'leave' })
+            }>
               Cancel
             </Button>
             <Button 
-              onClick={() => handleSaveEdit(editingRequest)} 
-              disabled={!editingRequest || !editingRequest.start_date || !editingRequest.end_date || !editingRequest.reason}
+              variant="destructive"
+              onClick={() => deleteConfirmDialog.request && handleDeleteRequest(deleteConfirmDialog.request.id)}
             >
-              {editingRequest?.id ? 'Update' : 'Create'} Request
+              Delete
             </Button>
           </div>
         </DialogContent>
@@ -1107,33 +1012,6 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmDialog.open} onOpenChange={(open) => {
-        if (!open) setDeleteConfirmDialog({ open: false, request: null, type: 'leave' });
-      }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Request</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this request? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => 
-              setDeleteConfirmDialog({ open: false, request: null, type: 'leave' })
-            }>
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => deleteConfirmDialog.request && handleDeleteRequest(deleteConfirmDialog.request)}
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Add user info dialog */}
       <UserInfoDialog
         open={userInfoDialogOpen}
@@ -1141,14 +1019,26 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         user={selectedUser}
         currentUser={currentUser}
       />
-      
+
       {/* Shift Request Dialog */}
       <ShiftRequestDialog
         open={showRequestDialog}
-        onClose={() => setShowRequestDialog(false)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowRequestDialog(false);
+            setEditingRequest(null);
+            // Force immediate UI update
+            setTimeout(() => {
+              refreshRequests();
+            }, 0);
+          }
+        }}
         currentUser={currentUser}
         users={users}
-        onRequestsUpdate={onRequestsUpdate}
+        onRequestsUpdate={() => {
+          refreshRequests();
+        }}
+        editingRequest={editingRequest}
       />
     </div>
   );

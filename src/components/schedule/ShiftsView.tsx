@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { format, addWeeks, subWeeks, startOfWeek, endOfWeek } from 'date-fns';
+import { format, addWeeks, subWeeks, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import { useSchedule } from '@/context/ScheduleContext';
 import { Button } from '@/components/ui/button';
@@ -46,7 +45,7 @@ const ShiftsView = () => {
 
   // Calculate week start from Sunday (weekStartsOn: 0)
   const startDate = startOfWeek(selectedDate, { weekStartsOn: 0 });
-  const endDate = endOfWeek(selectedDate, { weekStartsOn: 0 });
+  const endDate = addDays(startDate, 6); // End date is 6 days after start date
 
   const handleOpenEditDialog = (shift: Shift) => {
     setSelectedShift(shift);
@@ -221,7 +220,7 @@ const ShiftsView = () => {
           )}
           {viewType === 'weekly' && (
             <WeeklyView
-              startDate={selectedDate}
+              startDate={startDate}
               selectedDate={selectedDate}
               shifts={filteredShifts}
               onAddShift={handleOpenCreateDialog}

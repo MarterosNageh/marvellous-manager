@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfWeek } from 'date-fns';
 import { Plus, Settings, Calendar, Trash2 } from 'lucide-react';
@@ -189,8 +188,13 @@ const WeeklyView = ({
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
   const [isLoading, setIsLoading] = useState(true);
-  const [weekStart, setWeekStart] = useState(startOfWeek(startDate, { weekStartsOn: 0 }));
+  const [weekStart, setWeekStart] = useState(startDate);
   const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number} | null>(null);
+
+  // Update weekStart when startDate changes
+  useEffect(() => {
+    setWeekStart(startDate);
+  }, [startDate]);
 
   // Load data from database
   useEffect(() => {
@@ -453,9 +457,9 @@ const WeeklyView = ({
                                 onMouseLeave={() => setHoveredCell(null)}
                                 className={cn(
                                   'relative p-2 min-h-[80px] border-l flex flex-col gap-1 transition-colors',
-                                  isSameDay(date, new Date()) && 'bg-blue-50',
+                                  isSameDay(date, new Date()) && !isHovered && 'bg-blue-50',
                                   snapshot.isDraggingOver && 'bg-green-50 border-green-200',
-                                  isHovered && 'bg-gray-100'
+                                  isHovered && 'bg-blue-50'
                                 )}
                               >
                                 {dayShifts.map((shift, shiftIndex) => (
