@@ -46,6 +46,7 @@ interface ShiftData {
   start_time: string;
   end_time: string;
   shift_type: string;
+  status: string;
   user: {
     username: string;
     role: string;
@@ -112,7 +113,8 @@ const Dashboard = () => {
           .from('shifts')
           .select('*, user:auth_users(username, role)')
           .lte('start_time', now)
-          .gte('end_time', now);
+          .gte('end_time', now)
+          .eq('status', 'active');
 
         if (shiftsError) throw shiftsError;
         setCurrentShifts((shiftsData as any[]).map(shift => ({
@@ -121,6 +123,7 @@ const Dashboard = () => {
           start_time: shift.start_time,
           end_time: shift.end_time,
           shift_type: shift.shift_type,
+          status: shift.status,
           user: shift.user
         })) as ShiftData[]);
 
@@ -130,7 +133,7 @@ const Dashboard = () => {
           .from('shift_requests')
           .select('user:auth_users!user_id(username, role)')
           .eq('status', 'approved')
-          .eq('request_type', 'leave')
+          .eq('request_type', 'time_off')
           .lte('start_date', today)
           .gte('end_date', today);
 
@@ -223,92 +226,33 @@ const Dashboard = () => {
               <div>
                 <h3 className="font-medium mb-2">Currently On Shift</h3>
                 {currentShifts.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {currentShifts.map(shift => (
-                      <div
-                        key={shift.id}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
-                      >
-                        <div
-                          className="w-1 h-10 rounded-full"
-                          style={{ 
-                            backgroundColor: shift.shift_type === 'morning' ? '#10B981' : 
-                                          shift.shift_type === 'night' ? '#8B5CF6' : 
-                                          shift.shift_type === 'over night' ? '#F59E0B' : '#3B82F6'
-                          }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{shift.user?.username || 'Unknown User'}</span>
-                            <Badge variant="secondary" className="capitalize">
-                              {shift.shift_type}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
-                          </div>
-                        </div>
+                      <div key={shift.id} className="flex items-center justify-between">
+                        <span>{shift.user?.username}</span>
+                        <Badge>{shift.shift_type}</Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {currentShifts.map((shift) => (
-                      <div
-                        key={shift.id}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
-                      >
-                        <div
-                          className="w-1 h-10 rounded-full"
-                          style={{ backgroundColor: shift.shift_type === 'morning' ? '#10B981' : 
-                                                  shift.shift_type === 'night' ? '#8B5CF6' : 
-                                                  shift.shift_type === 'over night' ? '#F59E0B' : '#3B82F6' }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{shift.user?.username || 'Unknown User'}</span>
-                            <Badge variant="secondary" className="capitalize">
-                              {shift.shift_type}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-muted-foreground">No one is currently on shift</p>
                 )}
               </div>
-              {dayOffUsers.length > 0 && (
-                <div>
-                  <h3 className="font-medium mb-2">Day Off</h3>
-                  <div className="space-y-3">
+              <div>
+                <h3 className="font-medium mb-2">Day Off</h3>
+                {dayOffUsers.length > 0 ? (
+                  <div className="space-y-2">
                     {dayOffUsers.map((user, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
-                      >
-                        <div
-                          className="w-1 h-10 rounded-full"
-                          style={{ backgroundColor: '#6B7280' }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{user.username}</span>
-                            <Badge variant="secondary" className="capitalize">
-                              Day Off
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {format(new Date(), 'EEEE, MMMM d')}
-                          </div>
-                        </div>
+                      <div key={index} className="flex items-center justify-between">
+                        <span>{user.username}</span>
+                        <Badge variant="outline">{user.role}</Badge>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-muted-foreground">No one is off today</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

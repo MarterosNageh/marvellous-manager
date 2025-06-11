@@ -1,3 +1,4 @@
+
 import { AuthUser } from '@/context/AuthContext';
 import { RecurrenceAction, User } from './index';
 
@@ -60,22 +61,13 @@ export interface BaseRequest {
   updated_at: string;
 }
 
-export interface LeaveRequest {
-  id: string;
-  user_id: string;
-  leave_type: string;
-  request_type: string;
+export interface LeaveRequest extends BaseRequest {
+  type: 'leave';
+  leave_type: LeaveType;
+  request_type: 'leave';
   start_date: string;
   end_date: string;
   reason: string;
-  status: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-  reviewer_id?: string;
-  reviewer?: {
-    username: string;
-  };
 }
 
 export interface SwapRequest extends BaseRequest {
