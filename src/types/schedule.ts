@@ -1,4 +1,3 @@
-
 import { AuthUser } from '@/context/AuthContext';
 import { RecurrenceAction, User } from './index';
 
@@ -52,7 +51,7 @@ export interface ShiftTemplate {
 export interface BaseRequest {
   id: string;
   user_id: string;
-  request_type: RequestType;
+  request_type: string;
   status: RequestStatus;
   notes?: string;
   review_notes?: string;
@@ -64,7 +63,7 @@ export interface BaseRequest {
 export interface LeaveRequest extends BaseRequest {
   type: 'leave';
   leave_type: LeaveType;
-  request_type: 'leave';
+  request_type: LeaveType;
   start_date: string;
   end_date: string;
   reason: string;
@@ -207,9 +206,7 @@ export interface ShiftSwapRequestTable {
   update(id: string, request: Partial<SwapRequest>): Promise<SwapRequest>;
   updateStatus(id: string, status: RequestStatus): Promise<SwapRequest>;
   delete(id: string): Promise<void>;
-}
-
-// Helper type for converting DB requests to display requests
+} // Helper type for converting DB requests to display requests
 export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<DisplayRequest, 'originalRequest'> & {
   originalRequest: T;
 };
@@ -217,4 +214,5 @@ export type RequestToDisplay<T extends LeaveRequest | SwapRequest> = Omit<Displa
 // Helper type for converting SwapRequestDB to SwapRequest
 export type SwapRequestDBToRequest = Omit<SwapRequest, 'type'> & {
   type: 'swap';
-};
+}; 
+
