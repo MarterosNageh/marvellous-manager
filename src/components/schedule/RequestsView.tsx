@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,9 +47,11 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   useEffect(() => {
     loadRequests();
-  }, [shiftRequests]);
+  }, [currentUser]);
 
   const loadRequests = async () => {
+    if (!currentUser) return;
+    
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -72,7 +73,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         start_date: req.start_date,
         end_date: req.end_date,
         reason: req.reason || '',
-        status: req.status,
+        status: req.status as RequestStatus,
         created_at: req.created_at,
         notes: req.notes,
         reviewer_id: req.reviewer_id,
@@ -193,11 +194,16 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       const shiftData = {
         user_id: request.user_id,
         shift_type: template.shift_type,
+        title: template.title,
+        description: request.reason,
         color: template.color,
         notes: `${template.title} - ${request.reason}`,
         start_time: `${request.start_date}T00:00:00`,
         end_time: `${request.end_date}T23:59:59`,
         created_by: currentUser?.id,
+        status: 'active' as const,
+        is_all_day: true,
+        repeat_days: [],
       };
 
       if (existingShifts && existingShifts.length > 0) {
@@ -207,8 +213,12 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
             .from('shifts')
             .update({
               shift_type: template.shift_type,
+              title: template.title,
+              description: request.reason,
               color: template.color,
               notes: `${template.title} - ${request.reason} (replaced original shift)`,
+              is_all_day: true,
+              status: 'active',
             })
             .eq('id', shift.id);
         }
@@ -419,11 +429,8 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         <UserInfoDialog
           user={selectedUser}
           open={showUserInfoDialog}
-          onOpenChange={setShowUserInfoDialog}
-          onUserUpdate={() => {
-            // Refresh user data if needed
-            onRequestsUpdate?.();
-          }}
+          onClose={() => setShowUserInfoDialog(false)}
+          currentUser={currentUser}
         />
       )}
     </div>

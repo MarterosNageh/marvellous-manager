@@ -533,5 +533,3 @@ const WeeklyView = ({
 };
 
 export default WeeklyView;
-
-}

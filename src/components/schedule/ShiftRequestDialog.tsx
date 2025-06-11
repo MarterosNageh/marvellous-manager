@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -72,19 +71,41 @@ export function ShiftRequestDialog({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // If currentUser is not available, don't render the dialog
-  if (!currentUser) {
-    return null;
-  }
-
   useEffect(() => {
-    if (initialData) {
+    if (initialData && open) {
       setFormData(prev => ({
         ...prev,
         ...initialData,
       }));
     }
-  }, [initialData]);
+  }, [initialData, open]);
+
+  useEffect(() => {
+    if (!open) {
+      // Reset form when dialog closes
+      setSelectedUsers([]);
+      setFormData({
+        request_type: 'day-off',
+        start_date: format(new Date(), 'yyyy-MM-dd'),
+        end_date: format(new Date(), 'yyyy-MM-dd'),
+        reason: '',
+        notes: '',
+        requested_users: [],
+      });
+    }
+  }, [open]);
+
+  const resetForm = () => {
+    setSelectedUsers([]);
+    setFormData({
+      request_type: 'day-off',
+      start_date: format(new Date(), 'yyyy-MM-dd'),
+      end_date: format(new Date(), 'yyyy-MM-dd'),
+      reason: '',
+      notes: '',
+      requested_users: [],
+    });
+  };
 
   const handleUserToggle = (userId: string) => {
     setSelectedUsers(prev => {
@@ -106,8 +127,8 @@ export function ShiftRequestDialog({
         const swapRequest: Omit<SwapRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
           type: 'swap',
           request_type: 'swap',
-          user_id: currentUser.id,
-          requester_id: currentUser.id,
+          user_id: currentUser?.id || '',
+          requester_id: currentUser?.id || '',
           requested_user_id: formData.requested_users?.[0] || '',
           shift_id: selectedShift?.id || '',
           proposed_shift_id: formData.proposed_shift_id,
@@ -132,7 +153,7 @@ export function ShiftRequestDialog({
         }
       } else {
         // Handle leave request - for admins with multiple users or single user
-        const usersToProcess = isAdmin && selectedUsers.length > 0 ? selectedUsers : [currentUser.id];
+        const usersToProcess = isAdmin && selectedUsers.length > 0 ? selectedUsers : [currentUser?.id || ''];
         
         for (const userId of usersToProcess) {
           const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
@@ -154,7 +175,7 @@ export function ShiftRequestDialog({
               .from('shift_requests')
               .update({ 
                 status: 'approved', 
-                reviewer_id: currentUser.id,
+                reviewer_id: currentUser?.id,
                 updated_at: new Date().toISOString()
               })
               .eq('id', createdRequest.id);
@@ -172,23 +193,12 @@ export function ShiftRequestDialog({
       
       onOpenChange(false);
       onRequestsUpdate?.();
-      
-      // Reset form
-      setSelectedUsers([]);
-      setFormData({
-        request_type: 'day-off',
-        start_date: format(new Date(), 'yyyy-MM-dd'),
-        end_date: format(new Date(), 'yyyy-MM-dd'),
-        reason: '',
-        notes: '',
-        requested_users: [],
-      });
     } catch (error) {
       console.error('Error submitting request:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to submit request. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to submit request. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -254,6 +264,10 @@ export function ShiftRequestDialog({
       request_type: value,
     }));
   };
+
+  if (!currentUser) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
