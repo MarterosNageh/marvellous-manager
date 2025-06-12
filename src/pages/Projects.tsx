@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
@@ -7,37 +6,63 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, FolderOpen } from "lucide-react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ProjectGroupedList } from "@/components/ProjectGroupedList";
+import { useToast } from "@/components/ui/use-toast";
 
 const CATEGORY_OPTIONS = [
   "Drama",
   "Cinema",
   "TVC",
-  "Promotions"
+  "Promotions",
+  "Marvellous"
 ];
 
 const Projects = () => {
-  const { projects, getHardDrivesByProject } = useData();
+  const { projects, getHardDrivesByProject, updateProject } = useData();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const isMobile = useIsMobile();
+  const { toast } = useToast();
 
   const filteredProjects = projects
     .filter((project) =>
       project.name.toLowerCase().includes(search.toLowerCase()) &&
       (categoryFilter === "all" || project.type === categoryFilter)
     );
+
+  const handleToggleArchive = async (projectId: string, isArchived: boolean) => {
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+
+      const updatedProject = {
+        ...project,
+        status: isArchived ? 'unavailable' : 'active'
+      };
+
+      await updateProject(updatedProject);
+      
+      toast({
+        title: "Success",
+        description: `Project ${isArchived ? 'archived' : 'restored'} successfully`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to ${isArchived ? 'archive' : 'restore'} project`,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <MainLayout>
@@ -62,16 +87,20 @@ const Projects = () => {
               className="pl-8 w-full"
             />
           </div>
-          <select
-            className="border rounded bg-white h-10 text-sm px-2 w-full sm:w-auto"
+          <Select
             value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
+            onValueChange={setCategoryFilter}
           >
-            <option value="all">All Categories</option>
-            {CATEGORY_OPTIONS.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORY_OPTIONS.map(category => (
+                <SelectItem key={category} value={category}>{category}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {filteredProjects.length === 0 ? (
@@ -95,52 +124,11 @@ const Projects = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="overflow-x-auto">
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Project Name</TableHead>
-                    {!isMobile && <TableHead>Type</TableHead>}
-                    <TableHead className="hidden sm:table-cell">Creation Date</TableHead>
-                    <TableHead className="hidden md:table-cell">Hard Drives</TableHead>
-                    <TableHead className="hidden lg:table-cell">Description</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProjects.map((project) => {
-                    const hardDriveCount = getHardDrivesByProject(project.id).length;
-
-                    return (
-                      <TableRow key={project.id}>
-                        <TableCell className="font-medium">
-                          <Link
-                            to={`/projects/${project.id}`}
-                            className="hover:underline"
-                          >
-                            {project.name}
-                          </Link>
-                          {isMobile && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {project.type || "N/A"} • {hardDriveCount} drives
-                            </div>
-                          )}
-                        </TableCell>
-                        {!isMobile && <TableCell>{project.type || "N/A"}</TableCell>}
-                        <TableCell className="hidden sm:table-cell">
-                          {new Date(project.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">{hardDriveCount}</TableCell>
-                        <TableCell className="hidden lg:table-cell max-w-xs truncate">
-                          {project.description || "No description"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+          <ProjectGroupedList
+            projects={filteredProjects}
+            getHardDrivesByProject={getHardDrivesByProject}
+            onToggleArchive={handleToggleArchive}
+          />
         )}
       </div>
     </MainLayout>

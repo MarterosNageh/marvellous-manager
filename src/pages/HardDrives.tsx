@@ -13,12 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { HardDriveGroupedList } from "@/components/HardDriveGroupedList";
+import { useToast } from "@/components/ui/use-toast";
 
 const HardDrives = () => {
-  const { hardDrives, projects } = useData();
+  const { hardDrives, projects, updateHardDrive, updateProject } = useData();
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
+  const { toast } = useToast();
 
   const filteredHardDrives = hardDrives.filter((hardDrive) => {
     const matchesSearch =
@@ -31,6 +33,34 @@ const HardDrives = () => {
       
     return matchesSearch && matchesProject;
   });
+
+  const handleToggleArchive = async (hardDriveId: string, isArchived: boolean) => {
+    try {
+      const hardDrive = hardDrives.find(h => h.id === hardDriveId);
+      if (!hardDrive || !hardDrive.projectId) return;
+
+      const project = projects.find(p => p.id === hardDrive.projectId);
+      if (!project) return;
+
+      const updatedProject = {
+        ...project,
+        status: isArchived ? 'unavailable' : 'active'
+      };
+
+      await updateProject(updatedProject);
+      
+      toast({
+        title: "Success",
+        description: `Project ${isArchived ? 'archived' : 'restored'} successfully`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to ${isArchived ? 'archive' : 'restore'} project`,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <MainLayout>
@@ -96,6 +126,7 @@ const HardDrives = () => {
             hardDrives={filteredHardDrives}
             projects={projects}
             isMobile={isMobile}
+            onToggleArchive={handleToggleArchive}
           />
         )}
       </div>

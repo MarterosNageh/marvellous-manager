@@ -34,6 +34,7 @@ const HardDriveForm = () => {
     freeSpace: "",
     data: "",
     driveType: "backup" as 'backup' | 'taxi' | 'passport',
+    status: "available",
     cables: {
       thunderbolt3: false,
       typeC: false,
@@ -64,6 +65,7 @@ const HardDriveForm = () => {
           freeSpace: hardDrive.freeSpace,
           data: hardDrive.data,
           driveType: hardDrive.driveType,
+          status: hardDrive.status,
           cables: updatedCables
         });
       }
@@ -220,6 +222,22 @@ const HardDriveForm = () => {
               
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="unavailable">Unavailable</SelectItem>
+                      <SelectItem value="in_use">In Use</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="retired">Retired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
                   <Label htmlFor="capacity">Capacity</Label>
                   <Input
                     id="capacity"
@@ -229,7 +247,9 @@ const HardDriveForm = () => {
                     placeholder="E.g., 4TB"
                   />
                 </div>
-                
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="freeSpace">Free Space</Label>
                   <Input

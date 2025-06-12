@@ -56,6 +56,40 @@ export function getStatusColor(status: string): string {
   }
 }
 
+export function getHardDriveStatusColor(status: string): string {
+  switch (status) {
+    case 'available':
+      return 'bg-green-100 text-green-800 border-green-300';
+    case 'unavailable':
+      return 'bg-red-100 text-red-800 border-red-300';
+    case 'in_use':
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'maintenance':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    case 'retired':
+      return 'bg-gray-100 text-gray-800 border-gray-300';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-300';
+  }
+}
+
+export function getProjectStatusColor(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'bg-green-100 text-green-800 border-green-300';
+    case 'unavailable':
+      return 'bg-red-100 text-red-800 border-red-300';
+    case 'completed':
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'on_hold':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-800 border-gray-300';
+    default:
+      return 'bg-green-100 text-green-800 border-green-300'; // Default to active/green
+  }
+}
+
 // Helper function to get shift color based on leave type
 export const getShiftColorByLeaveType = (leaveType: LeaveType): string => {
   switch (leaveType) {

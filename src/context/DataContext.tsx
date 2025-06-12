@@ -50,6 +50,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         description: p.description || undefined,
         createdAt: p.created_at,
         type: p.type || undefined,
+        status: p.status || undefined,
       })));
 
       const { data: hardDrivesData, error: hardDrivesError } = await supabase
@@ -66,6 +67,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         freeSpace: h.free_space || "",
         data: h.data || "",
         driveType: (h.drive_type as HardDrive["driveType"]) || "backup",
+        status: h.status || "available",
         cables: h.cables as HardDrive["cables"],
         createdAt: h.created_at,
         updatedAt: h.updated_at,
@@ -97,39 +99,47 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     fetchData();
 
     // Set up real-time subscriptions with proper error handling
-    const channel = supabase
-      .channel('data-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
-        () => {
-          fetchData();
-        }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
-        () => {
-          fetchData();
-        }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
-        () => {
-          fetchData();
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to data updates');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Channel error:', err);
-          // Implement exponential backoff for retries
-          let retryCount = 0;
-          const maxRetries = 3;
-          const retrySubscription = () => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    let currentChannel: any = null;
+
+    const setupSubscription = () => {
+      // Clean up existing channel if it exists
+      if (currentChannel) {
+        currentChannel.unsubscribe();
+      }
+
+      // Create a new channel instance
+      currentChannel = supabase
+        .channel('data-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, 
+          () => {
+            fetchData();
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'hard_drives' },
+          () => {
+            fetchData();
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'print_history' },
+          () => {
+            fetchData();
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to data updates');
+            retryCount = 0; // Reset retry count on successful subscription
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Channel error:', err);
+            // Implement exponential backoff for retries
             if (retryCount < maxRetries) {
               retryCount++;
               const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-          setTimeout(() => {
+              setTimeout(() => {
                 console.log(`🔄 Retrying subscription (attempt ${retryCount}/${maxRetries})...`);
-            channel.unsubscribe();
-                channel.subscribe();
+                setupSubscription(); // Create a new channel instance
               }, delay);
             } else {
               console.error('❌ Max retry attempts reached for data updates subscription');
@@ -139,13 +149,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 variant: "destructive",
               });
             }
-          };
-          retrySubscription();
-        }
-      });
+          }
+        });
+    };
+
+    setupSubscription();
 
     return () => {
-      channel.unsubscribe();
+      if (currentChannel) {
+        currentChannel.unsubscribe();
+      }
     };
   }, [toast]);
 
@@ -153,7 +166,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const dbProject = {
       name: project.name,
       description: project.description,
-      type: project.type
+      type: project.type,
+      status: project.status
     };
 
     const { data, error } = await supabase
@@ -177,6 +191,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       description: data.description || undefined,
       createdAt: data.created_at,
       type: data.type || undefined,
+      status: data.status || undefined,
     };
 
     setProjects(currentProjects => [...currentProjects, newProject]);
@@ -189,7 +204,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       id: project.id,
       name: project.name,
       description: project.description,
-      type: project.type
+      type: project.type,
+      status: project.status
     };
 
     const { error } = await supabase
@@ -237,6 +253,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         free_space: hardDrive.freeSpace,
         data: hardDrive.data,
         drive_type: hardDrive.driveType,
+        status: hardDrive.status,
         cables: hardDrive.cables
       };
 
@@ -259,6 +276,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         freeSpace: data.free_space || "",
         data: data.data || "",
         driveType: (data.drive_type as HardDrive["driveType"]) || "backup",
+        status: data.status || "available",
         cables: data.cables as HardDrive["cables"],
         createdAt: data.created_at,
         updatedAt: data.updated_at,
@@ -292,6 +310,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         free_space: hardDrive.freeSpace,
         data: hardDrive.data,
         drive_type: hardDrive.driveType,
+        status: hardDrive.status,
         cables: hardDrive.cables
       };
 
@@ -393,6 +412,94 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
       // Update the local state immediately
       setPrintHistory(currentHistory => [...currentHistory, newPrintHistory]);
+
+      // Update hard drive and project statuses based on print type
+      try {
+        if (history.type === 'hard-out' && history.hardDriveId) {
+          // Set hard drive status to unavailable when printing hard-out
+          const { data: hardDriveData, error: hardDriveError } = await supabase
+            .from('hard_drives')
+            .select('*')
+            .eq('id', history.hardDriveId)
+            .single();
+          
+          if (hardDriveError) throw hardDriveError;
+          
+          if (hardDriveData) {
+            const updatedHardDrive = {
+              id: hardDriveData.id,
+              name: hardDriveData.name,
+              serialNumber: hardDriveData.serial_number,
+              projectId: hardDriveData.project_id || "",
+              capacity: hardDriveData.capacity || "",
+              freeSpace: hardDriveData.free_space || "",
+              data: hardDriveData.data || "",
+              driveType: (hardDriveData.drive_type as HardDrive["driveType"]) || "backup",
+              status: 'unavailable',
+              cables: hardDriveData.cables as HardDrive["cables"],
+              createdAt: hardDriveData.created_at,
+              updatedAt: hardDriveData.updated_at,
+            };
+            await updateHardDrive(updatedHardDrive);
+          }
+        } else if (history.type === 'hard-in' && history.hardDriveId) {
+          // Set hard drive status to available when printing hard-in
+          const { data: hardDriveData, error: hardDriveError } = await supabase
+            .from('hard_drives')
+            .select('*')
+            .eq('id', history.hardDriveId)
+            .single();
+          
+          if (hardDriveError) throw hardDriveError;
+          
+          if (hardDriveData) {
+            const updatedHardDrive = {
+              id: hardDriveData.id,
+              name: hardDriveData.name,
+              serialNumber: hardDriveData.serial_number,
+              projectId: hardDriveData.project_id || "",
+              capacity: hardDriveData.capacity || "",
+              freeSpace: hardDriveData.free_space || "",
+              data: hardDriveData.data || "",
+              driveType: (hardDriveData.drive_type as HardDrive["driveType"]) || "backup",
+              status: 'available',
+              cables: hardDriveData.cables as HardDrive["cables"],
+              createdAt: hardDriveData.created_at,
+              updatedAt: hardDriveData.updated_at,
+            };
+            await updateHardDrive(updatedHardDrive);
+          }
+        } else if (history.type === 'all-hards' && history.projectId) {
+          // Set project status to unavailable when printing all hard drives
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', history.projectId)
+            .single();
+          
+          if (projectError) throw projectError;
+          
+          if (projectData) {
+            const updatedProject = {
+              id: projectData.id,
+              name: projectData.name,
+              description: projectData.description || undefined,
+              createdAt: projectData.created_at,
+              type: projectData.type || undefined,
+              status: 'unavailable',
+            };
+            await updateProject(updatedProject);
+          }
+        }
+      } catch (statusError) {
+        console.error('Failed to update status:', statusError);
+        // Don't throw error here as the print history was already saved successfully
+        toast({
+          title: "Warning",
+          description: "Print history saved but status update failed",
+          variant: "destructive",
+        });
+      }
     }
   };
 

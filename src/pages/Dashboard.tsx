@@ -29,6 +29,7 @@ interface HardDriveData {
   project?: {
     name: string;
   };
+  drive_type: string;
 }
 
 interface ProjectData {
@@ -82,7 +83,20 @@ const Dashboard = () => {
     lowSpaceHardDrives: 0
   });
   const [loading, setLoading] = useState(true);
+  const [randomGif, setRandomGif] = useState<string>("");
   
+  // Function to get a random GIF
+  const getRandomGif = () => {
+    const gifs = ['01.gif', '02.gif', '03.gif', '04.gif', '05.gif'];
+    const randomIndex = Math.floor(Math.random() * gifs.length);
+    return `/GIF/${gifs[randomIndex]}`;
+  };
+
+  // Set random GIF on component mount
+  useEffect(() => {
+    setRandomGif(getRandomGif());
+  }, []);
+
   // Data loading functions
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -153,11 +167,26 @@ const Dashboard = () => {
         ]);
 
         // Calculate low space hard drives from the fetched data
-        const lowSpaceHardDrives = hardDrivesData.filter(drive => {
-          const freeSpace = parseFloat(drive.free_space);
-          const capacity = parseFloat(drive.capacity);
-          return !isNaN(freeSpace) && !isNaN(capacity) && (freeSpace / capacity) * 100 < 20;
-        }).length;
+        const lowSpaceHardDrives = projects.reduce((count, project) => {
+          const projectBackupDrives = hardDrivesData
+            .filter(drive => 
+              drive.project_id === project.id && 
+              drive.drive_type === 'backup'
+            )
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          
+          if (projectBackupDrives.length === 0) return count;
+          
+          const latestBackupDrive = projectBackupDrives[0];
+          const freeSpace = parseFloat(latestBackupDrive.free_space);
+          const capacity = parseFloat(latestBackupDrive.capacity);
+          
+          if (!isNaN(freeSpace) && !isNaN(capacity) && (freeSpace / capacity) * 100 < 20) {
+            return count + 1;
+          }
+          
+          return count;
+        }, 0);
         
         setStats({
           totalHardDrives: totalHardDrives || 0,
@@ -198,39 +227,51 @@ const Dashboard = () => {
         {/* Top Row: Greeting and Current Shift Status */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Greeting Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">{getGreeting()}, {currentUser?.username}!</CardTitle>
+          <Card className="flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">{getGreeting()}, {currentUser?.username}!</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Welcome to your dashboard. Here's an overview of your workspace.
-              </p>
-              {currentUser?.role && (
-                <Badge className="mt-2" variant="outline">
-                  {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
-                </Badge>
-              )}
+            <CardContent className="flex-1 flex flex-col space-y-3">
+              <div className="flex-shrink-0">
+                <p className="text-muted-foreground text-sm">
+                  Welcome to your dashboard. Here's an overview of your workspace.
+                </p>
+                {currentUser?.role && (
+                  <Badge className="mt-1" variant="outline">
+                    {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                  </Badge>
+                )}
+              </div>
+              {/* Random GIF - only show on larger screens */}
+              <div className="hidden lg:block h-48">
+                {randomGif && (
+                  <img 
+                    src={randomGif} 
+                    alt="Random GIF" 
+                    className="h-full w-full rounded-lg object-contain"
+                  />
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Current Shift Status */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle>Shift Status</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <div>
-                <h3 className="font-medium mb-2">Currently On Shift</h3>
+                <h3 className="font-medium mb-2 text-sm">Currently On Shift</h3>
                 {currentShifts.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {currentShifts.map(shift => (
                       <div
                         key={shift.id}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
+                        className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
                       >
                         <div
-                          className="w-1 h-10 rounded-full"
+                          className="w-1 h-8 rounded-full"
                           style={{ 
                             backgroundColor: shift.shift_type === 'morning' ? '#10B981' : 
                                           shift.shift_type === 'night' ? '#8B5CF6' : 
@@ -239,12 +280,12 @@ const Dashboard = () => {
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{shift.user?.username || 'Unknown User'}</span>
-                            <Badge variant="secondary" className="capitalize">
+                            <span className="font-medium text-sm">{shift.user?.username || 'Unknown User'}</span>
+                            <Badge variant="secondary" className="capitalize text-xs">
                               {shift.shift_type}
                             </Badge>
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-500">
                             {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
                           </div>
                         </div>
@@ -252,26 +293,26 @@ const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {currentShifts.map((shift) => (
                       <div
                         key={shift.id}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
+                        className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
                       >
                         <div
-                          className="w-1 h-10 rounded-full"
+                          className="w-1 h-8 rounded-full"
                           style={{ backgroundColor: shift.shift_type === 'morning' ? '#10B981' : 
                                                   shift.shift_type === 'night' ? '#8B5CF6' : 
                                                   shift.shift_type === 'over night' ? '#F59E0B' : '#3B82F6' }}
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{shift.user?.username || 'Unknown User'}</span>
-                            <Badge variant="secondary" className="capitalize">
+                            <span className="font-medium text-sm">{shift.user?.username || 'Unknown User'}</span>
+                            <Badge variant="secondary" className="capitalize text-xs">
                               {shift.shift_type}
                             </Badge>
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-500">
                             {format(new Date(shift.start_time), 'h:mm a')} - {format(new Date(shift.end_time), 'h:mm a')}
                           </div>
                         </div>
@@ -282,25 +323,25 @@ const Dashboard = () => {
               </div>
               {dayOffUsers.length > 0 && (
                 <div>
-                  <h3 className="font-medium mb-2">Day Off</h3>
-                  <div className="space-y-3">
+                  <h3 className="font-medium mb-2 text-sm">Day Off</h3>
+                  <div className="space-y-2">
                     {dayOffUsers.map((user, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50"
+                        className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
                       >
                         <div
-                          className="w-1 h-10 rounded-full"
+                          className="w-1 h-8 rounded-full"
                           style={{ backgroundColor: '#6B7280' }}
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{user.username}</span>
-                            <Badge variant="secondary" className="capitalize">
+                            <span className="font-medium text-sm">{user.username}</span>
+                            <Badge variant="secondary" className="capitalize text-xs">
                               Day Off
                             </Badge>
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-500">
                             {format(new Date(), 'EEEE, MMMM d')}
                           </div>
                         </div>
@@ -349,22 +390,24 @@ const Dashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {projects.map(project => {
-                const projectDrives = hardDrives
+                // Get all backup drives for this project, sorted by creation date (newest first)
+                const projectBackupDrives = hardDrives
                   .filter(drive => 
                     drive.project_id === project.id && 
-                    parseInt(drive.free_space) / parseInt(drive.capacity) * 100 < 20
+                    drive.drive_type === 'backup'
                   )
-                  // Sort by created_at in descending order (newest first)
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                  // Take only the first (latest) drive
-                  .slice(0, 1);
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                 
-                if (projectDrives.length === 0) return null;
+                if (projectBackupDrives.length === 0) return null;
 
-                // Since we're only showing one drive per project, we can directly use projectDrives[0]
-                const drive = projectDrives[0];
-                const freeSpacePercentage = (parseInt(drive.free_space) / parseInt(drive.capacity)) * 100;
-                const isCritical = freeSpacePercentage < 15;
+                // Get the latest backup drive
+                const latestDrive = projectBackupDrives[0];
+                const freeSpacePercentage = (parseInt(latestDrive.free_space) / parseInt(latestDrive.capacity)) * 100;
+                const hasLowSpace = freeSpacePercentage < 20;
+                const isCritical = freeSpacePercentage < 10;
+                
+                // Only show if the latest drive has low space
+                if (!hasLowSpace) return null;
                 
                 return (
                   <div key={project.id} className="space-y-2">
@@ -378,7 +421,7 @@ const Dashboard = () => {
                       )}
                     >
                       <div>
-                        <p className="font-medium">{drive.name}</p>
+                        <p className="font-medium">{latestDrive.name}</p>
                         <div className="flex items-center gap-2">
                           <p className={cn(
                             "text-sm",
@@ -390,7 +433,7 @@ const Dashboard = () => {
                             "text-xs",
                             isCritical ? "text-white/75" : "text-muted-foreground/75"
                           )}>
-                            • Added {format(new Date(drive.created_at), 'MMM d, yyyy')}
+                            • Added {format(new Date(latestDrive.created_at), 'MMM d, yyyy')}
                           </span>
                         </div>
                       </div>
@@ -399,7 +442,7 @@ const Dashboard = () => {
                         size="sm" 
                         asChild
                       >
-                        <Link to={`/hard-drives/${drive.id}`}>
+                        <Link to={`/hard-drives/${latestDrive.id}`}>
                           Details
                         </Link>
                       </Button>
@@ -407,7 +450,20 @@ const Dashboard = () => {
                   </div>
                 );
               })}
-              {!hardDrives.some(drive => parseInt(drive.free_space) / parseInt(drive.capacity) * 100 < 20) && (
+              {!projects.some(project => {
+                const projectBackupDrives = hardDrives
+                  .filter(drive => 
+                    drive.project_id === project.id && 
+                    drive.drive_type === 'backup'
+                  )
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                
+                if (projectBackupDrives.length === 0) return false;
+                
+                const latestDrive = projectBackupDrives[0];
+                const freeSpacePercentage = (parseInt(latestDrive.free_space) / parseInt(latestDrive.capacity)) * 100;
+                return freeSpacePercentage < 20;
+              }) && (
                 <p className="text-center text-muted-foreground py-4">
                   No hard drives with low space
                 </p>

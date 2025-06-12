@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
 import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import type { HardDrive, PrintHistory } from "@/types";
+import { getHardDriveStatusColor } from "@/lib/utils";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -114,7 +115,20 @@ const HardDriveDetail = () => {
     
     // Calculate percentage of free space
     const freeSpacePercentage = (freeSpaceGB / capacityGB) * 100;
-    return freeSpacePercentage < 10; // Less than 10% free space
+    return freeSpacePercentage < 20; // Less than 20% free space
+  };
+
+  // Check if this is the most recent backup drive that should show low space
+  const shouldShowLowSpace = (hardDrive: HardDrive) => {
+    if (!hasLowSpace(hardDrive)) return false;
+    
+    // Get all backup drives for this project, sorted by creation date (newest first)
+    const backupDrives = hardDrives
+      .filter(drive => drive.driveType === 'backup' && drive.projectId === hardDrive.projectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    // Only show low space on the most recent backup drive
+    return backupDrives.length > 0 && backupDrives[0].id === hardDrive.id;
   };
 
   if (loading) {
@@ -146,6 +160,7 @@ const HardDriveDetail = () => {
       hard_drive_id: history.hardDriveId,
       printed_at: history.timestamp,
       printed_by: history.operatorName,
+      hardDriveName: hardDrive.name
     }));
 
   return (
@@ -165,7 +180,7 @@ const HardDriveDetail = () => {
             </Button>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-3xl font-bold truncate">{hardDrive.name}</h1>
-              {hasLowSpace(hardDrive) && (
+              {shouldShowLowSpace(hardDrive) && (
                 <Badge variant="destructive" className="text-sm">
                   Low Space
                 </Badge>
@@ -240,6 +255,13 @@ const HardDriveDetail = () => {
               </div>
               
               <div>
+                <label className="text-sm font-medium text-gray-500">Status</label>
+                <Badge variant="outline" className={`capitalize ${getHardDriveStatusColor(hardDrive.status)}`}>
+                  {hardDrive.status}
+                </Badge>
+              </div>
+              
+              <div>
                 <label className="text-sm font-medium text-gray-500">Capacity</label>
                 <p className="text-lg">{hardDrive.capacity || 'Not specified'}</p>
               </div>
@@ -266,7 +288,13 @@ const HardDriveDetail = () => {
                 <>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Project Name</label>
-                    <p className="text-lg">{project.name}</p>
+                    <Link 
+                      to={`/projects/${project.id}`} 
+                      className="text-lg text-primary hover:underline hover:text-primary/80 transition-colors"
+                    >
+                      <br></br>
+                      {project.name}
+                    </Link>
                   </div>
                   
                   <div>

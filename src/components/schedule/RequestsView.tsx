@@ -8,8 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useShifts } from '@/context/ShiftsContext';
 import { ShiftRequestDialog } from './ShiftRequestDialog';
 import { UserInfoDialog } from './UserInfoDialog';
-// You will need to create this new dialog component
-// import { UserBalanceDialog } from './UserBalanceDialog'; 
+import { UserBalanceDialog } from './UserBalanceDialog';
 import type { ScheduleUser, RequestStatus } from '@/types/schedule';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -40,26 +39,19 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
   const { shiftRequests, refreshRequests } = useShifts();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
-  // State for the new UserBalanceDialog. You'll need to create this component.
   const [userBalanceDialog, setUserBalanceDialog] = useState<{ open: boolean; user: ScheduleUser | null; balance: number; }>({ open: false, user: null, balance: 0 });
   const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
   const [editingRequest, setEditingRequest] = useState<any>(null);
   const [requests, setRequests] = useState<ShiftRequestDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State to manage user leave balances. You might fetch this from a DB.
   const [userBalances, setUserBalances] = useState<{[key: string]: number}>({});
 
   const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     loadRequests();
-    // Initialize default balances for all users for demonstration
-    const initialBalances: {[key: string]: number} = {};
-    users.forEach(user => {
-      initialBalances[user.id] = 80; // Default 80 hours (10 days)
-    });
-    setUserBalances(initialBalances);
+    loadUserBalances();
   }, [currentUser, users]);
 
   const loadRequests = async () => {
@@ -104,28 +96,51 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       setIsLoading(false);
     }
   };
-  
-  // --- New Helper Functions for Approved Time Off ---
+
+  const loadUserBalances = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('id, balance')
+        .in('id', users.map(user => user.id));
+
+      if (error) throw error;
+
+      const balances: {[key: string]: number} = {};
+      (data || []).forEach(user => {
+        // Convert hours to days (8 hours per day)
+        balances[user.id] = (user.balance || 80) / 8;
+      });
+      
+      setUserBalances(balances);
+    } catch (error) {
+      console.error('Error loading user balances:', error);
+      // Fallback to default balances
+      const initialBalances: {[key: string]: number} = {};
+      users.forEach(user => {
+        initialBalances[user.id] = 10; // Default 10 days
+      });
+      setUserBalances(initialBalances);
+    }
+  };
+
   const getApprovedDays = (userId: string) => {
     return requests
       .filter(req => req.user_id === userId && req.status === 'approved')
       .reduce((acc, req) => {
         const startDate = new Date(req.start_date);
         const endDate = new Date(req.end_date);
-        // +1 because differenceInDays is exclusive of the end date
         const days = differenceInDays(endDate, startDate) + 1;
         return acc + days;
       }, 0);
   };
 
   const getRemainingDays = (userId: string) => {
-    const totalBalanceHours = userBalances[userId] || 80; // Default to 80 hours
+    const totalBalanceDays = userBalances[userId] || 10; // Default to 10 days
     const approvedDays = getApprovedDays(userId);
-    const approvedHours = approvedDays * 8; // Assuming 8-hour workdays
-    const remainingHours = totalBalanceHours - approvedHours;
-    return remainingHours / 8; // Convert back to days
+    const remainingDays = totalBalanceDays - approvedDays;
+    return Math.max(0, remainingDays); // Ensure we don't return negative days
   };
-
 
   const handleApproveRequest = async (request: ShiftRequestDisplay) => {
     try {
@@ -297,6 +312,11 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
     }
   };
 
+  const handleBalanceUpdate = (userId: string, newBalance: number) => {
+    setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
+    setUserBalanceDialog({ open: false, user: null, balance: 0 });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[400px]">
@@ -307,7 +327,6 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* --- START: New "Approved Time Off" Section --- */}
       <div className="lg:col-span-1 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -359,9 +378,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
           </CardContent>
         </Card>
       </div>
-      {/* --- END: New "Approved Time Off" Section --- */}
       
-      {/* --- Existing Leave Requests Section --- */}
       <div className="lg:col-span-2 space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Leave Requests</h2>
@@ -372,123 +389,143 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         </div>
 
         <div className="grid gap-4">
+          {console.log("-------------------------------------------------------------------")}
+          {console.log("users",users)}
+          {console.log("requests",requests)}
           {requests.length === 0 ? (
+            
             <Card>
               <CardContent className="flex items-center justify-center h-[200px]">
                 <p className="text-muted-foreground">No pending or recent requests</p>
               </CardContent>
             </Card>
           ) : (
-            requests.map((request) => {
-              const RequestIcon = getRequestTypeIcon(request.leave_type || request.request_type);
-              return (
-                <Card key={request.id}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <RequestIcon className="h-5 w-5 text-muted-foreground" />
+            (() => {
+              const filteredRequests = isAdmin 
+                ? requests 
+                : requests.filter(request => request.username === users[0].username);
+              
+              if (filteredRequests.length === 0) {
+                return (
+                  <Card>
+                    <CardContent className="flex items-center justify-center h-[200px]">
+                      <p className="text-muted-foreground">No pending or recent requests</p>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              
+              return filteredRequests.map((request) => {
+                const RequestIcon = getRequestTypeIcon(request.leave_type || request.request_type);
+                return (
+                  <Card key={request.id}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <RequestIcon className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <CardTitle className="text-base">
+                              {request.leave_type || request.request_type} Request
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                              by{' '}
+                              <button
+                                onClick={() => handleUserClick(request.user_id)}
+                                className="text-primary hover:underline cursor-pointer"
+                              >
+                                {request.username}
+                              </button>
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className={getStatusColor(request.status)}>
+                          {request.status}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <CardTitle className="text-base">
-                            {request.leave_type || request.request_type} Request
-                          </CardTitle>
+                          <p className="text-sm font-medium">Start Date</p>
                           <p className="text-sm text-muted-foreground">
-                            by{' '}
-                            <button
-                              onClick={() => handleUserClick(request.user_id)}
-                              className="text-primary hover:underline cursor-pointer"
-                            >
-                              {request.username}
-                            </button>
+                            {format(new Date(request.start_date), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">End Date</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(request.end_date), 'MMM dd, yyyy')}
                           </p>
                         </div>
                       </div>
-                      <Badge className={getStatusColor(request.status)}>
-                        {request.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium">Start Date</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(request.start_date), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">End Date</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(request.end_date), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium">Reason</p>
-                      <p className="text-sm text-muted-foreground">{request.reason}</p>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2">
-                      <p className="text-xs text-muted-foreground">
-                        Submitted on {format(new Date(request.created_at), 'MMM dd, yyyy')}
-                      </p>
                       
-                      <div className="flex gap-2">
-                        {canEditOrDelete(request) && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingRequest(request);
-                                setShowRequestDialog(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteRequest(request.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        
-                        {isAdmin && request.status === 'pending' && (
-                          <>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => handleApproveRequest(request)}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleRejectRequest(request.id)}
-                            >
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUserClick(request.user_id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                      <div>
+                        <p className="text-sm font-medium">Reason</p>
+                        <p className="text-sm text-muted-foreground">{request.reason}</p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+
+                      <div className="flex justify-between items-center pt-2">
+                        <p className="text-xs text-muted-foreground">
+                          Submitted on {format(new Date(request.created_at), 'MMM dd, yyyy')}
+                        </p>
+                        
+                        <div className="flex gap-2">
+                          {canEditOrDelete(request) && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingRequest(request);
+                                  setShowRequestDialog(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteRequest(request.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          
+                          {isAdmin && request.status === 'pending' && (
+                            <>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => handleApproveRequest(request)}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleRejectRequest(request.id)}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUserClick(request.user_id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              });
+            })()
           )}
         </div>
       </div>
@@ -520,21 +557,17 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         />
       )}
       
-      {/* You would also need to render your UserBalanceDialog here */}
-      {/* {userBalanceDialog.open && (
+      {userBalanceDialog.open && (
         <UserBalanceDialog
           open={userBalanceDialog.open}
           user={userBalanceDialog.user}
           initialBalance={userBalanceDialog.balance}
           onClose={() => setUserBalanceDialog({ open: false, user: null, balance: 0 })}
           onSave={(userId, newBalance) => {
-            setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
-            // Here you would also update the balance in your database
-            setUserBalanceDialog({ open: false, user: null, balance: 0 });
+            handleBalanceUpdate(userId, newBalance);
           }}
         />
       )}
-      */}
     </div>
   );
 };

@@ -118,7 +118,7 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) =>
                 {sortDirection === 'asc' ? '(Oldest First)' : '(Newest First)'}
               </Button>
             </TableHead>
-            {data.some(item => item.hardDriveName) && <TableHead className="w-[200px]">Hard Drive</TableHead>}
+            {data.some(item => item.hard_drive_id) && <TableHead className="w-[200px]">Hard Drive</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -131,14 +131,14 @@ export const PrintHistoryTable: React.FC<PrintHistoryTableProps> = ({ data }) =>
               </TableCell>
               <TableCell>{item.printed_by}</TableCell>
               <TableCell>{formatDate(item.printed_at)}</TableCell>
-              {data.some(item => item.hardDriveName) && (
-                <TableCell>{item.hardDriveName || '-'}</TableCell>
+              {data.some(item => item.hard_drive_id) && (
+                <TableCell>{item.hardDriveName || 'N/A'}</TableCell>
               )}
             </TableRow>
           ))}
           {sortedData.length === 0 && (
             <TableRow>
-              <TableCell colSpan={data.some(item => item.hardDriveName) ? 4 : 3} className="text-center py-4">
+              <TableCell colSpan={data.some(item => item.hard_drive_id) ? 4 : 3} className="text-center py-4">
                 {searchQuery || selectedType !== 'all' 
                   ? "No matching records found" 
                   : "No print history available"}

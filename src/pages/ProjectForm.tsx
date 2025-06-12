@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
 import { Button } from "@/components/ui/button";
@@ -18,18 +19,20 @@ import {
 } from "@/components/ui/select";
 
 // Project type options
-const PROJECT_TYPES = ["Drama", "Cinema", "Promotions", "TVC"];
+const PROJECT_TYPES = ["Drama", "Cinema", "Promotions", "TVC", "Marvellous"];
 
 const ProjectForm = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getProject, addProject, updateProject } = useData();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    type: ""
+    type: "",
+    status: "active"
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,7 +44,8 @@ const ProjectForm = () => {
         setFormData({
           name: project.name,
           description: project.description || "",
-          type: project.type || ""
+          type: project.type || "",
+          status: project.status || "active"
         });
       }
     }
@@ -73,6 +77,9 @@ const ProjectForm = () => {
           description: "Project updated successfully",
         });
         
+        // Invalidate the specific project query
+        queryClient.invalidateQueries({ queryKey: ['project', id] });
+        
         navigate(`/projects/${id}`);
       } else {
         // Add project and wait for the ID to be returned
@@ -85,6 +92,7 @@ const ProjectForm = () => {
         
         // Short delay to ensure the data is available in the context
         setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['project', newId] });
           navigate(`/projects/${newId}`);
         }, 100);
       }
@@ -136,6 +144,22 @@ const ProjectForm = () => {
                     {PROJECT_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>{type}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="status">Project Status</Label>
+                <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="unavailable">Unavailable</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on_hold">On Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

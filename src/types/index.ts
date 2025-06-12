@@ -16,6 +16,7 @@ export interface Project {
   description?: string;
   createdAt: string;
   type?: string;
+  status?: string;
 }
 
 export interface HardDrive {
@@ -27,6 +28,7 @@ export interface HardDrive {
   freeSpace: string;
   data: string;
   driveType: 'backup' | 'taxi' | 'passport';
+  status: string;
   cables: {
     thunderbolt3: boolean;
     typeC: boolean;

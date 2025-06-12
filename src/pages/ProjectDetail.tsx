@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { PrintHistoryTable } from '@/components/print/PrintHistoryTable';
+import { getProjectStatusColor } from "@/lib/utils";
 
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -156,9 +157,22 @@ const ProjectDetail = () => {
     
     if (capacity > 0 && freeSpace > 0) {
       const usagePercent = ((capacity - freeSpace) / capacity) * 100;
-      return usagePercent > 85; // More than 85% used
+      return usagePercent > 80; // More than 80% used (less than 20% free)
     }
     return false;
+  };
+
+  // Check if this is the most recent backup drive that should show low space
+  const shouldShowLowSpace = (drive: any) => {
+    if (!hasLowSpace(drive)) return false;
+    
+    // Get all backup drives for this project, sorted by creation date (newest first)
+    const backupDrives = hardDrives
+      .filter(d => d.drive_type === 'backup')
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    
+    // Only show low space on the most recent backup drive
+    return backupDrives.length > 0 && backupDrives[0].id === drive.id;
   };
 
   const handleEdit = () => {
@@ -193,19 +207,6 @@ const ProjectDetail = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'todo':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
@@ -219,11 +220,45 @@ const ProjectDetail = () => {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'unavailable':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'on_hold':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getHardDriveStatusColor = (status: string) => {
+    switch (status) {
+      case 'available':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'unavailable':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'in_use':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'maintenance':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'retired':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
   const taskStats = {
     total: tasks.length,
     completed: tasks.filter(task => task.status === 'completed').length,
     inProgress: tasks.filter(task => task.status === 'in_progress').length,
-    todo: tasks.filter(task => task.status === 'todo').length
+    pending: tasks.filter(task => task.status === 'pending').length
   };
 
   const completionRate = taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0;
@@ -318,7 +353,9 @@ const ProjectDetail = () => {
             <CardContent className="space-y-4">
               <div>
                 <h4 className="font-medium text-gray-900">Status</h4>
-                <Badge variant="outline" className="mt-1">
+                <Badge 
+                  className={`mt-1 capitalize text-sm ${getProjectStatusColor(project.status || 'active')}`}
+                >
                   {project.status || 'Active'}
                 </Badge>
               </div>
@@ -354,10 +391,25 @@ const ProjectDetail = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Low Space Alerts</span>
-                  <span className="text-sm font-medium text-red-600">
-                    {hardDrives.filter(hasLowSpace).length}
+                  <span className="text-sm text-gray-600">Total Backup</span>
+                  <span className="text-sm font-medium">
+                    {hardDrives.filter(drive => drive.drive_type === 'backup').length}
                   </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Total Taxi</span>
+                  <span className="text-sm font-medium">
+                    {hardDrives.filter(drive => drive.drive_type === 'taxi').length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Total Passport</span>
+                  <span className="text-sm font-medium">
+                    {hardDrives.filter(drive => drive.drive_type === 'passport').length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+
                 </div>
               </div>
             </CardContent>
@@ -374,26 +426,26 @@ const ProjectDetail = () => {
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Pending</span>
+                  <span className="text-sm text-gray-500">Pending</span>
                   <span className="text-sm font-medium">
-                    {tasks.filter(task => task.status === 'todo').length}
+                    {tasks.filter(task => task.status === 'pending').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">In Progress</span>
-                  <span className="text-sm font-medium text-blue-600">
+                  <span className="text-sm font-medium text-red-500">
                     {tasks.filter(task => task.status === 'in_progress').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Under Review</span>
-                  <span className="text-sm font-medium text-purple-600">
+                  <span className="text-sm font-medium text-blue-500">
                     {tasks.filter(task => task.status === 'under_review').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Completed</span>
-                  <span className="text-sm font-medium text-green-600">
+                  <span className="text-sm font-medium text-green-500">
                     {tasks.filter(task => task.status === 'completed').length}
                   </span>
                 </div>
@@ -431,6 +483,7 @@ const ProjectDetail = () => {
                         <tr className="border-b">
                           <th className="text-left p-3 font-medium">Name</th>
                           <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Status</th>
                           <th className="text-left p-3 font-medium">Capacity</th>
                           <th className="text-left p-3 font-medium">Free Space</th>
                           <th className="text-left p-3 font-medium">Data</th>
@@ -451,7 +504,7 @@ const ProjectDetail = () => {
                                     <HardDrive className="h-4 w-4" />
                                     {drive.name}
                                   </Link>
-                                  {hasLowSpace(drive) && (
+                                  {shouldShowLowSpace(drive) && (
                                     <Badge variant="destructive" className="text-xs">
                                       Low Space
                                     </Badge>
@@ -459,6 +512,11 @@ const ProjectDetail = () => {
                                 </div>
                               </td>
                               <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">
+                                <Badge variant="outline" className={`capitalize ${getHardDriveStatusColor(drive.status || 'available')}`}>
+                                  {drive.status || 'available'}
+                                </Badge>
+                              </td>
                               <td className="p-3">{drive.capacity || 'N/A'}</td>
                               <td className="p-3">{drive.free_space || 'N/A'}</td>
                               <td className="p-3">{drive.data || 'N/A'}</td>
@@ -469,7 +527,7 @@ const ProjectDetail = () => {
                           ))}
                         {hardDrives.filter(drive => drive.drive_type === 'backup').length === 0 && (
                           <tr>
-                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                            <td colSpan={7} className="text-center p-4 text-gray-500">
                               No backup drives found
                             </td>
                           </tr>
@@ -488,6 +546,7 @@ const ProjectDetail = () => {
                         <tr className="border-b">
                           <th className="text-left p-3 font-medium">Name</th>
                           <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Status</th>
                           <th className="text-left p-3 font-medium">Capacity</th>
                           <th className="text-left p-3 font-medium">Free Space</th>
                           <th className="text-left p-3 font-medium">Data</th>
@@ -511,6 +570,11 @@ const ProjectDetail = () => {
                                 </div>
                               </td>
                               <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">
+                                <Badge variant="outline" className={`capitalize ${getHardDriveStatusColor(drive.status || 'available')}`}>
+                                  {drive.status || 'available'}
+                                </Badge>
+                              </td>
                               <td className="p-3">{drive.capacity || 'N/A'}</td>
                               <td className="p-3">{drive.free_space || 'N/A'}</td>
                               <td className="p-3">{drive.data || 'N/A'}</td>
@@ -521,7 +585,7 @@ const ProjectDetail = () => {
                           ))}
                         {hardDrives.filter(drive => drive.drive_type === 'taxi').length === 0 && (
                           <tr>
-                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                            <td colSpan={7} className="text-center p-4 text-gray-500">
                               No taxi drives found
                             </td>
                           </tr>
@@ -540,6 +604,7 @@ const ProjectDetail = () => {
                         <tr className="border-b">
                           <th className="text-left p-3 font-medium">Name</th>
                           <th className="text-left p-3 font-medium">Serial Number</th>
+                          <th className="text-left p-3 font-medium">Status</th>
                           <th className="text-left p-3 font-medium">Capacity</th>
                           <th className="text-left p-3 font-medium">Free Space</th>
                           <th className="text-left p-3 font-medium">Data</th>
@@ -563,6 +628,11 @@ const ProjectDetail = () => {
                                 </div>
                               </td>
                               <td className="p-3 text-gray-600">{drive.serial_number}</td>
+                              <td className="p-3">
+                                <Badge variant="outline" className={`capitalize ${getHardDriveStatusColor(drive.status || 'available')}`}>
+                                  {drive.status || 'available'}
+                                </Badge>
+                              </td>
                               <td className="p-3">{drive.capacity || 'N/A'}</td>
                               <td className="p-3">{drive.free_space || 'N/A'}</td>
                               <td className="p-3">{drive.data || 'N/A'}</td>
@@ -573,7 +643,7 @@ const ProjectDetail = () => {
                           ))}
                         {hardDrives.filter(drive => drive.drive_type === 'passport').length === 0 && (
                           <tr>
-                            <td colSpan={6} className="text-center p-4 text-gray-500">
+                            <td colSpan={7} className="text-center p-4 text-gray-500">
                               No passport drives found
                             </td>
                           </tr>

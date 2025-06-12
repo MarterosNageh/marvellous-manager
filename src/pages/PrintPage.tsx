@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Printer, HardDrive } from "lucide-react";
-import { PrintType } from "@/types";
+import { ArrowLeft, Printer } from "lucide-react";
+import { PrintType, HardDrive } from "@/types";
 import { HardDriveOutPrint } from "@/components/print/HardDriveOutPrint";
 import { HardDriveOutPrintPrev } from "@/components/print/HardDriveOutPrintPrev";
 import { HardDriveInPrint } from "@/components/print/HardDriveInPrint";
@@ -16,6 +16,8 @@ import { HardDriveInPrintPrev } from "@/components/print/HardDriveInPrintPrev";
 import { AllHardsPrint } from "@/components/print/AllHardsPrint";
 import { AllHardsPrintPrev } from "@/components/print/AllHardsPrintPrev";
 import { HardDriveLabelPrint } from "@/components/print/HardDriveLabelPrint";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type ExtendedPrintType = PrintType | "hard-label";
 
@@ -27,25 +29,160 @@ const PrintPage = () => {
   }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const {
-    getHardDrive,
-    getProject,
-    getHardDrivesByProject,
     addPrintHistory,
   } = useData();
   const {
     currentUser
   } = useAuth();
-  const defaultType = searchParams.get("type") as ExtendedPrintType || "hard-out";
+  const defaultType = searchParams.get("type") as ExtendedPrintType || (location.state as any)?.type || "hard-out";
   const [printType, setPrintType] = useState<ExtendedPrintType>(defaultType);
   const [operatorName, setOperatorName] = useState(currentUser?.username || "");
   const printRef = useRef<HTMLDivElement>(null);
-  const isProjectPrint = window.location.pathname.includes("/projects/");
-  const hardDrive = !isProjectPrint ? getHardDrive(id || "") : null;
-  const project = isProjectPrint ? getProject(id || "") : hardDrive ? getProject(hardDrive.projectId) : null;
-  const hardDrives = isProjectPrint && project ? getHardDrivesByProject(project.id) : hardDrive ? [hardDrive] : [];
+  
+  // Get project ID from URL params or location state
+  const projectIdFromState = (location.state as any)?.projectId;
+  const projectId = id || projectIdFromState;
+  const isProjectPrint = window.location.pathname.includes("/projects/") || !!projectIdFromState;
 
-  if (!hardDrive && !isProjectPrint || isProjectPrint && !project || !hardDrives.length) {
+  // Fetch project data using React Query
+  const { data: project, isLoading: projectLoading } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+      
+      if (error) throw error;
+      
+      // Transform database data to match Project interface
+      return data ? {
+        id: data.id,
+        name: data.name,
+        description: data.description || undefined,
+        createdAt: data.created_at,
+        type: data.type || undefined,
+        status: data.status || 'available',
+      } : null;
+    },
+    enabled: !!projectId && isProjectPrint
+  });
+
+  // Fetch hard drive data using React Query
+  const { data: hardDrive, isLoading: hardDriveLoading } = useQuery({
+    queryKey: ['hard-drive', id],
+    queryFn: async () => {
+      if (!id) return null;
+      
+      const { data, error } = await supabase
+        .from('hard_drives')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      
+      // Transform database data to match HardDrive interface
+      return data ? {
+        id: data.id,
+        name: data.name,
+        serialNumber: data.serial_number,
+        projectId: data.project_id || "",
+        capacity: data.capacity || "",
+        freeSpace: data.free_space || "",
+        data: data.data || "",
+        driveType: (data.drive_type as HardDrive["driveType"]) || "backup",
+        status: data.status || 'available',
+        cables: data.cables as HardDrive["cables"],
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      } : null;
+    },
+    enabled: !!id && !isProjectPrint
+  });
+
+  // Fetch hard drives for project using React Query
+  const { data: hardDrives = [], isLoading: hardDrivesLoading } = useQuery({
+    queryKey: ['project-hard-drives', projectId],
+    queryFn: async () => {
+      if (projectId === null) {
+        // Fetch hard drives with no project
+        const { data, error } = await supabase
+          .from('hard_drives')
+          .select('*')
+          .is('project_id', null)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data ? data.map(hd => ({
+          id: hd.id,
+          name: hd.name,
+          serialNumber: hd.serial_number,
+          projectId: hd.project_id || "",
+          capacity: hd.capacity || "",
+          freeSpace: hd.free_space || "",
+          data: hd.data || "",
+          driveType: (hd.drive_type as HardDrive["driveType"]) || "backup",
+          status: hd.status || 'available',
+          cables: hd.cables as HardDrive["cables"],
+          createdAt: hd.created_at,
+          updatedAt: hd.updated_at,
+        })) : [];
+      } else if (projectId) {
+        // Fetch hard drives for specific project
+        const { data, error } = await supabase
+          .from('hard_drives')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data ? data.map(hd => ({
+          id: hd.id,
+          name: hd.name,
+          serialNumber: hd.serial_number,
+          projectId: hd.project_id || "",
+          capacity: hd.capacity || "",
+          freeSpace: hd.free_space || "",
+          data: hd.data || "",
+          driveType: (hd.drive_type as HardDrive["driveType"]) || "backup",
+          status: hd.status || 'available',
+          cables: hd.cables as HardDrive["cables"],
+          createdAt: hd.created_at,
+          updatedAt: hd.updated_at,
+        })) : [];
+      }
+      
+      return [];
+    },
+    enabled: isProjectPrint && (projectId !== undefined)
+  });
+
+  if (projectLoading || hardDriveLoading || hardDrivesLoading) {
+    return <MainLayout>
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    </MainLayout>;
+  }
+
+  // Check if we have the required data for the current print type
+  const hasRequiredData = () => {
+    if (printType === "all-hards") {
+      return isProjectPrint && projectId !== undefined; // For all-hards, we need a project ID (can be null for no-project)
+    } else {
+      return !isProjectPrint && hardDrive; // For individual hard drive prints
+    }
+  };
+
+  if (!hasRequiredData()) {
     return <MainLayout>
         <div className="text-center p-12">
           <h2 className="text-2xl font-bold mb-4">Hard Drive Not Found</h2>
@@ -301,9 +438,10 @@ const PrintPage = () => {
 
           </style>
         </head>
-        <body>
+
 
             ${printType === "hard-label" ? `
+                      <body>
           <div id="BtnContanier">
             <button id="1" >01</button>
             <button id="2" >02</button>
@@ -321,6 +459,7 @@ const PrintPage = () => {
             ${content.innerHTML}
           </div>
             ` : `
+                    <body onload=window.print()>
             <div class="content-wrapper">
             ${content.innerHTML}
           </div>

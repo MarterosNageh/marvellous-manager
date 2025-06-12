@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle, Save, X } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar, Flag, User, MessageCircle, Paperclip, Circle, Clock, Eye, CheckCircle, Save, X, Check, ChevronsUpDown } from "lucide-react";
 import { Task, TaskStatus } from "@/types/taskTypes";
 import { useTask } from "@/context/TaskContext";
 import { useAuth } from "@/context/AuthContext";
@@ -39,10 +42,12 @@ const statusIcons = {
 };
 
 export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, onOpenChange }) => {
-  const { updateTask, deleteTask, currentUser, tasks } = useTask();
+  const { updateTask, deleteTask, currentUser, tasks, users, assignTask } = useTask();
   const { canCompleteTask } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState(task);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
 
   // Check if task still exists in the tasks array
   const taskExists = tasks.find(t => t.id === task.id);
@@ -57,6 +62,7 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
   // Update editedTask when task prop changes
   useEffect(() => {
     setEditedTask(task);
+    setAssigneeIds(task.assignees.map(a => a.id));
   }, [task]);
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
@@ -65,11 +71,19 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
 
   const handleSave = async () => {
     await updateTask(task.id, editedTask);
+    
+    // Update assignees if they changed
+    const currentAssigneeIds = task.assignees.map(a => a.id);
+    if (JSON.stringify(assigneeIds.sort()) !== JSON.stringify(currentAssigneeIds.sort())) {
+      await assignTask(task.id, assigneeIds);
+    }
+    
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditedTask(task);
+    setAssigneeIds(task.assignees.map(a => a.id));
     setIsEditing(false);
   };
 
@@ -79,6 +93,22 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
       onOpenChange(false);
       await deleteTask(task.id);
     }
+  };
+
+  const handleAssigneeToggle = (userId: string) => {
+    setAssigneeIds(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const removeAssignee = (userId: string) => {
+    setAssigneeIds(prev => prev.filter(id => id !== userId));
+  };
+
+  const getSelectedAssignees = () => {
+    return users.filter(user => assigneeIds.includes(user.id));
   };
 
   const formatDueDate = (dateString: string) => {
@@ -258,22 +288,104 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
             </div>
 
             <div className="space-y-4">
-              {task.assignees && task.assignees.length > 0 && (
+              {isEditing ? (
                 <div>
                   <h3 className="font-semibold mb-2 text-gray-700">Assignees</h3>
-                  <div className="space-y-2">
-                    {task.assignees.map((assignee) => (
-                      <div key={assignee.id} className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
-                          {assignee.username.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-medium text-gray-600">{assignee.username}</span>
-                        <Badge variant="outline" className="text-xs border-gray-300">
-                          {assignee.role}
+                  <Popover open={assigneeDropdownOpen} onOpenChange={setAssigneeDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={assigneeDropdownOpen}
+                        className="w-full justify-between"
+                      >
+                        <span className="truncate">
+                          {assigneeIds.length === 0
+                            ? "Select assignees..."
+                            : `${assigneeIds.length} assignee${assigneeIds.length > 1 ? 's' : ''} selected`}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search users..." />
+                        <CommandList>
+                          <CommandEmpty>No users found.</CommandEmpty>
+                          <CommandGroup>
+                            {users.map((user) => (
+                              <CommandItem
+                                key={user.id}
+                                onSelect={() => handleAssigneeToggle(user.id)}
+                                className="flex items-center space-x-2"
+                              >
+                                <Checkbox
+                                  checked={assigneeIds.includes(user.id)}
+                                  onChange={() => handleAssigneeToggle(user.id)}
+                                />
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
+                                    {user.username.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className="text-sm">{user.username}</span>
+                                  {user.isAdmin && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Admin
+                                    </Badge>
+                                  )}
+                                </div>
+                                {assigneeIds.includes(user.id) && (
+                                  <Check className="ml-auto h-4 w-4" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Selected Assignees Display */}
+                  {getSelectedAssignees().length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {getSelectedAssignees().map((user) => (
+                        <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
+                            {user.username.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs">{user.username}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeAssignee(user.id)}
+                            className="ml-1 hover:bg-gray-200 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </Badge>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-700">Assignees</h3>
+                  {task.assignees && task.assignees.length > 0 ? (
+                    <div className="space-y-2">
+                      {task.assignees.map((assignee) => (
+                        <div key={assignee.id} className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
+                            {assignee.username.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-medium text-gray-600">{assignee.username}</span>
+                          <Badge variant="outline" className="text-xs border-gray-300">
+                            {assignee.role}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">No assignees</div>
+                  )}
                 </div>
               )}
 
