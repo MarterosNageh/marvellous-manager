@@ -14,6 +14,8 @@ export interface Note {
   parent_id?: string;
   created_at: string;
   updated_at: string;
+  is_owned?: boolean;
+  permission_level?: string;
 }
 
 interface NotesContextType {
@@ -55,26 +57,72 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch notes owned by the current user
+      const { data: ownedNotes, error: ownedError } = await supabase
         .from('notes')
         .select('*')
         .eq('user_id', currentUser.id)
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (ownedError) throw ownedError;
 
-      // Convert the data to match our Note interface
-      const typedNotes: Note[] = (data || []).map(note => ({
+      // Fetch notes shared with the current user
+      const { data: sharedNotes, error: sharedError } = await supabase
+        .from('note_shares')
+        .select(`
+          note_id,
+          permission_level,
+          notes (*)
+        `)
+        .eq('shared_with_user_id', currentUser.id);
+
+      if (sharedError) throw sharedError;
+
+      // Combine owned and shared notes
+      const ownedNotesArray = (ownedNotes || []).map(note => ({
         ...note,
-        note_type: 'note' as const
+        note_type: 'note' as const,
+        is_owned: true,
+        permission_level: 'owner'
       }));
 
-      setNotes(typedNotes);
+      const sharedNotesArray = (sharedNotes || []).map(share => ({
+        ...share.notes,
+        note_type: 'note' as const,
+        is_owned: false,
+        permission_level: share.permission_level
+      }));
+
+      // Combine and sort by updated_at
+      const allNotes = [...ownedNotesArray, ...sharedNotesArray]
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+      setNotes(allNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
       toast.error('Failed to load notes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getSeniorUsers = async (): Promise<string[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('auth_users')
+        .select('id')
+        .or('is_admin.eq.true,role.eq.senior');
+
+      if (error) {
+        console.error('Error fetching senior users:', error);
+        return [];
+      }
+
+      return data?.map(user => user.id) || [];
+    } catch (error) {
+      console.error('Error getting senior users:', error);
+      return [];
     }
   };
 
@@ -97,6 +145,17 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const newNote: Note = { ...data, note_type: 'note' };
       setNotes(prev => [newNote, ...prev]);
+      
+      // Send notification to senior users about the new note
+      const seniorUserIds = await getSeniorUsers();
+      if (seniorUserIds.length > 0) {
+        await NotificationService.sendNoteCreatedNotification(
+          seniorUserIds,
+          title,
+          currentUser.username || 'A user'
+        );
+      }
+      
       toast.success('Note created successfully');
       return newNote;
     } catch (error) {
@@ -107,7 +166,34 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateNote = async (id: string, noteData: Partial<Note>): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    // Find the note to check permissions
+    const note = notes.find(n => n.id === id);
+    if (!note) return false;
+
+    // Check if user has permission to update
+    const canUpdate = note.user_id === currentUser.id || 
+                     note.permission_level === 'write' || 
+                     note.permission_level === 'admin' ||
+                     currentUser.role === 'admin' ||
+                     currentUser.role === 'senior';
+    
+    if (!canUpdate) {
+      toast.error('You do not have permission to update this note');
+      return false;
+    }
+
     try {
+      // Detect what changes are being made
+      const changes: string[] = [];
+      if (noteData.title !== undefined && noteData.title !== note.title) {
+        changes.push('title');
+      }
+      if (noteData.content !== undefined && noteData.content !== note.content) {
+        changes.push('content');
+      }
+
       const { error } = await supabase
         .from('notes')
         .update({
@@ -127,6 +213,19 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (selectedNote?.id === id) {
         setSelectedNote(prev => prev ? { ...prev, ...noteData, updated_at: new Date().toISOString() } : null);
       }
+
+      // Send notification to senior users about the note modification
+      if (changes.length > 0) {
+        const seniorUserIds = await getSeniorUsers();
+        if (seniorUserIds.length > 0) {
+          await NotificationService.sendNoteModifiedNotification(
+            seniorUserIds,
+            noteData.title || note.title,
+            currentUser.username || 'A user',
+            changes
+          );
+        }
+      }
       
       toast.success('Note updated successfully');
       return true;
@@ -138,7 +237,27 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteNote = async (id: string): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    // Find the note to check permissions
+    const note = notes.find(n => n.id === id);
+    if (!note) return false;
+
+    // Check if user has permission to delete
+    const canDelete = note.user_id === currentUser.id || 
+                     note.permission_level === 'admin' ||
+                     currentUser.role === 'admin' ||
+                     currentUser.role === 'senior';
+    
+    if (!canDelete) {
+      toast.error('You do not have permission to delete this note');
+      return false;
+    }
+
     try {
+      // Store note title before deletion for notification
+      const noteTitle = note.title;
+
       const { error } = await supabase
         .from('notes')
         .delete()
@@ -152,6 +271,16 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Clear selected note if it's the one being deleted
       if (selectedNote?.id === id) {
         setSelectedNote(null);
+      }
+
+      // Send notification to senior users about the note deletion
+      const seniorUserIds = await getSeniorUsers();
+      if (seniorUserIds.length > 0) {
+        await NotificationService.sendNoteDeletedNotification(
+          seniorUserIds,
+          noteTitle,
+          currentUser.username || 'A user'
+        );
       }
       
       toast.success('Note deleted successfully');
@@ -169,6 +298,21 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const shareNote = async (noteId: string, userId: string, permission: string): Promise<boolean> => {
     if (!currentUser) return false;
+
+    // Find the note to check permissions
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return false;
+
+    // Check if user has permission to share
+    const canShare = note.user_id === currentUser.id || 
+                    note.permission_level === 'admin' ||
+                    currentUser.role === 'admin' ||
+                    currentUser.role === 'senior';
+    
+    if (!canShare) {
+      toast.error('You do not have permission to share this note');
+      return false;
+    }
 
     try {
       const { error } = await supabase
@@ -195,6 +339,16 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentUser.username || 'A user'
       );
 
+      // Send notification to senior users about the note sharing
+      const seniorUserIds = await getSeniorUsers();
+      if (seniorUserIds.length > 0) {
+        await NotificationService.sendNoteSharedNotification(
+          seniorUserIds,
+          selectedNote?.title || 'Note',
+          currentUser.username || 'A user'
+        );
+      }
+
       // Refresh the notes list to update UI
       await refreshNotes();
       
@@ -213,6 +367,23 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const unshareNote = async (noteId: string, userId: string): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    // Find the note to check permissions
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return false;
+
+    // Check if user has permission to unshare
+    const canUnshare = note.user_id === currentUser.id || 
+                      note.permission_level === 'admin' ||
+                      currentUser.role === 'admin' ||
+                      currentUser.role === 'senior';
+    
+    if (!canUnshare) {
+      toast.error('You do not have permission to unshare this note');
+      return false;
+    }
+
     try {
       const { error } = await supabase
         .from('note_shares')

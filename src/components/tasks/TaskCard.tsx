@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,43 @@ const statusIcons = {
   completed: CheckCircle,
 };
 
+// Helper function to get comment count from localStorage
+const getCommentCountFromStorage = (taskId: string): number => {
+  try {
+    const stored = localStorage.getItem(`task-comments-${taskId}`);
+    const comments = stored ? JSON.parse(stored) : [];
+    return comments.length;
+  } catch {
+    return 0;
+  }
+};
+
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { updateTask, deleteTask, currentUser } = useTask();
   const { canCompleteTask } = useAuth();
   const [detailOpen, setDetailOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(task.title);
+  const [commentCount, setCommentCount] = useState(0);
+
+  // Fetch comment count
+  useEffect(() => {
+    const count = getCommentCountFromStorage(task.id);
+    setCommentCount(count);
+  }, [task.id]);
+
+  // Listen for storage changes to update comment count
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `task-comments-${task.id}`) {
+        const count = getCommentCountFromStorage(task.id);
+        setCommentCount(count);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [task.id]);
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'under_review' | 'completed', event: React.MouseEvent) => {
     event.stopPropagation();
@@ -216,7 +247,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
               <div className="flex items-center gap-1">
                 <MessageCircle className="w-3 h-3 text-gray-700" />
-                <span className="text-gray-700">0</span>
+                <span className="text-gray-700">{commentCount}</span>
               </div>
             </div>
           </div>

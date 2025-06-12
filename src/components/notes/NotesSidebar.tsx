@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNotes } from '@/context/NotesContext';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 
 interface NotesSidebarProps {
   onNoteSelect?: () => void;
@@ -45,6 +46,17 @@ export const NotesSidebar = ({ onNoteSelect }: NotesSidebarProps) => {
 
   const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const note = notes.find(n => n.id === noteId);
+    
+    // Only allow deletion if user owns the note, has admin permissions, or is admin/senior
+    if (!note || (note.user_id !== currentUser?.id && 
+                  note.permission_level !== 'admin' &&
+                  currentUser?.role !== 'admin' &&
+                  currentUser?.role !== 'senior')) {
+      toast.error('You do not have permission to delete this note');
+      return;
+    }
+    
     if (confirm('Are you sure you want to delete this note?')) {
       await deleteNote(noteId);
     }
@@ -56,7 +68,12 @@ export const NotesSidebar = ({ onNoteSelect }: NotesSidebarProps) => {
   };
 
   const canEditNote = (note: any) => {
-    return note.user_id === currentUser?.id;
+    // User can edit if they own the note, have write/admin permissions, or are admin/senior
+    return note.user_id === currentUser?.id || 
+           note.permission_level === 'write' || 
+           note.permission_level === 'admin' ||
+           currentUser?.role === 'admin' ||
+           currentUser?.role === 'senior';
   };
 
   const formatDate = (dateString: string) => {
@@ -89,14 +106,19 @@ export const NotesSidebar = ({ onNoteSelect }: NotesSidebarProps) => {
               {note.is_shared && <Share className="h-3 w-3" />}
               {note.user_id !== currentUser?.id && (
                 <Badge variant="outline" className="text-xs">
-                  Shared
+                  {note.permission_level === 'read' ? 'Read Only' : 
+                   note.permission_level === 'write' ? 'Can Edit' : 
+                   note.permission_level === 'admin' ? 'Admin' : 'Shared'}
                 </Badge>
               )}
             </div>
           </div>
         </div>
         
-        {canEditNote(note) && (
+        {(note.user_id === currentUser?.id || 
+          note.permission_level === 'admin' ||
+          currentUser?.role === 'admin' ||
+          currentUser?.role === 'senior') && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

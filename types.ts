@@ -689,6 +689,100 @@ export type Database = {
           },
         ]
       }
+      task_comments: {
+        Row: {
+          id: string
+          task_id: string
+          user_id: string
+          message: string
+          mentions: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          user_id: string
+          message: string
+          mentions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          user_id?: string
+          message?: string
+          mentions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_mentions: {
+        Row: {
+          id: string
+          comment_id: string
+          mentioned_user_id: string
+          task_id: string
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          comment_id: string
+          mentioned_user_id: string
+          task_id: string
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          comment_id?: string
+          mentioned_user_id?: string
+          task_id?: string
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_mentions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_mentions_mentioned_user_id_fkey"
+            columns: ["mentioned_user_id"]
+            isOneToOne: false
+            referencedRelation: "auth_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_mentions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -697,6 +791,46 @@ export type Database = {
       create_table_if_not_exists: {
         Args: { table_name: string; column_definitions: Json[] }
         Returns: undefined
+      }
+      get_task_comments: {
+        Args: { task_id: string }
+        Returns: {
+          id: string
+          task_id: string
+          user_id: string
+          message: string
+          mentions: Json
+          created_at: string
+          updated_at: string
+          user_username: string
+          user_role: string
+        }[]
+      }
+      create_task_comment: {
+        Args: {
+          p_task_id: string
+          p_user_id: string
+          p_message: string
+        }
+        Returns: {
+          id: string
+          task_id: string
+          user_id: string
+          message: string
+          mentions: Json
+          created_at: string
+          updated_at: string
+          user_username: string
+          user_role: string
+        }[]
+      }
+      get_task_comment_count: {
+        Args: { task_id: string }
+        Returns: number
+      }
+      get_user_fcm_tokens: {
+        Args: { user_ids: string[] }
+        Returns: { fcm_token: string }[]
       }
     }
     Enums: {

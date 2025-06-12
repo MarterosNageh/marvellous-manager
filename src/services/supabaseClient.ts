@@ -1,0 +1,84 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
+
+// Chat-related database operations
+export const chatService = {
+  // Get comments for a task
+  async getTaskComments(taskId: string) {
+    const { data, error } = await supabase
+      .rpc('get_task_comments_with_users', { task_uuid: taskId });
+    
+    if (error) {
+      console.error('Error fetching comments:', error);
+      throw error;
+    }
+    
+    return data || [];
+  },
+
+  // Add a new comment
+  async addComment(taskId: string, userId: string, message: string, mentions: string[] = []) {
+    const { data, error } = await supabase
+      .from('task_comments')
+      .insert({
+        task_id: taskId,
+        user_id: userId,
+        message,
+        mentions
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error adding comment:', error);
+      throw error;
+    }
+    
+    return data;
+  },
+
+  // Subscribe to real-time comments
+  subscribeToComments(taskId: string, callback: (payload: any) => void) {
+    return supabase
+      .channel(`task_comments_${taskId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_comments',
+          filter: `task_id=eq.${taskId}`
+        },
+        callback
+      )
+      .subscribe();
+  },
+
+  // Get mentioned users for notifications
+  async getMentionedUsers(commentId: string) {
+    const { data, error } = await supabase
+      .from('task_comment_mentions')
+      .select(`
+        mentioned_user_id,
+        users!inner(username, email)
+      `)
+      .eq('comment_id', commentId);
+    
+    if (error) {
+      console.error('Error fetching mentioned users:', error);
+      throw error;
+    }
+    
+    return data || [];
+  }
+}; 

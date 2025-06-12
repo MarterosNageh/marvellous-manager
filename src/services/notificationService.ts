@@ -178,6 +178,69 @@ export class NotificationService {
       }
     });
   }
+
+  static async sendNoteCreatedNotification(
+    userIds: string[],
+    noteTitle: string,
+    createdByUsername: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `New Note Created: ${noteTitle}`,
+      body: `${createdByUsername} has created a new note`,
+      data: {
+        type: 'note_created',
+        noteTitle,
+        createdBy: createdByUsername,
+        url: '/notes',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendNoteModifiedNotification(
+    userIds: string[],
+    noteTitle: string,
+    modifiedByUsername: string,
+    changes: string[]
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatChanges = (changes: string[]) => {
+      return changes.map(change => change.charAt(0).toUpperCase() + change.slice(1));
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `Note Updated: ${noteTitle}`,
+      body: `${modifiedByUsername} has updated the note. Changes: ${formatChanges(changes).join(', ')}`,
+      data: {
+        type: 'note_modified',
+        noteTitle,
+        modifiedBy: modifiedByUsername,
+        changes,
+        url: '/notes',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendNoteDeletedNotification(
+    userIds: string[],
+    noteTitle: string,
+    deletedByUsername: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `Note Deleted: ${noteTitle}`,
+      body: `${deletedByUsername} has deleted a note`,
+      data: {
+        type: 'note_deleted',
+        noteTitle,
+        deletedBy: deletedByUsername,
+        url: '/notes',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
   
   // Manual FCM token registration function that can be used for testing
   static async saveTokenManually(userId: string, token: string): Promise<{ success: boolean; message?: string; error?: string }> {

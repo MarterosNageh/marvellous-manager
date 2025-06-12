@@ -30,8 +30,14 @@ export const NotesEditor = () => {
     }
   }, [selectedNote, currentUser]);
 
+  const canEdit = selectedNote?.user_id === currentUser?.id || 
+                  selectedNote?.permission_level === 'write' || 
+                  selectedNote?.permission_level === 'admin' ||
+                  currentUser?.role === 'admin' ||
+                  currentUser?.role === 'senior';
+
   useEffect(() => {
-    if (isModified && selectedNote && selectedNote.user_id === currentUser?.id) {
+    if (isModified && selectedNote && canEdit) {
       // Auto-save after 2 seconds of inactivity
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -47,9 +53,7 @@ export const NotesEditor = () => {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [title, content, isModified, selectedNote]);
-
-  const canEdit = selectedNote?.user_id === currentUser?.id;
+  }, [title, content, isModified, selectedNote, canEdit]);
 
   const handleSave = async () => {
     if (!selectedNote || !isModified || !canEdit) return;
@@ -120,15 +124,20 @@ export const NotesEditor = () => {
               )}
               {canEdit && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowShareDialog(true)}
-                    className="flex items-center gap-1"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    <span className="hidden sm:inline-block">Share</span>
-                  </Button>
+                  {(selectedNote.user_id === currentUser?.id || 
+                    selectedNote.permission_level === 'admin' ||
+                    currentUser?.role === 'admin' ||
+                    currentUser?.role === 'senior') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowShareDialog(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      <span className="hidden sm:inline-block">Share</span>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
