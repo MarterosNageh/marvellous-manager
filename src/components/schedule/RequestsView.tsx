@@ -401,9 +401,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {isAdmin ? user.username?.substring(0, 2).toUpperCase() : 'TB'}
+                        {user.username?.substring(0, 2).toUpperCase()}
                       </div>
-                      <span className="font-medium">{isAdmin ? user.username : 'Time Off Balance'}</span>
+                      <span className="font-medium">{user.username}</span>
                     </div>
                     <span className="text-sm">{approvedDays} days</span>
                     <span className="text-sm text-muted-foreground">{remainingDays} days</span>
