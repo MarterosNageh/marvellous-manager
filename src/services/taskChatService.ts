@@ -7,11 +7,41 @@ export class TaskChatService {
   static async getComments(taskId: string): Promise<TaskComment[]> {
     try {
       const { data, error } = await supabase
-        .rpc('get_task_comments_with_users', { task_uuid: taskId });
+        .from('task_comments')
+        .select(`
+          *,
+          auth_users!task_comments_user_id_fkey (
+            id,
+            username,
+            role
+          )
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-      return data || [];
+      // Transform the data to match our TaskComment interface
+      const transformedComments: TaskComment[] = (data || []).map((item: any) => ({
+        id: item.id,
+        task_id: item.task_id,
+        user_id: item.user_id,
+        message: item.message,
+        mentions: Array.isArray(item.mentions) ? item.mentions : [],
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        user: item.auth_users ? {
+          id: item.auth_users.id,
+          username: item.auth_users.username,
+          role: item.auth_users.role || 'user'
+        } : {
+          id: item.user_id,
+          username: 'Unknown User',
+          role: 'user'
+        }
+      }));
+
+      return transformedComments;
     } catch (error) {
       console.error('Error fetching comments:', error);
       throw error;
@@ -33,7 +63,16 @@ export class TaskChatService {
 
       if (error) throw error;
 
-      return data;
+      // Transform the response to match TaskComment interface
+      return {
+        id: data.id,
+        task_id: data.task_id,
+        user_id: data.user_id,
+        message: data.message,
+        mentions: Array.isArray(data.mentions) ? data.mentions : [],
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      };
     } catch (error) {
       console.error('Error creating comment:', error);
       throw error;

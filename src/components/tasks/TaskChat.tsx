@@ -13,6 +13,7 @@ import { TaskComment, TaskUser, User as UserType } from '@/types/taskTypes';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { NotificationService } from '@/services/notificationService';
 
 interface TaskChatProps {
   taskId: string;
@@ -66,23 +67,37 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .rpc('get_task_comments_with_users', { task_uuid: taskId });
+        .from('task_comments')
+        .select(`
+          *,
+          auth_users!task_comments_user_id_fkey (
+            id,
+            username,
+            role
+          )
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true });
       
       if (error) throw error;
       
       // Transform the data to match our TaskComment interface
-      const transformedComments: TaskComment[] = data.map((item: any) => ({
+      const transformedComments: TaskComment[] = (data || []).map((item: any) => ({
         id: item.id,
         task_id: item.task_id,
         user_id: item.user_id,
         message: item.message,
-        mentions: item.mentions || [],
+        mentions: Array.isArray(item.mentions) ? item.mentions : [],
         created_at: item.created_at,
         updated_at: item.updated_at,
-        user: {
+        user: item.auth_users ? {
+          id: item.auth_users.id,
+          username: item.auth_users.username,
+          role: item.auth_users.role || 'user'
+        } : {
           id: item.user_id,
-          username: item.user_username,
-          role: item.user_role
+          username: 'Unknown User',
+          role: 'user'
         }
       }));
       
@@ -100,44 +115,32 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   };
 
   // Send push notification for mentions
-  const sendMentionNotifications = async (mentionedUserIds: string[], message: string, taskId: string) => {
+  const sendMentionNotifications = async (mentionedUserIds: string[], message: string) => {
     try {
-      // Get FCM tokens for mentioned users
-      const { data: fcmData, error: fcmError } = await supabase
-        .from('fcm_tokens')
-        .select('fcm_token, user_id')
-        .in('user_id', mentionedUserIds)
-        .eq('is_active', true);
+      if (mentionedUserIds.length > 0) {
+        // Get task details for notification
+        const { data: taskData } = await supabase
+          .from('tasks')
+          .select('title')
+          .eq('id', taskId)
+          .single();
 
-      if (fcmError) {
-        console.error('Error fetching FCM tokens:', fcmError);
-        return;
-      }
+        const taskTitle = taskData?.title || 'Task';
 
-      if (fcmData && fcmData.length > 0) {
-        // Send notifications to each token
-        for (const tokenData of fcmData) {
-          try {
-            const response = await fetch('/api/send-notification', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                token: tokenData.fcm_token,
-                title: `@${currentUser.username} mentioned you in a task`,
-                message: message.length > 100 ? message.substring(0, 100) + '...' : message,
-                link: `/tasks/${taskId}`
-              }),
-            });
-
-            if (!response.ok) {
-              console.error('Failed to send notification to token:', tokenData.fcm_token);
-            }
-          } catch (notifError) {
-            console.error('Error sending individual notification:', notifError);
+        // Send notification using the NotificationService
+        await NotificationService.sendNotification({
+          userIds: mentionedUserIds,
+          title: `@${currentUser.username} mentioned you in ${taskTitle}`,
+          body: message.length > 100 ? message.substring(0, 100) + '...' : message,
+          data: {
+            type: 'task_mention',
+            taskId,
+            taskTitle,
+            mentionedBy: currentUser.username,
+            url: `/task-manager`,
+            timestamp: new Date().toISOString()
           }
-        }
+        });
       }
     } catch (error) {
       console.error('Error sending mention notifications:', error);
@@ -171,7 +174,7 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
 
       // Send push notifications for mentions
       if (mentions.length > 0) {
-        await sendMentionNotifications(mentions, newMessage.trim(), taskId);
+        await sendMentionNotifications(mentions, newMessage.trim());
       }
 
       toast({

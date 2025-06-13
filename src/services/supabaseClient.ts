@@ -17,7 +17,17 @@ export const chatService = {
   // Get comments for a task
   async getTaskComments(taskId: string) {
     const { data, error } = await supabase
-      .rpc('get_task_comments_with_users', { task_uuid: taskId });
+      .from('task_comments')
+      .select(`
+        *,
+        auth_users!task_comments_user_id_fkey (
+          id,
+          username,
+          role
+        )
+      `)
+      .eq('task_id', taskId)
+      .order('created_at', { ascending: true });
     
     if (error) {
       console.error('Error fetching comments:', error);

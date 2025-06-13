@@ -1,3 +1,4 @@
+
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 
@@ -22,8 +23,8 @@ const messaging = async () => {
       // Check if it's a mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
-        console.log('📱 Mobile device detected, using alternative token method');
-        return 'mobile';
+        console.log('📱 Mobile device detected, using alternative approach');
+        return null;
       }
       console.log('Firebase messaging is not supported in this browser');
       return null;
@@ -40,14 +41,6 @@ export const fetchToken = async () => {
     const fcmMessaging = await messaging();
     
     // Handle mobile devices differently
-    if (fcmMessaging === 'mobile') {
-      // For mobile devices, we'll use the Firebase Installation ID
-      const { getToken: getInstallationToken } = await import('firebase/installations');
-      const installationToken = await getInstallationToken(app);
-      console.log('📱 Mobile FCM token obtained:', installationToken?.slice(0, 10) + '...');
-      return installationToken;
-    }
-    
     if (!fcmMessaging) {
       console.log('Firebase messaging is not supported in this browser');
       return null;
@@ -105,8 +98,7 @@ if (typeof window !== 'undefined') {
               body: body || '',
               icon: '/marvellous-logo-black.png',
               data: payload.data,
-              tag: payload.data?.tag || 'default', // Add tag to prevent duplicates
-              renotify: false // Don't show duplicate notifications
+              tag: payload.data?.tag || 'default'
             });
             
             notification.onclick = () => {
