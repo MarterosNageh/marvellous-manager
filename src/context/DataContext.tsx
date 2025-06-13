@@ -489,7 +489,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
               status: 'unavailable',
             };
             await updateProject(updatedProject);
+            
+            // Show success notification
+            toast({
+              title: "Project Status Updated",
+              description: `Project "${projectData.name}" has been marked as unavailable after printing all hard drives.`,
+            });
           }
+        } else if (history.type === 'all-hards' && history.projectId === null) {
+          // Handle case where all-hards is printed for hard drives with no project
+          // In this case, we don't need to update any project status
+          toast({
+            title: "Print Complete",
+            description: "All hard drives without project have been printed successfully.",
+          });
         }
       } catch (statusError) {
         console.error('Failed to update status:', statusError);

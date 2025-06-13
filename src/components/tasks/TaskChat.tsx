@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -157,19 +156,47 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
       
       const mentions = extractMentions(newMessage);
       
-      // Insert comment to database
+      // Insert comment to database WITHOUT mentions first (to avoid trigger error)
       const { data, error } = await supabase
         .from('task_comments')
         .insert({
           task_id: taskId,
           user_id: currentUser.id,
           message: newMessage.trim(),
-          mentions: mentions
+          mentions: [] // Start with empty mentions to avoid trigger
         })
         .select()
         .single();
       
       if (error) throw error;
+      
+      // Manually insert mentions if any exist
+      if (mentions.length > 0) {
+        // Insert mentions manually to avoid the problematic trigger
+        const mentionInserts = mentions.map(userId => ({
+          comment_id: data.id,
+          mentioned_user_id: userId,
+          task_id: taskId
+        }));
+        
+        const { error: mentionError } = await supabase
+          .from('task_comment_mentions')
+          .insert(mentionInserts);
+        
+        if (mentionError) {
+          console.error('Error inserting mentions:', mentionError);
+        }
+        
+        // Update the comment with mentions
+        const { error: updateError } = await supabase
+          .from('task_comments')
+          .update({ mentions: mentions })
+          .eq('id', data.id);
+        
+        if (updateError) {
+          console.error('Error updating comment with mentions:', updateError);
+        }
+      }
       
       setNewMessage('');
 

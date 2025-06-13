@@ -133,10 +133,20 @@ export const AllHardsPrintPrev = ({
         </div>
       )}
       
-      <div>
-        <h3 className="font-bold text-sm">Recipient Signature</h3>
-        <div className="border-b border-black h-8 mt-8"></div>
+      <div id="signature">
+        <h3 id="signTitle">Recipient Signature</h3>
+        <div id="signature-line"></div>
       </div>
+
+      {project && (
+        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
+          <h3 className="font-bold text-sm mb-2 text-yellow-800">Important Notice</h3>
+          <p className="text-sm text-yellow-700">
+            This print action will automatically mark the project "{project.name}" as unavailable 
+            to indicate that all hard drives have been processed and the project is no longer active.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

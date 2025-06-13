@@ -14,6 +14,7 @@ import { shiftsTable, swapRequestsTable, leaveRequestsTable } from '@/integratio
 import { supabase } from '@/integrations/supabase/client';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
 import { useAuth } from '@/context/AuthContext';
+import { NotificationService } from '@/services/notificationService';
 
 // Form schema
 const formSchema = z.object({
@@ -157,10 +158,9 @@ export function ShiftRequestDialog({
         
         for (const userId of usersToProcess) {
           const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
-            type: 'leave',
-            request_type: 'leave',
             user_id: userId,
             leave_type: formData.request_type as LeaveType,
+            request_type: 'leave',
             start_date: formData.start_date,
             end_date: formData.end_date,
             reason: formData.reason,
@@ -182,6 +182,26 @@ export function ShiftRequestDialog({
 
             // Replace existing shifts with day-off shifts
             await replaceShiftsWithDayOff(userId, formData.start_date, formData.end_date, formData.request_type);
+          } else {
+            // Send notification to admin users when non-admin submits a request
+            try {
+              const { data: adminUsers } = await supabase
+                .from('auth_users')
+                .select('id')
+                .eq('role', 'admin')
+                .or('is_admin.eq.true');
+
+              if (adminUsers && adminUsers.length > 0) {
+                await NotificationService.sendRequestSubmittedNotification(
+                  adminUsers.map(u => u.id),
+                  formData.request_type,
+                  formData.start_date,
+                  currentUser?.username || currentUser?.id || 'Unknown User'
+                );
+              }
+            } catch (notificationError) {
+              console.warn('⚠️ Error sending request submission notification:', notificationError);
+            }
           }
         }
       }

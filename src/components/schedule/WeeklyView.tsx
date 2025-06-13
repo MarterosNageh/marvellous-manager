@@ -25,6 +25,8 @@ import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useAuth } from '@/context/AuthContext';
+import { useSchedule } from '@/context/ScheduleContext';
+import ShiftDialog from './ShiftDialog';
 
 const getInitials = (name: string) => {
   return name
@@ -86,13 +88,15 @@ const ShiftBlock = ({
   user, 
   onDelete,
   onEdit,
-  index
+  index,
+  isAdmin
 }: { 
   shift: Shift; 
   user?: ScheduleUser; 
   onDelete: (id: string, recurrenceAction: RecurrenceAction) => void;
   onEdit: (shift: Shift) => void;
   index: number;
+  isAdmin: boolean;
 }) => {
   const startTime = format(new Date(shift.start_time), 'h:mm a');
   const endTime = format(new Date(shift.end_time), 'h:mm a');
@@ -102,21 +106,22 @@ const ShiftBlock = ({
   const shiftColor = getShiftColor(shift.shift_type, shift.color);
 
   return (
-    <Draggable draggableId={shift.id} index={index}>
+    <Draggable draggableId={shift.id} index={index} isDragDisabled={!isAdmin}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onClick={() => onEdit(shift)}
+          {...(isAdmin ? provided.draggableProps : {})}
+          {...(isAdmin ? provided.dragHandleProps : {})}
+          onClick={() => isAdmin ? onEdit(shift) : null}
           style={{
             backgroundColor: shiftColor + (snapshot.isDragging ? 'CC' : '33'),
             borderColor: shiftColor,
             ...provided.draggableProps.style
           }}
           className={cn(
-            "rounded-md p-2 text-xs h-full cursor-pointer hover:opacity-80 transition-all relative group border-l-4",
-            snapshot.isDragging && "shadow-lg scale-105 rotate-2"
+            "rounded-md p-2 text-xs h-full transition-all relative group border-l-4",
+            snapshot.isDragging && "shadow-lg scale-105 rotate-2",
+            isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default opacity-90"
           )}
         >
           <div className="font-semibold text-gray-800">{`${startTime} - ${endTime}`}</div>
@@ -126,17 +131,19 @@ const ShiftBlock = ({
               {shift.shift_type}
             </div>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 h-6 w-6 p-1 text-red-500 hover:text-red-700"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDeleteConfirm(true);
-            }}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 h-6 w-6 p-1 text-red-500 hover:text-red-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(true);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
 
           {showDeleteConfirm && (
             <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
@@ -220,6 +227,7 @@ const WeeklyView = ({
   refreshData
 }: WeeklyViewProps) => {
   const { currentUser } = useAuth();
+  const { createShift, templates } = useSchedule();
   const isAdmin = currentUser?.role === 'admin';
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
@@ -227,6 +235,8 @@ const WeeklyView = ({
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState(startDate);
   const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number, targetDate: Date} | null>(null);
+  const [showShiftDialog, setShowShiftDialog] = useState(false);
+  const [prefilledShift, setPrefilledShift] = useState<Partial<Shift> | null>(null);
 
   // Update weekStart when startDate changes
   useEffect(() => {
@@ -282,6 +292,16 @@ const WeeklyView = ({
   }, [propShifts]);
 
   const handleDeleteShift = async (shiftId: string, recurrenceAction: RecurrenceAction) => {
+    // Check if user is admin before allowing delete operations
+    if (!isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can delete shifts",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await onDeleteShift(shiftId, recurrenceAction);
       toast({
@@ -298,19 +318,47 @@ const WeeklyView = ({
     }
   };
 
-  const handleQuickAddShift = (userId: string, targetDate: Date) => {
+  const handleQuickAddShift = async (userId: string, targetDate: Date) => {
     if (!isAdmin) return;
     
-    // Store the target date and user information for the shift dialog
-    const shiftData = {
+    // Create pre-filled shift data for the dialog
+    const shiftData: Partial<Shift> = {
       user_id: userId,
-      start_time: format(targetDate, 'yyyy-MM-dd') + 'T09:00:00',
-      end_time: format(targetDate, 'yyyy-MM-dd') + 'T17:00:00',
+      shift_type: 'morning',
+      start_time: format(targetDate, 'yyyy-MM-dd') + 'T09:00:00.000Z',
+      end_time: format(targetDate, 'yyyy-MM-dd') + 'T17:00:00.000Z',
+      title: 'Morning Shift',
+      description: 'Quick added morning shift',
+      notes: '',
+      status: 'active',
+      created_by: currentUser?.id || userId,
+      color: '#E3F2FD',
+      repeat_days: []
     };
     
-    // You can extend this to open a proper shift creation dialog
-    console.log('Quick add shift for user:', userId, 'on date:', format(targetDate, 'yyyy-MM-dd'));
-    onAddShift();
+    console.log('Opening shift dialog for user:', userId, 'on date:', format(targetDate, 'yyyy-MM-dd'));
+    setPrefilledShift(shiftData);
+    setShowShiftDialog(true);
+  };
+
+  const handleSaveShift = async (shiftData: any) => {
+    try {
+      await createShift(shiftData);
+      setShowShiftDialog(false);
+      setPrefilledShift(null);
+      
+      toast({
+        title: "Success",
+        description: "Shift created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create shift. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
   // Group users by role with updated names
@@ -366,30 +414,63 @@ const WeeklyView = ({
     });
     
     if (request) {
-      console.log('Found leave request for user', userId, 'on date', format(date, 'yyyy-MM-dd'), ':', request);
+      // console.log('Found leave request for user', userId, 'on date', format(date, 'yyyy-MM-dd'), ':', request);
     }
     
     return request;
   };
 
   const handleDragEnd = async (result: any) => {
-    if (!result.destination) return;
+    console.log('Drag end result:', result);
+    
+    // Check if user is admin before allowing drag operations
+    if (!isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can modify shifts",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!result.destination) {
+      console.log('No destination, drag cancelled');
+      return;
+    }
 
     const { draggableId, source, destination } = result;
+    console.log('Dragging shift:', draggableId, 'from:', source.droppableId, 'to:', destination.droppableId);
+    
     const shift = shifts.find(s => s.id === draggableId);
-    if (!shift) return;
+    if (!shift) {
+      console.error('Shift not found:', draggableId);
+      return;
+    }
 
-    const [sourceUserId, sourceDayIndex] = source.droppableId.split('-');
-    const [destUserId, destDayIndex] = destination.droppableId.split('-');
+    const lastDashIndex = source.droppableId.lastIndexOf('-');
+    const sourceUserId = source.droppableId.substring(0, lastDashIndex);
+    const sourceDayIndex = source.droppableId.substring(lastDashIndex + 1);
+    
+    const lastDashIndexDest = destination.droppableId.lastIndexOf('-');
+    const destUserId = destination.droppableId.substring(0, lastDashIndexDest);
+    const destDayIndex = destination.droppableId.substring(lastDashIndexDest + 1);
+    
+    console.log('Source user:', sourceUserId, 'day:', sourceDayIndex);
+    console.log('Dest user:', destUserId, 'day:', destDayIndex);
 
     const sourceDate = addDays(weekStart, parseInt(sourceDayIndex));
     const destDate = addDays(weekStart, parseInt(destDayIndex));
     const dateDiff = destDate.getTime() - sourceDate.getTime();
+    
+    console.log('Source date:', sourceDate, 'Dest date:', destDate, 'Date diff:', dateDiff);
 
     const newStartTime = new Date(shift.start_time);
     const newEndTime = new Date(shift.end_time);
     newStartTime.setTime(newStartTime.getTime() + dateDiff);
     newEndTime.setTime(newEndTime.getTime() + dateDiff);
+    
+    console.log('Original times:', shift.start_time, shift.end_time);
+    console.log('New times:', newStartTime.toISOString(), newEndTime.toISOString());
 
     const updates: Partial<Shift> = {
       start_time: newStartTime.toISOString(),
@@ -408,21 +489,60 @@ const WeeklyView = ({
         return;
       }
       updates.user_id = destUser.id;
+      console.log('Updating user from:', shift.user_id, 'to:', destUser.id);
     }
 
+    console.log('Final updates:', updates);
+
     try {
+      // Immediately update local state for instant UI feedback
+      setShifts(prevShifts => {
+        const updatedShifts = prevShifts.map(s => 
+          s.id === shift.id 
+            ? { ...s, ...updates }
+            : s
+        );
+        console.log('Local state updated:', updatedShifts.find(s => s.id === shift.id));
+        console.log('Total shifts after update:', updatedShifts.length);
+        console.log('Shifts by user after update:', updatedShifts.reduce((acc, s) => {
+          acc[s.user_id] = (acc[s.user_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>));
+        return updatedShifts;
+      });
+      
       // Update the shift in the database
       await shiftsTable.update(shift.id, updates, 'this');
+      console.log('Database update successful');
       
-      if (refreshData) {
-        await refreshData();
-      }
+      // Call refreshData after a small delay to ensure consistency
+      setTimeout(async () => {
+        if (refreshData) {
+          try {
+            await refreshData();
+            console.log('Refresh data completed');
+          } catch (refreshError) {
+            console.warn('Refresh data failed, but local state is updated:', refreshError);
+          }
+        }
+      }, 100);
+      
       toast({
         title: "Success",
         description: "Shift updated successfully",
       });
     } catch (error) {
       console.error('Error updating shift:', error);
+      
+      // Revert local state if database update failed
+      setShifts(prevShifts => 
+        prevShifts.map(s => 
+          s.id === shift.id 
+            ? { ...s, start_time: shift.start_time, end_time: shift.end_time, user_id: shift.user_id }
+            : s
+        )
+      );
+      
       toast({
         title: "Error",
         description: "Failed to update shift. Please try again.",
@@ -440,167 +560,192 @@ const WeeklyView = ({
   }
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="border rounded-lg bg-white overflow-hidden">
-        {/* Header row with dates */}
-        <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b bg-gray-50">
-          <div className="p-4 font-medium flex items-center justify-between">
-            <div className="text-sm font-semibold">Staff</div>
-            <Button variant="ghost" size="sm" onClick={onAddShift}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          {weekDates.map((date, i) => (
-            <div
-              key={i}
-              className={cn(
-                'p-4 text-sm border-l text-center transition-colors',
-                isSameDay(date, new Date()) && 'bg-blue-50'
+    <>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="border rounded-lg bg-white overflow-hidden">
+          {/* Header row with dates */}
+          <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b bg-gray-50">
+            <div className="p-4 font-medium flex items-center justify-between">
+              <div className="text-sm font-semibold flex items-center gap-2">
+                Staff
+                {!isAdmin && (
+                  <Badge variant="secondary" className="text-xs">
+                
+                  </Badge>
+                )}
+              </div>
+              {isAdmin && (
+                <Button variant="ghost" size="sm" onClick={onAddShift}>
+                  <Plus className="h-4 w-4" />
+                </Button>
               )}
-            >
-              <div className="font-medium">
-                <div className="text-lg">{format(date, 'd')}</div>
-                <div className="text-sm text-gray-500">{format(date, 'EEE')}</div>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {format(date, 'MM/dd')}
-              </div>
             </div>
-          ))}
-        </div>
-
-        {/* Users list */}
-        <div>
-          {roleDisplayOrder.map((roleGroup, roleIndex) => {
-            const usersInGroup = groupedUsers[roleGroup] || [];
-            if (usersInGroup.length === 0) return null;
-
-            const totalGroupHours = usersInGroup.reduce(
-              (total, user) => total + (userHours[user.id] || 0),
-              0
-            );
-
-            return (
-              <div key={roleGroup}>
-                <div className="px-4 py-2 bg-gray-50 border-y">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-sm">
-                      {roleGroup} ({usersInGroup.length})
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      Group Total: {totalGroupHours} hrs
-                    </span>
-                  </div>
+            {weekDates.map((date, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'p-4 text-sm border-l text-center transition-colors',
+                  isSameDay(date, new Date()) && 'bg-blue-50'
+                )}
+              >
+                <div className="font-medium">
+                  <div className="text-lg">{format(date, 'd')}</div>
+                  <div className="text-sm text-gray-500">{format(date, 'EEE')}</div>
                 </div>
-                {usersInGroup.map((user, userIndex) => (
-                  <div key={user.id}>
-                    <div className="grid grid-cols-[200px_repeat(7,1fr)] hover:bg-gray-50 transition-colors">
-                      <div className="p-3 flex items-center gap-3 border-r">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                            {getInitials(user.username)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{user.username}</div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {user.title || user.role}
-                          </div>
-                          <div className="text-xs font-medium text-blue-600">
-                            {userHours[user.id] || 0} hrs/week
+                <div className="text-xs text-gray-500 mt-1">
+                  {format(date, 'MM/dd')}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Users list */}
+          <div>
+            {roleDisplayOrder.map((roleGroup, roleIndex) => {
+              const usersInGroup = groupedUsers[roleGroup] || [];
+              if (usersInGroup.length === 0) return null;
+
+              const totalGroupHours = usersInGroup.reduce(
+                (total, user) => total + (userHours[user.id] || 0),
+                0
+              );
+
+              return (
+                <div key={roleGroup}>
+                  <div className="px-4 py-2 bg-gray-50 border-y">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm">
+                        {roleGroup} ({usersInGroup.length})
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        Group Total: {totalGroupHours} hrs
+                      </span>
+                    </div>
+                  </div>
+                  {usersInGroup.map((user, userIndex) => (
+                    <div key={user.id}>
+                      <div className="grid grid-cols-[200px_repeat(7,1fr)] hover:bg-gray-50 transition-colors">
+                        <div className="p-3 flex items-center gap-3 border-r">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                              {getInitials(user.username)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{user.username}</div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {user.title || user.role}
+                            </div>
+                            <div className="text-xs font-medium text-blue-600">
+                              {userHours[user.id] || 0} hrs/week
+                            </div>
                           </div>
                         </div>
+                        {weekDates.map((date, dateIndex) => {
+                          const dayShifts = shifts.filter(shift => 
+                            isSameDay(new Date(shift.start_time), date) && 
+                            shift.user_id === user.id
+                          );
+
+                          const leaveRequest = getLeaveRequestForDate(user.id, date);
+                          const isHovered = hoveredCell?.userId === user.id && hoveredCell?.dateIndex === dateIndex;
+
+                          return (
+                            <Droppable key={dateIndex} droppableId={`${user.id}-${dateIndex}`} isDropDisabled={!isAdmin}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...(isAdmin ? provided.droppableProps : {})}
+                                  onMouseEnter={() => setHoveredCell({
+                                    userId: user.id, 
+                                    dateIndex, 
+                                    targetDate: date
+                                  })}
+                                  onMouseLeave={() => setHoveredCell(null)}
+                                  className={cn(
+                                    'relative p-2 min-h-[80px] border-l flex flex-col gap-1 transition-colors',
+                                    isSameDay(date, new Date()) && !isHovered && 'bg-blue-50',
+                                    snapshot.isDraggingOver && 'bg-green-50 border-green-200',
+                                    isHovered && 'bg-blue-50'
+                                  )}
+                                >
+                                  {dayShifts.map((shift, shiftIndex) => (
+                                    <ShiftBlock
+                                      key={shift.id}
+                                      shift={shift}
+                                      user={user}
+                                      onDelete={(id, recurrenceAction) => handleDeleteShift(id, recurrenceAction)}
+                                      onEdit={onEditShift}
+                                      index={shiftIndex}
+                                      isAdmin={isAdmin}
+                                    />
+                                  ))}
+                                  {leaveRequest && (
+                                    <LeaveBlock
+                                      request={leaveRequest}
+                                      user={user}
+                                    />
+                                  )}
+                                  {provided.placeholder}
+                                  
+                                  {/* Quick add button on hover */}
+                                  {isHovered && isAdmin && dayShifts.length === 0 && !leaveRequest && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="absolute inset-0 w-full h-full opacity-70 hover:opacity-100 flex items-center justify-center"
+                                      onClick={() => handleQuickAddShift(user.id, date)}
+                                      title={`Add Shift for ${user.username} on ${format(date, 'MMM dd')}`}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      <span className="ml-1 text-xs">
+                                        Add Shift
+                                      </span>
+                                    </Button>
+                                  )}
+                                  
+                                  {dayShifts.length === 0 && !leaveRequest && !isHovered && (
+                                    <div className="flex-1 flex items-center justify-center">
+                                      <span className="text-xs text-gray-400">-</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Droppable>
+                          );
+                        })}
                       </div>
-                      {weekDates.map((date, dateIndex) => {
-                        const dayShifts = shifts.filter(shift => 
-                          isSameDay(new Date(shift.start_time), date) && 
-                          shift.user_id === user.id
-                        );
-
-                        const leaveRequest = getLeaveRequestForDate(user.id, date);
-                        const isHovered = hoveredCell?.userId === user.id && hoveredCell?.dateIndex === dateIndex;
-
-                        return (
-                          <Droppable key={dateIndex} droppableId={`${user.id}-${dateIndex}`}>
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.droppableProps}
-                                onMouseEnter={() => setHoveredCell({
-                                  userId: user.id, 
-                                  dateIndex, 
-                                  targetDate: date
-                                })}
-                                onMouseLeave={() => setHoveredCell(null)}
-                                className={cn(
-                                  'relative p-2 min-h-[80px] border-l flex flex-col gap-1 transition-colors',
-                                  isSameDay(date, new Date()) && !isHovered && 'bg-blue-50',
-                                  snapshot.isDraggingOver && 'bg-green-50 border-green-200',
-                                  isHovered && 'bg-blue-50'
-                                )}
-                              >
-                                {dayShifts.map((shift, shiftIndex) => (
-                                  <ShiftBlock
-                                    key={shift.id}
-                                    shift={shift}
-                                    user={user}
-                                    onDelete={(id, recurrenceAction) => handleDeleteShift(id, recurrenceAction)}
-                                    onEdit={onEditShift}
-                                    index={shiftIndex}
-                                  />
-                                ))}
-                                {leaveRequest && (
-                                  <LeaveBlock
-                                    request={leaveRequest}
-                                    user={user}
-                                  />
-                                )}
-                                {provided.placeholder}
-                                
-                                {/* Quick add button on hover */}
-                                {isHovered && isAdmin && dayShifts.length === 0 && !leaveRequest && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute inset-0 w-full h-full opacity-70 hover:opacity-100 flex items-center justify-center"
-                                    onClick={() => handleQuickAddShift(user.id, date)}
-                                    title={`Add shift for ${user.username} on ${format(date, 'MMM dd')}`}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    <span className="ml-1 text-xs">
-                                      Add to {format(date, 'MMM dd')}
-                                    </span>
-                                  </Button>
-                                )}
-                                
-                                {dayShifts.length === 0 && !leaveRequest && !isHovered && (
-                                  <div className="flex-1 flex items-center justify-center">
-                                    <span className="text-xs text-gray-400">-</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </Droppable>
-                        );
-                      })}
+                      {userIndex < usersInGroup.length - 1 && <Separator />}
                     </div>
-                    {userIndex < usersInGroup.length - 1 && <Separator />}
-                  </div>
-                ))}
-                {roleIndex < roleDisplayOrder.length - 1 && <div className="h-4 bg-gray-50" />}
-              </div>
-            );
-          })}
-        </div>
-
-        {users.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
-            <div className="text-lg font-medium mb-2">No users found</div>
-            <div className="text-sm">Add users to start scheduling shifts</div>
+                  ))}
+                  {roleIndex < roleDisplayOrder.length - 1 && <div className="h-4 bg-gray-50" />}
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
-    </DragDropContext>
+
+          {users.length === 0 && (
+            <div className="p-8 text-center text-gray-500">
+              <div className="text-lg font-medium mb-2">No users found</div>
+              <div className="text-sm">Add users to start scheduling shifts</div>
+            </div>
+          )}
+        </div>
+      </DragDropContext>
+
+      {showShiftDialog && (
+        <ShiftDialog
+          {...(prefilledShift && { shift: prefilledShift as Shift })}
+          onClose={() => {
+            setShowShiftDialog(false);
+            setPrefilledShift(null);
+          }}
+          onSave={handleSaveShift}
+          templates={templates}
+          users={users}
+        />
+      )}
+    </>
   );
 };
 

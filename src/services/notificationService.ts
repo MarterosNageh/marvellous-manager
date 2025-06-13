@@ -418,6 +418,31 @@ export class NotificationService {
     });
   }
 
+  static async sendRequestRejectedNotification(
+    userIds: string[],
+    requestType: string,
+    requestDate: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formatRequestType = (type: string) => {
+      return type.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    return this.sendNotification({
+      userIds,
+      title: `Request Rejected (${formatRequestType(requestType)})`,
+      body: `Your request for ${formatRequestType(requestType)} on ${requestDate} has been rejected`,
+      data: {
+        type: 'request_rejected',
+        requestType,
+        requestDate,
+        url: '/requests',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
   static async sendRequestSubmittedNotification(
     userIds: string[],
     requestType: string,

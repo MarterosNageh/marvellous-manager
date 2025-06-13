@@ -13,6 +13,7 @@ import type { ScheduleUser, RequestStatus } from '@/types/schedule';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
+import { NotificationService } from '@/services/notificationService';
 
 interface RequestsViewProps {
   users: ScheduleUser[];
@@ -48,6 +49,10 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
   const [userBalances, setUserBalances] = useState<{[key: string]: number}>({});
 
   const isAdmin = currentUser?.role === 'admin';
+  const isSenior = currentUser?.role === 'senior';
+
+  // Filter users based on role - senior users only see themselves
+  const displayUsers = isAdmin ? users : users.filter(user => user.id === currentUser?.id);
 
   useEffect(() => {
     loadRequests();
@@ -155,6 +160,17 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
       await createDayOffShift(request);
 
+      // Send push notification to the user who submitted the request
+      try {
+        await NotificationService.sendRequestApprovedNotification(
+          [request.user_id],
+          request.leave_type || request.request_type,
+          request.start_date
+        );
+      } catch (notificationError) {
+        console.warn('⚠️ Error sending request approval notification:', notificationError);
+      }
+
       toast({
         title: "Request approved",
         description: "The request has been approved and shifts updated.",
@@ -174,6 +190,13 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   const handleRejectRequest = async (requestId: string) => {
     try {
+      // Get the request details before updating to send notification
+      const { data: requestData } = await supabase
+        .from('shift_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+
       await supabase
         .from('shift_requests')
         .update({ 
@@ -182,6 +205,19 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
           updated_at: new Date().toISOString()
         })
         .eq('id', requestId);
+
+      // Send push notification to the user who submitted the request
+      if (requestData) {
+        try {
+          await NotificationService.sendRequestRejectedNotification(
+            [requestData.user_id],
+            requestData.leave_type || requestData.request_type,
+            requestData.start_date
+          );
+        } catch (notificationError) {
+          console.warn('⚠️ Error sending request rejection notification:', notificationError);
+        }
+      }
 
       toast({
         title: "Request rejected",
@@ -331,7 +367,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Time Off Balances
+            {isAdmin ? 'Time Off Balances' : 'My Time Off Balance'}
           </h3>
           {isAdmin && (
             <Button size="sm" onClick={() => setUserBalanceDialog({ open: true, user: null, balance: 0 })}>
@@ -345,12 +381,12 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
           <CardContent className="p-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm text-muted-foreground border-b pb-2">
-                <span>User</span>
+                <span>{isAdmin ? 'User' : 'Balance'}</span>
                 <span>Approved</span>
                 <span>Remaining</span>
               </div>
               
-              {users.map(user => {
+              {displayUsers.map(user => {
                 const approvedDays = getApprovedDays(user.id);
                 const remainingDays = getRemainingDays(user.id);
                 return (
@@ -365,9 +401,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {user.username?.substring(0, 2).toUpperCase()}
+                        {isAdmin ? user.username?.substring(0, 2).toUpperCase() : 'TB'}
                       </div>
-                      <span className="font-medium">{user.username}</span>
+                      <span className="font-medium">{isAdmin ? user.username : 'Time Off Balance'}</span>
                     </div>
                     <span className="text-sm">{approvedDays} days</span>
                     <span className="text-sm text-muted-foreground">{remainingDays} days</span>
@@ -389,9 +425,6 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         </div>
 
         <div className="grid gap-4">
-          {console.log("-------------------------------------------------------------------")}
-          {console.log("users",users)}
-          {console.log("requests",requests)}
           {requests.length === 0 ? (
             
             <Card>

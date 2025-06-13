@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://venxltsumlixfgysffqu.supabase.co';
@@ -81,7 +80,7 @@ export const chatService = {
       .from('task_comment_mentions')
       .select(`
         mentioned_user_id,
-        auth_users!inner(username, role)
+        auth_users!task_comment_mentions_mentioned_user_id_fkey(username, role)
       `)
       .eq('comment_id', commentId);
     

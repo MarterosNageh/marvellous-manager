@@ -13,6 +13,7 @@ import { SwapRequest, LeaveRequest, LeaveType, Shift } from '@/types/schedule';
 import { shiftsTable, swapRequestsTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
 import { supabase } from '@/integrations/supabase/client';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
+import { NotificationService } from '@/services/notificationService';
 
 // Form schema
 const formSchema = z.object({
@@ -150,10 +151,9 @@ export function ShiftRequestDialog({
       } else {
         // Handle leave request
         const leaveRequest: Omit<LeaveRequest, 'id' | 'status' | 'created_at' | 'updated_at'> = {
-          type: 'leave',
-          request_type: 'leave',
           user_id: currentUser.id,
           leave_type: formData.request_type as LeaveType,
+          request_type: 'leave',
           start_date: formData.start_date,
           end_date: formData.end_date,
           reason: formData.reason,
@@ -161,6 +161,28 @@ export function ShiftRequestDialog({
         };
 
         await leaveRequestsTable.create(leaveRequest);
+
+        // Send notification to admin users when non-admin submits a request
+        if (currentUser.role !== 'admin') {
+          try {
+            const { data: adminUsers } = await supabase
+              .from('auth_users')
+              .select('id')
+              .eq('role', 'admin')
+              .or('is_admin.eq.true');
+
+            if (adminUsers && adminUsers.length > 0) {
+              await NotificationService.sendRequestSubmittedNotification(
+                adminUsers.map(u => u.id),
+                formData.request_type,
+                formData.start_date,
+                currentUser.id
+              );
+            }
+          } catch (notificationError) {
+            console.warn('⚠️ Error sending request submission notification:', notificationError);
+          }
+        }
       }
 
       toast({
@@ -314,7 +336,7 @@ export function ShiftRequestDialog({
                           .eq('id', editingRequest.id);
 
                         // Create or update shift
-                        if (editingRequest.type === 'leave') {
+                        if (editingRequest.request_type === 'leave') {
                           console.log('Processing leave request:', editingRequest);
                           
                           // Find any existing shifts in this date range
@@ -380,6 +402,17 @@ export function ShiftRequestDialog({
                             }
                           }
                         }
+
+                        // Send push notification to the user who submitted the request
+                        try {
+                          await NotificationService.sendRequestApprovedNotification(
+                            [editingRequest.user_id],
+                            editingRequest.leave_type || editingRequest.request_type,
+                            editingRequest.start_date
+                          );
+                        } catch (notificationError) {
+                          console.warn('⚠️ Error sending request approval notification:', notificationError);
+                        }
                         
                         toast({
                           title: 'Request approved',
@@ -417,6 +450,17 @@ export function ShiftRequestDialog({
                             updated_at: new Date().toISOString()
                           })
                           .eq('id', editingRequest.id);
+
+                        // Send push notification to the user who submitted the request
+                        try {
+                          await NotificationService.sendRequestRejectedNotification(
+                            [editingRequest.user_id],
+                            editingRequest.leave_type || editingRequest.request_type,
+                            editingRequest.start_date
+                          );
+                        } catch (notificationError) {
+                          console.warn('⚠️ Error sending request rejection notification:', notificationError);
+                        }
                         
                         toast({
                           title: 'Request rejected',
