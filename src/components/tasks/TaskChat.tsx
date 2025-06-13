@@ -32,7 +32,6 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionSearchRef = useRef<HTMLInputElement>(null);
-  const subscriptionRef = useRef<any>(null);
   const { toast } = useToast();
 
   // Convert User to TaskUser for internal use
@@ -141,6 +140,8 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
             timestamp: new Date().toISOString()
           }
         });
+
+        console.log('✅ Mention notifications sent to', mentionedUserIds.length, 'users');
       }
     } catch (error) {
       console.error('Error sending mention notifications:', error);
@@ -179,7 +180,9 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
 
       toast({
         title: "Success",
-        description: "Message sent successfully",
+        description: mentions.length > 0 
+          ? `Message sent and ${mentions.length} user(s) notified`
+          : "Message sent successfully",
       });
     } catch (error) {
       console.error('Error sending message:', error);
@@ -274,7 +277,7 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
 
     // Set up real-time subscription for comments
     const channel = supabase
-      .channel(`task_comments_${taskId}`)
+      .channel(`task_comments_${taskId}_${Date.now()}`) // Add timestamp to make unique
       .on(
         'postgres_changes',
         {
@@ -289,15 +292,14 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
           fetchComments();
         }
       )
-      .subscribe();
-
-    subscriptionRef.current = channel;
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+      });
 
     // Cleanup subscription on unmount
     return () => {
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current);
-      }
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
     };
   }, [taskId]);
 
