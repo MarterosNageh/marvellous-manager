@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { TaskComment } from '@/types/taskTypes';
 
@@ -6,7 +7,7 @@ export class TaskChatService {
   static async getComments(taskId: string): Promise<TaskComment[]> {
     try {
       const { data, error } = await supabase
-        .rpc('get_task_comments', { task_id: taskId });
+        .rpc('get_task_comments_with_users', { task_uuid: taskId });
 
       if (error) throw error;
 
@@ -21,11 +22,14 @@ export class TaskChatService {
   static async createComment(taskId: string, userId: string, message: string): Promise<TaskComment> {
     try {
       const { data, error } = await supabase
-        .rpc('create_task_comment', {
-          p_task_id: taskId,
-          p_user_id: userId,
-          p_message: message
-        });
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          user_id: userId,
+          message
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -40,11 +44,13 @@ export class TaskChatService {
   static async getCommentCount(taskId: string): Promise<number> {
     try {
       const { data, error } = await supabase
-        .rpc('get_task_comment_count', { task_id: taskId });
+        .from('task_comments')
+        .select('id', { count: 'exact' })
+        .eq('task_id', taskId);
 
       if (error) throw error;
 
-      return data || 0;
+      return data ? data.length : 0;
     } catch (error) {
       console.error('Error fetching comment count:', error);
       return 0;
@@ -56,7 +62,10 @@ export class TaskChatService {
     try {
       // Get FCM tokens for mentioned users
       const { data: fcmData, error: fcmError } = await supabase
-        .rpc('get_user_fcm_tokens', { user_ids: mentionedUserIds });
+        .from('fcm_tokens')
+        .select('fcm_token, user_id')
+        .in('user_id', mentionedUserIds)
+        .eq('is_active', true);
 
       if (fcmError) throw fcmError;
 
@@ -83,4 +92,4 @@ export class TaskChatService {
       console.error('Error sending mention notifications:', error);
     }
   }
-} 
+}

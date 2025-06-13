@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Send, AtSign, User, Clock, Search, Bell } from 'lucide-react';
 import { TaskComment, TaskUser, User as UserType } from '@/types/taskTypes';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { chatService } from '@/services/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TaskChatProps {
   taskId: string;
@@ -64,7 +65,10 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   const fetchComments = async () => {
     try {
       setLoading(true);
-      const data = await chatService.getTaskComments(taskId);
+      const { data, error } = await supabase
+        .rpc('get_task_comments_with_users', { task_uuid: taskId });
+      
+      if (error) throw error;
       
       // Transform the data to match our TaskComment interface
       const transformedComments: TaskComment[] = data.map((item: any) => ({
@@ -98,34 +102,43 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   // Send push notification for mentions
   const sendMentionNotifications = async (mentionedUserIds: string[], message: string, taskId: string) => {
     try {
-      // Get mentioned users' details
-      const mentionedUsers = taskUsers.filter(user => mentionedUserIds.includes(user.id));
-      
-      // In a real implementation, you would:
-      // 1. Get FCM tokens for mentioned users
-      // 2. Send push notifications via your notification service
-      // 3. Store notification in database
-      
-      console.log('Sending notifications to:', mentionedUsers.map(u => u.username));
-      console.log('Message:', message);
-      console.log('Task ID:', taskId);
-      
-      // For now, show a toast for each mentioned user
-      mentionedUsers.forEach(user => {
-        toast({
-          title: "Mention Notification",
-          description: `You were mentioned by ${currentUser.username} in a task comment`,
-          action: (
-            <Button variant="outline" size="sm" onClick={() => {
-              // Navigate to task or show task details
-              console.log('Navigate to task:', taskId);
-            }}>
-              View Task
-            </Button>
-          ),
-        });
-      });
-      
+      // Get FCM tokens for mentioned users
+      const { data: fcmData, error: fcmError } = await supabase
+        .from('fcm_tokens')
+        .select('fcm_token, user_id')
+        .in('user_id', mentionedUserIds)
+        .eq('is_active', true);
+
+      if (fcmError) {
+        console.error('Error fetching FCM tokens:', fcmError);
+        return;
+      }
+
+      if (fcmData && fcmData.length > 0) {
+        // Send notifications to each token
+        for (const tokenData of fcmData) {
+          try {
+            const response = await fetch('/api/send-notification', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                token: tokenData.fcm_token,
+                title: `@${currentUser.username} mentioned you in a task`,
+                message: message.length > 100 ? message.substring(0, 100) + '...' : message,
+                link: `/tasks/${taskId}`
+              }),
+            });
+
+            if (!response.ok) {
+              console.error('Failed to send notification to token:', tokenData.fcm_token);
+            }
+          } catch (notifError) {
+            console.error('Error sending individual notification:', notifError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error sending mention notifications:', error);
     }
@@ -140,8 +153,19 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
       
       const mentions = extractMentions(newMessage);
       
-      // Send to database
-      await chatService.addComment(taskId, currentUser.id, newMessage.trim(), mentions);
+      // Insert comment to database
+      const { data, error } = await supabase
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          user_id: currentUser.id,
+          message: newMessage.trim(),
+          mentions: mentions
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
       
       setNewMessage('');
 
@@ -245,20 +269,31 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   useEffect(() => {
     fetchComments();
 
-    // Set up real-time subscription
-    subscriptionRef.current = chatService.subscribeToComments(taskId, (payload) => {
-      console.log('Real-time update:', payload);
-      
-      if (payload.eventType === 'INSERT') {
-        // Fetch updated comments
-        fetchComments();
-      }
-    });
+    // Set up real-time subscription for comments
+    const channel = supabase
+      .channel(`task_comments_${taskId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_comments',
+          filter: `task_id=eq.${taskId}`
+        },
+        (payload) => {
+          console.log('Real-time comment update:', payload);
+          // Refresh comments when there's a change
+          fetchComments();
+        }
+      )
+      .subscribe();
+
+    subscriptionRef.current = channel;
 
     // Cleanup subscription on unmount
     return () => {
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
+        supabase.removeChannel(subscriptionRef.current);
       }
     };
   }, [taskId]);
@@ -467,4 +502,4 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
       </Dialog>
     </>
   );
-}; 
+};

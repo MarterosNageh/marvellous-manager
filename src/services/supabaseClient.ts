@@ -1,7 +1,8 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://venxltsumlixfgysffqu.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbnhsdHN1bWxpeGZneXNmZnF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzOTAxMjgsImV4cCI6MjA2MDk2NjEyOH0.nh-jpcFgH1MDIcslbcG4uk82qT81w-IDjI4zMpmLv_Y';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
@@ -70,7 +71,7 @@ export const chatService = {
       .from('task_comment_mentions')
       .select(`
         mentioned_user_id,
-        users!inner(username, email)
+        auth_users!inner(username, role)
       `)
       .eq('comment_id', commentId);
     
@@ -81,4 +82,4 @@ export const chatService = {
     
     return data || [];
   }
-}; 
+};
