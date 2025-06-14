@@ -4,11 +4,12 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader, MessageCircle, UserCircle } from "lucide-react";
+import { Loader, MessageCircle, UserCircle, AlertTriangle } from "lucide-react";
 
 interface ChatMessage {
   role: "user" | "model";
   content: string;
+  isError?: boolean;
 }
 
 const EDGE_URL =
@@ -20,7 +21,6 @@ export default function TechnicalChatbot() {
   const [loading, setLoading] = useState(false);
   const endOfChatRef = useRef<HTMLDivElement | null>(null);
 
-  // Helper to ensure roles are typed correctly even if backend returns 'assistant'
   function mapRole(role: string): "user" | "model" {
     if (role === "user") return "user";
     return "model";
@@ -45,19 +45,37 @@ export default function TechnicalChatbot() {
         body: JSON.stringify({ messages: nextMessages }),
       });
 
-      const data = await res.json();
-      // Make sure role is correctly typed for TS
-      setMessages([
-        ...nextMessages,
-        { role: "model", content: data.text ?? "No response from AI." }
-      ]);
+      let data: { text?: string; error?: string } = {};
+
+      // try to parse json gracefully
+      try {
+        data = await res.json();
+      } catch (jsonError) {
+        data = { error: "Invalid response from server." };
+      }
+
+      if (data.error) {
+        setMessages([
+          ...nextMessages,
+          { role: "model", content: `❌ AI Error: ${data.error}`, isError: true }
+        ]);
+      } else {
+        setMessages([
+          ...nextMessages,
+          {
+            role: "model",
+            content: data.text ?? "No response from AI."
+          }
+        ]);
+      }
+
     } catch (err: any) {
       setMessages([
         ...messages,
         {
           role: "model",
-          content:
-            "Sorry, there was a problem getting a response. Please try again.",
+          content: "Sorry, there was a problem getting a response. Please try again.",
+          isError: true,
         },
       ]);
     } finally {
@@ -99,10 +117,14 @@ export default function TechnicalChatbot() {
               className={`flex w-full items-end mb-1
                 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {/* Show avatar on left for model, right for user */}
+              {/* Show icon for model (AI) or user */}
               {msg.role === "model" && (
                 <div className="mr-2 flex-shrink-0">
-                  <MessageCircle className="rounded-full bg-blue-100 p-1 text-blue-800 h-8 w-8 shadow" />
+                  {msg.isError ? (
+                    <AlertTriangle className="rounded-full bg-red-100 p-1 text-red-600 h-8 w-8 shadow" />
+                  ) : (
+                    <MessageCircle className="rounded-full bg-blue-100 p-1 text-blue-800 h-8 w-8 shadow" />
+                  )}
                 </div>
               )}
               <div
@@ -113,7 +135,9 @@ export default function TechnicalChatbot() {
                   ${
                     msg.role === "user"
                       ? "bg-blue-100 border-blue-200 text-blue-900 ml-auto animate-fade-in"
-                      : "bg-gray-100 border-gray-200 text-gray-800 animate-fade-in"
+                      : msg.isError
+                        ? "bg-red-50 border-red-200 text-red-700 animate-fade-in"
+                        : "bg-gray-100 border-gray-200 text-gray-800 animate-fade-in"
                   }
                 `}
                 style={{
@@ -170,3 +194,4 @@ export default function TechnicalChatbot() {
     </MainLayout>
   );
 }
+
