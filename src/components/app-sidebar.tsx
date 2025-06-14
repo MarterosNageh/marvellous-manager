@@ -34,13 +34,7 @@ const items = [{
   title: "Knowledge Base",
   url: "/knowledge-base",
   icon: BookOpen
-},
-{
-  title: "Tech Chatbot",
-  url: "/technical-chatbot",
-  icon: BarChart
-}
-];
+}];
 
 const adminItems = [{
   title: "Settings",

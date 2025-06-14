@@ -799,24 +799,6 @@ export type Database = {
         Args: { message_text: string }
         Returns: string[]
       }
-      fix_existing_mentions: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      get_task_comments_with_users: {
-        Args: { task_uuid: string }
-        Returns: {
-          id: string
-          task_id: string
-          user_id: string
-          message: string
-          mentions: Json
-          created_at: string
-          updated_at: string
-          user_username: string
-          user_role: string
-        }[]
-      }
     }
     Enums: {
       [_ in never]: never

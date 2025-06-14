@@ -21,7 +21,6 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
 import Schedule from '@/pages/Schedule';
-import TechnicalChatbot from '@/pages/TechnicalChatbot';
 
 const AppRoutes = () => {
   return (
@@ -48,10 +47,9 @@ const AppRoutes = () => {
       <Route path="/settings" element={<Settings />} />
       <Route path="/knowledge-base" element={<KnowledgeBase />} />
       <Route path="/notes" element={<Notes />} />
-      <Route path="/technical-chatbot" element={<TechnicalChatbot />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };
 
-export default AppRoutes;
+export default AppRoutes; 
