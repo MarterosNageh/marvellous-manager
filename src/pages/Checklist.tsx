@@ -13,8 +13,8 @@ interface ChecklistItem {
   priority: "low" | "medium" | "high";
 }
 
-// Initial SOP checklist data
-const mediaPostProductionChecklist: ChecklistItem[] = [
+// SOP reference data
+const sopChecklist: ChecklistItem[] = [
   {
     id: "1",
     title: "Review Raw Footage",
@@ -94,8 +94,8 @@ const mediaPostProductionChecklist: ChecklistItem[] = [
   }
 ];
 
-// Priority badge color
-const getPriorityBadge = (priority: ChecklistItem["priority"]) => {
+// Visual priority badge
+function getPriorityBadge(priority: ChecklistItem["priority"]) {
   switch (priority) {
     case "high":
       return <Badge variant="destructive" className="uppercase text-xs">High</Badge>;
@@ -106,46 +106,54 @@ const getPriorityBadge = (priority: ChecklistItem["priority"]) => {
     default:
       return null;
   }
-};
+}
 
 const Checklist = () => {
-  // Get unique categories
-  const categories = Array.from(new Set(mediaPostProductionChecklist.map(item => item.category)));
+  // Get unique categories in display order
+  const categoryOrder = ["Pre-Edit", "Editing", "Post-Production", "Finalization"];
+  const categories = categoryOrder.filter(cat =>
+    sopChecklist.some(item => item.category === cat)
+  );
 
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="flex items-center gap-3 mb-6">
-          <BookOpen className="h-7 w-7 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">Standard Operating Procedure</h1>
+          <BookOpen className="h-7 w-7 text-blue-700" />
+          <h1 className="text-3xl font-bold text-gray-900">
+            SOP: Media Post-Production Checklist
+          </h1>
         </div>
-        <p className="text-gray-700 mb-6">
-          Reference checklist for media post-production workflow. Use this as a step-by-step guide and knowledge base for essential SOP tasks.
+        <p className="text-gray-700 mb-8 leading-relaxed">
+          Welcome to the Media Post-Production Standard Operating Procedure. This knowledge base is a curated step-by-step reference to industry best practices for file-based, collaborative post-production. Browse the stages below to review essential tasks and guidance for each step.
         </p>
-        <div className="space-y-8">
+        <div className="space-y-10">
           {categories.map(category => (
             <section key={category} className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <ListCheck className="h-5 w-5 text-blue-500" />
-                <h2 className="text-xl font-semibold text-blue-900">{category}</h2>
+                <h2 className="text-2xl font-semibold text-blue-900 tracking-tight">{category}</h2>
               </div>
-              <div className="space-y-3">
-                {mediaPostProductionChecklist
-                  .filter(item => item.category === category)
-                  .map(item => (
-                    <Card key={item.id} className="border bg-gray-50">
-                      <CardHeader className="flex flex-row gap-2 items-center pb-2">
-                        <CardTitle className="flex-1 text-lg">{item.title}</CardTitle>
-                        {getPriorityBadge(item.priority)}
-                      </CardHeader>
-                      <CardContent>
-                        <CardDescription className="text-gray-800">{item.description}</CardDescription>
-                      </CardContent>
-                    </Card>
-                  ))}
+              <div className="flex flex-col gap-4">
+                {sopChecklist.filter(item => item.category === category).map(item => (
+                  <Card key={item.id} className="border bg-gray-50">
+                    <CardHeader className="flex flex-row gap-2 items-center pb-2">
+                      <CardTitle className="flex-1 text-lg">{item.title}</CardTitle>
+                      {getPriorityBadge(item.priority)}
+                    </CardHeader>
+                    <CardContent>
+                      <CardDescription className="text-gray-800">
+                        {item.description}
+                      </CardDescription>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </section>
           ))}
+        </div>
+        <div className="mt-12 text-xs text-gray-500 text-center">
+          This page is for reference use by editors, producers, and post staff. For process improvements contact your workflow lead.
         </div>
       </div>
     </MainLayout>
