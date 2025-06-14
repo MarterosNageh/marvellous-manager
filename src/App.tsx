@@ -27,6 +27,7 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
 import Schedule from '@/pages/Schedule';
+import TechnicalChatbot from '@/pages/TechnicalChatbot';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/notes" element={<Notes />} />
+                <Route path="/technical-chatbot" element={<TechnicalChatbot />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Router>
