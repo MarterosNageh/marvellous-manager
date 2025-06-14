@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/sonner";
@@ -28,7 +27,6 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
 import Schedule from '@/pages/Schedule';
-import Checklist from '@/pages/Checklist';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -59,8 +57,7 @@ function App() {
                 <Route path="/print" element={<PrintPage />} />
                 <Route path="/print/:id" element={<PrintPage />} />
                 <Route path="/task-manager" element={<TaskManager />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/checklist" element={<Checklist />} />
+                  <Route path="/schedule" element={<Schedule />} />
                 <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />

@@ -1,4 +1,3 @@
-
 import { Routes, Route } from 'react-router-dom';
 
 // Pages
@@ -22,7 +21,6 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import Notes from '@/pages/Notes';
 import NotFound from '@/pages/NotFound';
 import Schedule from '@/pages/Schedule';
-import Checklist from '@/pages/Checklist';
 
 const AppRoutes = () => {
   return (
@@ -45,7 +43,6 @@ const AppRoutes = () => {
       <Route path="/print/:id" element={<PrintPage />} />
       <Route path="/task-manager" element={<TaskManager />} />
       <Route path="/schedule" element={<Schedule />} />
-      <Route path="/checklist" element={<Checklist />} />
       <Route path="/user-management" element={<UserManagement />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/knowledge-base" element={<KnowledgeBase />} />

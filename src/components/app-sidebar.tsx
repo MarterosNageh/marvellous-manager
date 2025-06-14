@@ -1,7 +1,6 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut, BookOpen, FileText, CheckSquare } from "lucide-react";
+import { HardDrive, Files, CalendarDays, BarChart, Settings, LogOut, BookOpen, FileText } from "lucide-react";
 import LogoMarvellous from "@/components/LogoMarvellous";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -27,10 +26,6 @@ const items = [{
   title: "Staff Schedule",
   url: "/schedule",
   icon: CalendarDays
-}, {
-  title: "Checklist",
-  url: "/checklist",
-  icon: CheckSquare
 }, {
   title: "Notes",
   url: "/notes",
