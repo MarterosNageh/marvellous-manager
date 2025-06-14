@@ -159,7 +159,7 @@ async function sendFCMNotificationV1(fcmToken, title, body, data, supabaseAdmin,
         notification: {
           title: title || 'Notification',
           body: body || 'You have a new notification',
-          image: data?.image || '/marvellous-logo-black.png',
+          image: data?.image || '/marvellous-logo-black.png'
         },
         android: {
           priority: 'high',
@@ -183,7 +183,7 @@ async function sendFCMNotificationV1(fcmToken, title, body, data, supabaseAdmin,
             aps: {
               alert: {
                 title: title || 'Notification',
-                body: body || 'You have a new notification',
+                body: body || 'You have a new notification'
               },
               sound: 'default',
               badge: 1,
@@ -304,7 +304,7 @@ serve(async (req)=>{
       message: `Missing required environment variables: ${missingEnvVars.join(', ')}`,
       status: 500
     }), {
-        status: 500,
+      status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
@@ -353,7 +353,7 @@ serve(async (req)=>{
       error: 'Invalid Request',
       message: 'userIds array is required and cannot be empty'
     }), {
-          status: 400,
+      status: 400,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
@@ -396,7 +396,7 @@ serve(async (req)=>{
         message: 'Failed to fetch FCM tokens',
         details: fetchError.message
       }), {
-          status: 500,
+        status: 500,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
@@ -507,7 +507,7 @@ serve(async (req)=>{
       message: error.message,
       details: 'An unexpected error occurred'
     }), {
-        status: 500,
+      status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'

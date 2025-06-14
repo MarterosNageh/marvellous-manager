@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -8,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface ShiftRequest {
   id: string;
   user_id: string;
-  request_type: 'day-off' | 'unpaid-leave' | 'extra-days' | 'public-holiday';
+  request_type: 'day-off' | 'unpaid' | 'extra' | 'public-holiday';
   start_date: string;
   end_date: string;
   reason: string;
@@ -75,8 +74,8 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const mapRequestTypeToDb = (type: ShiftRequest['request_type']): string => {
     switch (type) {
       case 'day-off': return 'day-off';
-      case 'unpaid-leave': return 'unpaid-leave';
-      case 'extra-days': return 'extra-days';
+      case 'unpaid': return 'unpaid-leave';
+      case 'extra': return 'extra-days';
       case 'public-holiday': return 'public-holiday';
       default: return 'day-off';
     }
@@ -86,10 +85,16 @@ export const ShiftsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const mapRequestType = (type: string): ShiftRequest['request_type'] => {
     switch (type) {
       case 'day-off':
+        return 'day-off';
+      case 'unpaid':
       case 'unpaid-leave':
+        return 'unpaid';
+      case 'extra':
       case 'extra-days':
+      case 'extra-day':
+        return 'extra';
       case 'public-holiday':
-        return type;
+        return 'public-holiday';
       case 'leave':
         return 'day-off'; // Default mapping for 'leave' type
       default:

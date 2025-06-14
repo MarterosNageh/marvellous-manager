@@ -17,7 +17,7 @@ import { NotificationService } from '@/services/notificationService';
 
 // Form schema
 const formSchema = z.object({
-  request_type: z.enum(['day-off', 'unpaid-leave', 'extra-day', 'public-holiday', 'swap']),
+  request_type: z.enum(['day-off', 'unpaid', 'extra', 'public-holiday', 'swap']),
   start_date: z.string(),
   end_date: z.string(),
   reason: z.string().min(1, 'Reason is required'),
@@ -41,8 +41,8 @@ interface ShiftRequestDialogProps {
 
 const requestTypes = [
   { value: 'day-off' as const, label: 'Day Off', icon: Clock, adminOnly: false },
-  { value: 'unpaid-leave' as const, label: 'Unpaid Leave', icon: Clock, adminOnly: false },
-  { value: 'extra-day' as const, label: 'Extra Day', icon: User, adminOnly: true },
+  { value: 'unpaid' as const, label: 'Unpaid Leave', icon: Clock, adminOnly: false },
+  { value: 'extra' as const, label: 'Extra Days', icon: User, adminOnly: true },
   { value: 'public-holiday' as const, label: 'Public Holiday', icon: Users, adminOnly: true },
   { value: 'swap' as const, label: 'Swap', icon: User, adminOnly: false },
 ] as const;

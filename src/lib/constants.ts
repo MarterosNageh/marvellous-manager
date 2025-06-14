@@ -6,10 +6,24 @@ export const SHIFT_TEMPLATES = {
     is_all_day: true,
     hours: 0,
   },
+  UNPAID_LEAVE: {
+    shift_type: 'unpaid',
+    title: 'Unpaid Leave',
+    color: '#F44336', // Red color for unpaid leave
+    is_all_day: true,
+    hours: 0,
+  },
+  EXTRA_DAYS: {
+    shift_type: 'extra',
+    title: 'Extra Days',
+    color: '#4CAF50', // Green color for extra days
+    is_all_day: true,
+    hours: 0,
+  },
   PUBLIC_HOLIDAY: {
     shift_type: 'public-holiday',
     title: 'Public Holiday',
-    color: '#FFD93D', // Yellow color for public holiday
+    color: '#757575', // Gray color for public holiday
     is_all_day: true,
     hours: 0,
   },
@@ -32,7 +46,9 @@ export const SHIFT_TEMPLATES = {
 export const SHIFT_COLORS = {
   DEFAULT: '#6C5CE7', // Purple for regular shifts
   DAY_OFF: '#FF6B6B', // Red for day off
-  PUBLIC_HOLIDAY: '#FFD93D', // Yellow for public holiday
+  UNPAID_LEAVE: '#F44336', // Red for unpaid leave
+  EXTRA_DAYS: '#4CAF50', // Green for extra days
+  PUBLIC_HOLIDAY: '#757575', // Gray for public holiday
   SICK_LEAVE: '#FF6B6B', // Red for sick leave
   ANNUAL_LEAVE: '#4ECDC4', // Teal for annual leave
 }; 

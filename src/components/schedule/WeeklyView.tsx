@@ -55,21 +55,40 @@ const LeaveBlock = ({
   request: LeaveRequest;
   user?: ScheduleUser;
 }) => {
-  const leaveColor = '#6B7280'; // Gray color for leave requests
+  // Define colors based on leave type
+  const getLeaveColor = (leaveType: string) => {
+    switch (leaveType) {
+      case 'unpaid':
+      case 'unpaid-leave':
+        return { bg: 'bg-red-100', border: 'border-red-500', text: 'text-red-800' };
+      case 'extra':
+      case 'extra-days':
+      case 'extra-day':
+        return { bg: 'bg-green-100', border: 'border-green-500', text: 'text-green-800' };
+      case 'public-holiday':
+        return { bg: 'bg-gray-100', border: 'border-gray-500', text: 'text-gray-800' };
+      case 'day-off':
+      default:
+        return { bg: 'bg-gray-100', border: 'border-gray-500', text: 'text-gray-800' };
+    }
+  };
+
+  const colors = getLeaveColor(request.leave_type);
   const requestType = request.leave_type === 'day-off' ? 'Day Off' : 
-                     request.leave_type === 'unpaid' ? 'Unpaid Leave' :
-                     request.leave_type === 'extra' ? 'Extra Days' :
+                     request.leave_type === 'unpaid' || request.leave_type === 'unpaid-leave' ? 'Unpaid Leave' :
+                     request.leave_type === 'extra' || request.leave_type === 'extra-days' || request.leave_type === 'extra-day' ? 'Extra Days' :
                      request.leave_type === 'public-holiday' ? 'Public Holiday' :
                      'Leave';
 
   return (
     <div
       className={cn(
-        "rounded-md p-2 text-xs h-full bg-gray-100 border-l-4",
-        "border-gray-500"
+        "rounded-md p-2 text-xs h-full border-l-4",
+        colors.bg,
+        colors.border
       )}
     >
-      <div className="font-semibold text-gray-800">{requestType}</div>
+      <div className={cn("font-semibold", colors.text)}>{requestType}</div>
       <div className="text-gray-600 truncate">{request.reason || 'No reason provided'}</div>
       <div className="mt-1 flex items-center gap-2">
         <Badge variant="secondary" className="capitalize">

@@ -447,13 +447,15 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
             </div>
           </TabsContent>
           
-          <TabsContent value="chat" className="mt-6 h-[70vh]">
+          <TabsContent value="chat" className="mt-6 h-[60vh] sm:h-[70vh] flex flex-col">
             {currentUser && (
-              <TaskChat 
-                taskId={task.id}
-                users={users}
-                currentUser={currentUser}
-              />
+              <div className="flex-1 min-h-0">
+                <TaskChat 
+                  taskId={task.id}
+                  users={users}
+                  currentUser={currentUser}
+                />
+              </div>
             )}
           </TabsContent>
         </Tabs>

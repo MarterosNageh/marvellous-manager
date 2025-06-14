@@ -161,6 +161,46 @@ export class NotificationService {
     });
   }
 
+  static async sendTaskChatNotification(
+    userIds: string[],
+    taskTitle: string,
+    senderUsername: string,
+    message: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `New message in ${taskTitle}`,
+      body: `${senderUsername}: ${message.length > 100 ? message.substring(0, 100) + '...' : message}`,
+      data: {
+        type: 'task_chat',
+        taskTitle,
+        senderUsername,
+        url: '/task-manager',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  static async sendTaskMentionNotification(
+    userIds: string[],
+    taskTitle: string,
+    mentionedBy: string,
+    message: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.sendNotification({
+      userIds,
+      title: `@${mentionedBy} mentioned you in ${taskTitle}`,
+      body: message.length > 100 ? message.substring(0, 100) + '...' : message,
+      data: {
+        type: 'task_mention',
+        taskTitle,
+        mentionedBy,
+        url: '/task-manager',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
   static async sendNoteSharedNotification(
     userIds: string[],
     noteTitle: string,

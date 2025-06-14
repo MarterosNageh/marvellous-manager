@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, Users, Calendar, Edit, Trash2, Eye, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Clock, User, Users, Calendar, Edit, Trash2, Eye, Plus, Filter } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import { useShifts } from '@/context/ShiftsContext';
 import { ShiftRequestDialog } from './ShiftRequestDialog';
 import { UserInfoDialog } from './UserInfoDialog';
 import { UserBalanceDialog } from './UserBalanceDialog';
-import type { ScheduleUser, RequestStatus } from '@/types/schedule';
+import type { ScheduleUser, RequestStatus, LeaveRequest } from '@/types/schedule';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
@@ -25,12 +26,13 @@ interface ShiftRequestDisplay {
   user_id: string;
   username?: string;
   request_type: string;
-  leave_type?: string;
+  leave_type: string;
   start_date: string;
   end_date: string;
   reason: string;
   status: RequestStatus;
   created_at: string;
+  updated_at: string;
   notes?: string;
   reviewer_id?: string;
 }
@@ -42,9 +44,10 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
   const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
   const [userBalanceDialog, setUserBalanceDialog] = useState<{ open: boolean; user: ScheduleUser | null; balance: number; }>({ open: false, user: null, balance: 0 });
   const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
-  const [editingRequest, setEditingRequest] = useState<any>(null);
+  const [editingRequest, setEditingRequest] = useState<ShiftRequestDisplay | LeaveRequest | null>(null);
   const [requests, setRequests] = useState<ShiftRequestDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
   
   const [userBalances, setUserBalances] = useState<{[key: string]: number}>({});
 
@@ -85,6 +88,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
         reason: req.reason || '',
         status: req.status as RequestStatus,
         created_at: req.created_at,
+        updated_at: req.updated_at,
         notes: req.notes,
         reviewer_id: req.reviewer_id,
       }));
@@ -325,7 +329,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
   const getRequestTypeIcon = (type: string) => {
     switch (type) {
+      case 'extra':
       case 'extra-days':
+      case 'extra-day':
         return User;
       case 'public-holiday':
         return Users;
@@ -417,11 +423,52 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
       
       <div className="lg:col-span-2 space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Leave Requests</h2>
-          <Button onClick={() => setShowRequestDialog(true)}>
-            <Calendar className="h-4 w-4 mr-2" />
-            New Leave Request
-          </Button>
+          <div>
+            <h2 className="text-2xl font-bold">Leave Requests</h2>
+            {isAdmin && selectedUserFilter !== 'all' && (() => {
+              const filteredCount = requests.filter(request => request.user_id === selectedUserFilter).length;
+              return (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Showing requests for {users.find(u => u.id === selectedUserFilter)?.username} 
+                  ({filteredCount} request{filteredCount !== 1 ? 's' : ''})
+                </p>
+              );
+            })()}
+          </div>
+          <div className="flex items-center gap-4">
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedUserFilter} onValueChange={setSelectedUserFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Filter by user" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {users.map(user => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedUserFilter !== 'all' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedUserFilter('all')}
+                    className="h-8 px-2"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            )}
+            <Button onClick={() => setShowRequestDialog(true)}>
+              <Calendar className="h-4 w-4 mr-2" />
+              New Leave Request
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4">
@@ -434,15 +481,26 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
             </Card>
           ) : (
             (() => {
-              const filteredRequests = isAdmin 
-                ? requests 
-                : requests.filter(request => request.username === users[0].username);
+              let filteredRequests = requests;
+              
+              // Apply user filter for admins
+              if (isAdmin && selectedUserFilter !== 'all') {
+                filteredRequests = requests.filter(request => request.user_id === selectedUserFilter);
+              } else if (!isAdmin) {
+                // Non-admin users only see their own requests
+                filteredRequests = requests.filter(request => request.user_id === currentUser?.id);
+              }
               
               if (filteredRequests.length === 0) {
                 return (
                   <Card>
                     <CardContent className="flex items-center justify-center h-[200px]">
-                      <p className="text-muted-foreground">No pending or recent requests</p>
+                      <p className="text-muted-foreground">
+                        {isAdmin && selectedUserFilter !== 'all' 
+                          ? `No requests found for ${users.find(u => u.id === selectedUserFilter)?.username || 'selected user'}`
+                          : 'No pending or recent requests'
+                        }
+                      </p>
                     </CardContent>
                   </Card>
                 );

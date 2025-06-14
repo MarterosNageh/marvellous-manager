@@ -91,17 +91,18 @@ export function getProjectStatusColor(status: string): string {
 }
 
 // Helper function to get shift color based on leave type
-export const getShiftColorByLeaveType = (leaveType: LeaveType): string => {
+export const getShiftColorByLeaveType = (leaveType: string): string => {
   switch (leaveType) {
     case 'day-off':
       return '#FF9800'; // Orange
+    case 'unpaid':
     case 'unpaid-leave':
       return '#F44336'; // Red
     case 'public-holiday':
-      return '#2196F3'; // Blue
+      return '#757575'; // Grey
+    case 'extra':
+    case 'extra-days':
     case 'extra-day':
-      return '#9C27B0'; // Purple
-    case 'paid':
       return '#4CAF50'; // Green
     default:
       return '#757575'; // Grey
@@ -113,14 +114,12 @@ export const getShiftTitleByLeaveType = (leaveType: LeaveType): string => {
   switch (leaveType) {
     case 'day-off':
       return 'Day Off';
-    case 'unpaid-leave':
+    case 'unpaid':
       return 'Unpaid Leave';
     case 'public-holiday':
       return 'Public Holiday';
-    case 'extra-day':
+    case 'extra':
       return 'Extra Day';
-    case 'paid':
-      return 'Paid Leave';
     default:
       return 'Time Off';
   }
