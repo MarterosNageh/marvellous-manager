@@ -394,7 +394,8 @@ const Dashboard = () => {
                 const projectBackupDrives = hardDrives
                   .filter(drive => 
                     drive.project_id === project.id && 
-                    drive.drive_type === 'backup'
+                    drive.drive_type === 'backup' &&
+                    project.status?.toLowerCase() === 'available'
                   )
                   .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                 
@@ -454,7 +455,8 @@ const Dashboard = () => {
                 const projectBackupDrives = hardDrives
                   .filter(drive => 
                     drive.project_id === project.id && 
-                    drive.drive_type === 'backup'
+                    drive.drive_type === 'backup' &&
+                    project.status?.toLowerCase() === 'available'
                   )
                   .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                 
@@ -465,7 +467,7 @@ const Dashboard = () => {
                 return freeSpacePercentage < 20;
               }) && (
                 <p className="text-center text-muted-foreground py-4">
-                  No hard drives with low space
+                  no hards Low space
                 </p>
               )}
             </div>
