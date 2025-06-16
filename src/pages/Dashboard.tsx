@@ -87,7 +87,10 @@ const Dashboard = () => {
   
   // Function to get a random GIF
   const getRandomGif = () => {
-    const gifs = ['01.gif', '02.gif', '03.gif', '04.gif', '05.gif'];
+    const gifs = [
+      '01.gif', '02.gif', '03.gif', '04.gif', '05.gif', '06.gif', '07.gif', '08.gif', '09.gif',
+      '010.gif', '011.gif', '012.gif', '013.gif', '014.gif', '015.gif', '016.gif', '017.gif', '018.gif'
+    ];
     const randomIndex = Math.floor(Math.random() * gifs.length);
     return `/GIF/${gifs[randomIndex]}`;
   };
