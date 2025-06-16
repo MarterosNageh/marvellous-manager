@@ -389,87 +389,114 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {projects.map(project => {
-                // Get all backup drives for this project, sorted by creation date (newest first)
-                const projectBackupDrives = hardDrives
-                  .filter(drive => 
-                    drive.project_id === project.id && 
-                    drive.drive_type === 'backup' &&
-                    project.status?.toLowerCase() === 'available'
-                  )
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+              {(() => {
+                console.log('All projects:', projects.map(p => ({ name: p.name, status: p.status })));
+                console.log('All hard drives:', hardDrives.map(h => ({ name: h.name, project_id: h.project_id, drive_type: h.drive_type, free_space: h.free_space, capacity: h.capacity })));
                 
-                if (projectBackupDrives.length === 0) return null;
+                // Specific debug for bershama project
+                const bershamaProject = projects.find(p => p.name.toLowerCase().includes('bershama'));
+                if (bershamaProject) {
+                  console.log('Found bershama project:', bershamaProject);
+                  const bershamaDrives = hardDrives.filter(d => d.project_id === bershamaProject.id);
+                  console.log('Bershama drives:', bershamaDrives);
+                  const bershamaBackupDrives = bershamaDrives.filter(d => d.drive_type === 'backup');
+                  console.log('Bershama backup drives:', bershamaBackupDrives);
+                  if (bershamaBackupDrives.length > 0) {
+                    const latestDrive = bershamaBackupDrives[0];
+                    const freeSpace = parseInt(latestDrive.free_space);
+                    const capacity = parseInt(latestDrive.capacity);
+                    const percentage = (freeSpace / capacity) * 100;
+                    console.log(`Bershama latest backup drive: ${latestDrive.name}, ${freeSpace}GB/${capacity}GB = ${percentage.toFixed(1)}%`);
+                  }
+                }
+                
+                const lowSpaceProjects = projects
+                  // Temporarily remove the available filter to debug
+                  // .filter(project => project.status?.toLowerCase() === 'available')
+                  .map(project => {
+                    console.log(`Checking project: ${project.name} with status: ${project.status}`);
+                    
+                    // Get all backup drives for this project, sorted by creation date (newest first)
+                    const projectBackupDrives = hardDrives
+                      .filter(drive => 
+                        drive.project_id === project.id && 
+                        drive.drive_type === 'backup' &&
+                        project.status === 'active' 
+                      )
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    
+                    console.log(`Project ${project.name} has ${projectBackupDrives.length} backup drives`);
+                    
+                    if (projectBackupDrives.length === 0) return null;
 
-                // Get the latest backup drive
-                const latestDrive = projectBackupDrives[0];
-                const freeSpacePercentage = (parseInt(latestDrive.free_space) / parseInt(latestDrive.capacity)) * 100;
-                const hasLowSpace = freeSpacePercentage < 20;
-                const isCritical = freeSpacePercentage < 10;
-                
-                // Only show if the latest drive has low space
-                if (!hasLowSpace) return null;
-                
-                return (
-                  <div key={project.id} className="space-y-2">
-                    <h3 className="font-medium">{project.name}</h3>
-                    <div 
-                      className={cn(
-                        "flex items-center justify-between p-2 border rounded-lg transition-colors",
-                        isCritical 
-                          ? "bg-red-400 border-red-400 text-white" 
-                          : "bg-white border-gray-200"
-                      )}
-                    >
-                      <div>
-                        <p className="font-medium">{latestDrive.name}</p>
-                        <div className="flex items-center gap-2">
-                          <p className={cn(
-                            "text-sm",
-                            isCritical ? "text-white/90" : "text-muted-foreground"
-                          )}>
-                            {freeSpacePercentage.toFixed(1)}% free
-                          </p>
-                          <span className={cn(
-                            "text-xs",
-                            isCritical ? "text-white/75" : "text-muted-foreground/75"
-                          )}>
-                            • Added {format(new Date(latestDrive.created_at), 'MMM d, yyyy')}
-                          </span>
+                    // Get the latest backup drive
+                    const latestDrive = projectBackupDrives[0];
+                    const freeSpace = parseInt(latestDrive.free_space);
+                    const capacity = parseInt(latestDrive.capacity);
+                    const freeSpacePercentage = (freeSpace / capacity) * 100;
+                    const hasLowSpace = freeSpacePercentage < 20;
+                    const isCritical = freeSpacePercentage < 10;
+                    
+                    console.log(`Drive ${latestDrive.name}: ${freeSpace}GB free / ${capacity}GB total = ${freeSpacePercentage.toFixed(1)}% (low space: ${hasLowSpace})`);
+                    
+                    // Only show if the latest drive has low space
+                    if (!hasLowSpace) return null;
+                    
+                    return (
+                      <div key={project.id} className="space-y-2">
+                        <h3 className="font-medium">{project.name}</h3>
+                        <div 
+                          className={cn(
+                            "flex items-center justify-between p-2 border rounded-lg transition-colors",
+                            isCritical 
+                              ? "bg-red-400 border-red-400 text-white" 
+                              : "bg-white border-gray-200"
+                          )}
+                        >
+                          <div>
+                            <p className="font-medium">{latestDrive.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className={cn(
+                                "text-sm",
+                                isCritical ? "text-white/90" : "text-muted-foreground"
+                              )}>
+                                {freeSpacePercentage.toFixed(1)}% free
+                              </p>
+                              <span className={cn(
+                                "text-xs",
+                                isCritical ? "text-white/75" : "text-muted-foreground/75"
+                              )}>
+                                • Added {format(new Date(latestDrive.created_at), 'MMM d, yyyy')}
+                              </span>
+                            </div>
+                          </div>
+                          <Button 
+                            variant={isCritical ? "secondary" : "outline"} 
+                            size="sm" 
+                            asChild
+                          >
+                            <Link to={`/hard-drives/${latestDrive.id}`}>
+                              Details
+                            </Link>
+                          </Button>
                         </div>
                       </div>
-                      <Button 
-                        variant={isCritical ? "secondary" : "outline"} 
-                        size="sm" 
-                        asChild
-                      >
-                        <Link to={`/hard-drives/${latestDrive.id}`}>
-                          Details
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-              {!projects.some(project => {
-                const projectBackupDrives = hardDrives
-                  .filter(drive => 
-                    drive.project_id === project.id && 
-                    drive.drive_type === 'backup' &&
-                    project.status?.toLowerCase() === 'available'
-                  )
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    );
+                  })
+                  .filter(Boolean); // Remove null values
+
+                console.log(`Found ${lowSpaceProjects.length} projects with low space hard drives`);
                 
-                if (projectBackupDrives.length === 0) return false;
-                
-                const latestDrive = projectBackupDrives[0];
-                const freeSpacePercentage = (parseInt(latestDrive.free_space) / parseInt(latestDrive.capacity)) * 100;
-                return freeSpacePercentage < 20;
-              }) && (
-                <p className="text-center text-muted-foreground py-4">
-                  no hards Low space
-                </p>
-              )}
+                if (lowSpaceProjects.length === 0) {
+                  return (
+                    <p className="text-center text-muted-foreground py-4">
+                      no hards Low space
+                    </p>
+                  );
+                }
+
+                return lowSpaceProjects;
+              })()}
             </div>
           </CardContent>
         </Card>
