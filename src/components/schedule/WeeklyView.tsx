@@ -89,7 +89,7 @@ const LeaveBlock = ({
       )}
     >
       <div className={cn("font-semibold", colors.text)}>{requestType}</div>
-      <div className="text-gray-600 truncate">{request.reason || 'No reason provided'}</div>
+      <div className="text-gray-600 truncate"></div>
       <div className="mt-1 flex items-center gap-2">
         <Badge variant="secondary" className="capitalize">
           {request.leave_type}
