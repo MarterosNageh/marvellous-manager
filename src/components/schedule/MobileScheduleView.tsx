@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfWeek, isToday } from 'date-fns';
 import { Plus, Calendar, Clock, Users, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -10,31 +9,48 @@ import { useAuth } from '@/context/AuthContext';
 import { Shift, ScheduleUser } from '@/types/schedule';
 import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
 import { cn } from '@/lib/utils';
+import ShiftDialog from './ShiftDialog';
 
 const MobileScheduleView = () => {
   const { currentUser } = useAuth();
-  const { shifts } = useSchedule();
+  const { shifts, templates, createShift, updateShift, refreshData } = useSchedule();
+  const { users } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [users, setUsers] = useState<ScheduleUser[]>([]);
+  const [localUsers, setLocalUsers] = useState<ScheduleUser[]>([]);
   const [currentView, setCurrentView] = useState<'shifts' | 'requests' | 'open-shifts' | 'time-clock'>('shifts');
+  const [showShiftDialog, setShowShiftDialog] = useState(false);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [prefilledShift, setPrefilledShift] = useState<Partial<Shift> | null>(null);
 
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const usersData = await usersTable.getAll();
-        setUsers(usersData.map(user => ({
-          id: user.id,
-          username: user.username,
-          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-          title: user.title || '',
-          balance: 0
-        })));
-      } catch (error) {
-        console.error('Error loading users:', error);
-      }
-    };
-    loadUsers();
-  }, []);
+    // Use users from AuthContext if available, else fallback to DB fetch
+    if (users && users.length > 0) {
+      setLocalUsers(users.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        title: user.title || '',
+        balance: 0
+      })));
+    } else {
+      // fallback: fetch from DB (legacy)
+      const loadUsers = async () => {
+        try {
+          const usersData = await usersTable.getAll();
+          setLocalUsers(usersData.map(user => ({
+            id: user.id,
+            username: user.username,
+            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+            title: user.title || '',
+            balance: 0
+          })));
+        } catch (error) {
+          console.error('Error loading users:', error);
+        }
+      };
+      loadUsers();
+    }
+  }, [users]);
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -62,11 +78,17 @@ const MobileScheduleView = () => {
   const ShiftCard = ({ shift, user }: { shift: Shift; user?: ScheduleUser }) => {
     const startTime = format(new Date(shift.start_time), 'h:mm a');
     const endTime = format(new Date(shift.end_time), 'h:mm a');
-    
+    const isAdmin = currentUser?.role === 'admin';
     return (
       <div 
-        className="p-3 rounded-lg mb-2"
+        className="p-3 rounded-lg mb-2 cursor-pointer hover:bg-blue-50 transition-colors"
         style={{ backgroundColor: shift.color || getShiftColor(shift.shift_type) + '20' }}
+        onClick={() => {
+          if (isAdmin) {
+            setEditingShift(shift);
+            setShowShiftDialog(true);
+          }
+        }}
       >
         <div className="flex justify-between items-start mb-1">
           <span className="font-medium text-sm">{`${startTime} - ${endTime}`}</span>
@@ -143,7 +165,7 @@ const MobileScheduleView = () => {
             ) : (
               <div>
                 {todayShifts.map(shift => {
-                  const user = users.find(u => u.id === shift.user_id);
+                  const user = localUsers.find(u => u.id === shift.user_id);
                   return (
                     <ShiftCard key={shift.id} shift={shift} user={user} />
                   );
@@ -201,42 +223,55 @@ const MobileScheduleView = () => {
     );
   };
 
+  // Add Shift handler
+  const handleAddShift = () => {
+    if (currentUser?.role !== 'admin') return;
+    // Prefill with selected date
+    setPrefilledShift({
+      start_time: format(selectedDate, 'yyyy-MM-dd') + 'T09:00:00.000Z',
+      end_time: format(selectedDate, 'yyyy-MM-dd') + 'T17:00:00.000Z',
+      shift_type: 'morning',
+      title: 'Morning Shift',
+      description: '',
+      notes: '',
+      status: 'active',
+      color: '#E3F2FD',
+      repeat_days: []
+    });
+    setEditingShift(null);
+    setShowShiftDialog(true);
+  };
+
+  // Save handler for ShiftDialog
+  const handleSaveShift = async (shiftData: any) => {
+    try {
+      if (editingShift) {
+        // Edit mode
+        await updateShift(editingShift.id, shiftData, 'this');
+      } else {
+        // Add mode
+        await createShift(shiftData);
+      }
+      setShowShiftDialog(false);
+      setEditingShift(null);
+      setPrefilledShift(null);
+      if (refreshData) await refreshData();
+    } catch (error) {
+      // Error handled in context
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Your Shifts</h1>
-          <Button variant="ghost" size="icon">
-            <Plus className="h-5 w-5" />
-          </Button>
+
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="bg-white border-b">
-        <div className="flex">
-          {[
-            { key: 'shifts', label: 'Your Shifts', icon: Calendar },
-            { key: 'requests', label: 'Requests', icon: Clock },
-            { key: 'open-shifts', label: 'Open shifts', icon: Users },
-            { key: 'time-clock', label: 'Time clock', icon: Clock }
-          ].map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setCurrentView(key as any)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 p-3 text-sm",
-                currentView === key ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
+     
       {/* Content */}
       <div className="p-4">
         {renderShiftsView()}
@@ -245,10 +280,24 @@ const MobileScheduleView = () => {
       {/* FAB for adding shifts (admin only) */}
       {currentUser?.role === 'admin' && (
         <div className="fixed bottom-6 right-6">
-          <Button size="lg" className="rounded-full h-14 w-14 shadow-lg">
+          <Button size="lg" className="rounded-full h-14 w-14 shadow-lg" onClick={handleAddShift}>
             <Plus className="h-6 w-6" />
           </Button>
         </div>
+      )}
+      {/* ShiftDialog for add/edit */}
+      {showShiftDialog && (
+        <ShiftDialog
+          shift={editingShift || (prefilledShift as Shift) || undefined}
+          onClose={() => {
+            setShowShiftDialog(false);
+            setEditingShift(null);
+            setPrefilledShift(null);
+          }}
+          onSave={handleSaveShift}
+          templates={templates}
+          users={localUsers}
+        />
       )}
     </div>
   );
