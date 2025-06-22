@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,6 +13,7 @@ import { useTask } from "@/context/TaskContext";
 import { useToast } from "@/hooks/use-toast";
 import { TaskPriority, TaskStatus } from "@/types/taskTypes";
 import { Check, ChevronsUpDown, X } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface CreateTaskDialogProps {
   children: React.ReactNode;
@@ -30,7 +30,14 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
   const { createTask, projects, users } = useTask();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
+
+  // Check if user is a producer (can't assign tasks)
+  const isProducer = currentUser?.role === 'producer';
+
+  // Filter out producers from assignee list
+  const assignableUsers = users.filter(user => user.role !== 'producer');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,79 +193,87 @@ export const CreateTaskDialog = ({ children }: CreateTaskDialogProps) => {
 
           <div>
             <Label>Assignees</Label>
-            <Popover open={assigneeDropdownOpen} onOpenChange={setAssigneeDropdownOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={assigneeDropdownOpen}
-                  className="w-full justify-between"
-                >
-                  <span className="truncate">
-                    {assigneeIds.length === 0
-                      ? "Select assignees..."
-                      : `${assigneeIds.length} assignee${assigneeIds.length > 1 ? 's' : ''} selected`}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search users..." />
-                  <CommandList>
-                    <CommandEmpty>No users found.</CommandEmpty>
-                    <CommandGroup>
-                      {users.map((user) => (
-                        <CommandItem
-                          key={user.id}
-                          onSelect={() => handleAssigneeToggle(user.id)}
-                          className="flex items-center space-x-2"
-                        >
-                          <Checkbox
-                            checked={assigneeIds.includes(user.id)}
-                            onChange={() => handleAssigneeToggle(user.id)}
-                          />
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
-                              {user.username.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm">{user.username}</span>
-                            {user.isAdmin && (
-                              <Badge variant="outline" className="text-xs">
-                                Admin
-                              </Badge>
-                            )}
-                          </div>
-                          {assigneeIds.includes(user.id) && (
-                            <Check className="ml-auto h-4 w-4" />
-                          )}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {/* Selected Assignees Display */}
-            {getSelectedAssignees().length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {getSelectedAssignees().map((user) => (
-                  <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
-                      {user.username.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-xs">{user.username}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeAssignee(user.id)}
-                      className="ml-1 hover:bg-gray-200 rounded-full p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+            {isProducer ? (
+              <div className="text-sm text-gray-500 italic p-2 border rounded">
+                Producers cannot assign tasks to other users. Tasks will be created without assignments.
               </div>
+            ) : (
+              <>
+                <Popover open={assigneeDropdownOpen} onOpenChange={setAssigneeDropdownOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={assigneeDropdownOpen}
+                      className="w-full justify-between"
+                    >
+                      <span className="truncate">
+                        {assigneeIds.length === 0
+                          ? "Select assignees..."
+                          : `${assigneeIds.length} assignee${assigneeIds.length > 1 ? 's' : ''} selected`}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search users..." />
+                      <CommandList>
+                        <CommandEmpty>No users found.</CommandEmpty>
+                        <CommandGroup>
+                          {assignableUsers.map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              onSelect={() => handleAssigneeToggle(user.id)}
+                              className="flex items-center space-x-2"
+                            >
+                              <Checkbox
+                                checked={assigneeIds.includes(user.id)}
+                                onChange={() => handleAssigneeToggle(user.id)}
+                              />
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium">
+                                  {user.username.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-sm">{user.username}</span>
+                                {user.isAdmin && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Admin
+                                  </Badge>
+                                )}
+                              </div>
+                              {assigneeIds.includes(user.id) && (
+                                <Check className="ml-auto h-4 w-4" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Selected Assignees Display */}
+                {getSelectedAssignees().length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {getSelectedAssignees().map((user) => (
+                      <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
+                          {user.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs">{user.username}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeAssignee(user.id)}
+                          className="ml-1 hover:bg-gray-200 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

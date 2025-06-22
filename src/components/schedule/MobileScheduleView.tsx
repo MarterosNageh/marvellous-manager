@@ -25,25 +25,56 @@ const MobileScheduleView = () => {
   useEffect(() => {
     // Use users from AuthContext if available, else fallback to DB fetch
     if (users && users.length > 0) {
-      setLocalUsers(users.map(user => ({
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        title: user.title || '',
-        balance: 0
-      })));
+      // Separate operational users from producers
+      const operationalUsers = users
+        .filter(user => user.role !== 'producer')
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+          title: user.title || '',
+          balance: 0
+        })) as ScheduleUser[];
+
+      const producerUsers = users
+        .filter(user => user.role === 'producer')
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          role: 'producer' as const,
+          title: user.title || '',
+          balance: 0
+        })) as ScheduleUser[];
+
+      setLocalUsers([...operationalUsers, ...producerUsers]);
     } else {
       // fallback: fetch from DB (legacy)
       const loadUsers = async () => {
         try {
           const usersData = await usersTable.getAll();
-          setLocalUsers(usersData.map(user => ({
-            id: user.id,
-            username: user.username,
-            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-            title: user.title || '',
-            balance: 0
-          })));
+          
+          // Separate operational users from producers
+          const operationalUsers = usersData
+            .filter(user => user.role !== 'producer')
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+              title: user.title || '',
+              balance: 0
+            }));
+
+          const producerUsers = usersData
+            .filter(user => user.role === 'producer')
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              role: 'producer' as const,
+              title: user.title || '',
+              balance: 0
+            }));
+
+          setLocalUsers([...operationalUsers, ...producerUsers]);
         } catch (error) {
           console.error('Error loading users:', error);
         }

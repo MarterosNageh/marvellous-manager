@@ -51,6 +51,9 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
 
+  // Filter out producers from assignee list
+  const assignableUsers = users.filter(user => user.role !== 'producer');
+
   // Check if task still exists in the tasks array
   const taskExists = tasks.find(t => t.id === task.id);
 
@@ -327,7 +330,7 @@ export const TaskDetailDialog: React.FC<TaskDetailDialogProps> = ({ task, open, 
                           <CommandList>
                             <CommandEmpty>No users found.</CommandEmpty>
                             <CommandGroup>
-                              {users.map((user) => (
+                              {assignableUsers.map((user) => (
                                 <CommandItem
                                   key={user.id}
                                   onSelect={() => handleAssigneeToggle(user.id)}
