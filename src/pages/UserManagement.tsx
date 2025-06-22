@@ -26,7 +26,7 @@ const UserManagement = () => {
     username: "",
     password: "",
     isAdmin: false,
-    role: "operator",
+    role: "operator" as 'admin' | 'senior' | 'operator' | 'producer',
     title: ""
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -118,6 +118,8 @@ const UserManagement = () => {
         return <Badge variant="default">Senior</Badge>;
       case 'operator':
         return <Badge variant="secondary">Operator</Badge>;
+      case 'producer':
+        return <Badge variant="outline" className="text-purple-600 border-purple-600">Producer</Badge>;
       default:
         return <Badge variant="outline">{role}</Badge>;
     }
@@ -132,6 +134,8 @@ const UserManagement = () => {
         return "Can complete tasks, add users (without role setting), manage team schedules";
       case 'operator':
         return "Can view schedules, submit requests, view tasks (no completion)";
+      case 'producer':
+        return "Can view hard drives (read-only), create tasks (no assignments)";
       default:
         return "Basic user permissions";
     }
@@ -228,7 +232,7 @@ const UserManagement = () => {
                       value={newUser.role} 
                       onValueChange={(value) => setNewUser(prev => ({
                         ...prev,
-                        role: value
+                        role: value as 'admin' | 'senior' | 'operator' | 'producer'
                       }))}
                     >
                       <SelectTrigger>
@@ -237,6 +241,7 @@ const UserManagement = () => {
                       <SelectContent>
                         <SelectItem value="operator">Operator</SelectItem>
                         <SelectItem value="senior">Senior</SelectItem>
+                        <SelectItem value="producer">Producer</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500">
@@ -274,16 +279,18 @@ const UserManagement = () => {
             <CardTitle>Role Permissions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary">Operator</Badge>
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <Shield className="h-3 w-3" />Admin
+                  </Badge>
                 </div>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• View team schedules</li>
-                  <li>• Submit requests</li>
-                  <li>• View tasks (no completion)</li>
-                  <li>• View dashboard</li>
+                  <li>• Full system access</li>
+                  <li>• User management</li>
+                  <li>• System configuration</li>
+                  <li>• Role management</li>
                 </ul>
               </div>
               <div className="p-4 border rounded-lg">
@@ -299,15 +306,24 @@ const UserManagement = () => {
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <Shield className="h-3 w-3" />Admin
-                  </Badge>
+                  <Badge variant="secondary">Operator</Badge>
                 </div>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Full system access</li>
-                  <li>• User management</li>
-                  <li>• System configuration</li>
-                  <li>• Role management</li>
+                  <li>• View team schedules</li>
+                  <li>• Submit requests</li>
+                  <li>• View tasks (no completion)</li>
+                  <li>• View dashboard</li>
+                </ul>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline" className="text-purple-600 border-purple-600">Producer</Badge>
+                </div>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• View hard drives (read-only)</li>
+                  <li>• Create tasks (no assignments)</li>
+                  <li>• No user management</li>
+                  <li>• No settings access</li>
                 </ul>
               </div>
             </div>

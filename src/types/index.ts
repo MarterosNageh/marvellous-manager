@@ -4,7 +4,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'senior' | 'operator';
+  role: 'admin' | 'senior' | 'operator' | 'producer';
   title?: string;
   balance?: number;
   isAdmin?: boolean;

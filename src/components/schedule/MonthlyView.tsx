@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, isSameMonth } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react';
@@ -43,13 +42,28 @@ const MonthlyView = ({
           shiftsTable.getAll()
         ]);
 
-        setUsers(usersData.map(user => ({
-          id: user.id,
-          username: user.username,
-          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-          title: user.title || '',
-          balance: 0
-        })));
+        // Separate operational users from producers
+        const operationalUsers = usersData
+          .filter(user => user.role !== 'producer')
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+            title: user.title || '',
+            balance: 0
+          })) as ScheduleUser[];
+
+        const producerUsers = usersData
+          .filter(user => user.role === 'producer')
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            role: 'producer' as const,
+            title: user.title || '',
+            balance: 0
+          })) as ScheduleUser[];
+
+        setUsers([...operationalUsers, ...producerUsers]);
         
         setShifts(shiftsData);
       } catch (error) {
@@ -88,6 +102,31 @@ const MonthlyView = ({
   const getShiftsForDate = (date: Date) => {
     return shifts.filter(shift => isSameDay(new Date(shift.start_time), date));
   };
+
+  // Group users by role
+  const groupedUsers = users.reduce((acc, user) => {
+    let roleGroup: string;
+    if (user.role === 'producer') {
+      roleGroup = 'Producers';
+    } else if (user.role === 'operator') {
+      roleGroup = 'Operators';
+    } else {
+      roleGroup = 'Technical Leaders';
+    }
+    
+    if (!acc[roleGroup]) {
+      acc[roleGroup] = [];
+    }
+    acc[roleGroup].push(user);
+    return acc;
+  }, {} as Record<string, ScheduleUser[]>);
+
+  // Sort users within each group by username
+  Object.keys(groupedUsers).forEach(role => {
+    groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
+  });
+
+  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
 
   if (isLoading) {
     return (

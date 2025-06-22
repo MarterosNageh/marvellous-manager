@@ -22,7 +22,7 @@ import { toast } from "sonner";
 interface SelectedUser {
   id: string;
   username: string;
-  role: 'admin' | 'senior' | 'operator';
+  role: 'admin' | 'senior' | 'operator' | 'producer';
   isAdmin: boolean;
   title?: string;
 }
@@ -31,7 +31,7 @@ const Settings = () => {
   const { currentUser, users, updateUser, isAdmin } = useAuth();
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'senior' | 'operator'>('operator');
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'senior' | 'operator' | 'producer'>('operator');
   const [selectedTitle, setSelectedTitle] = useState("");
 
   // Reset form when dialog opens/closes
@@ -52,7 +52,7 @@ const Settings = () => {
     setIsEditUserOpen(true);
   };
 
-  const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'senior' | 'operator', newTitle?: string) => {
+  const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'senior' | 'operator' | 'producer', newTitle?: string) => {
     try {
       if (!selectedUser) return;
 
@@ -260,6 +260,24 @@ const Settings = () => {
                         </ul>
                       </CardContent>
                     </Card>
+
+                    <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          Producer
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-purple-700 dark:text-purple-300">
+                          <li>• View hard drives (read-only)</li>
+                          <li>• Create tasks (no assignments)</li>
+                          <li>• No user management</li>
+                          <li>• No settings access</li>
+                          <li>• Limited system access</li>
+                        </ul>
+                      </CardContent>
+                    </Card>
                   </div>
                 </CardContent>
               </Card>
@@ -282,7 +300,7 @@ const Settings = () => {
                 <Label>Role</Label>
                 <Select 
                   value={selectedRole}
-                  onValueChange={(value: 'admin' | 'senior' | 'operator') => setSelectedRole(value)}
+                  onValueChange={(value: 'admin' | 'senior' | 'operator' | 'producer') => setSelectedRole(value)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -291,6 +309,7 @@ const Settings = () => {
                     <SelectItem value="admin">Administrator</SelectItem>
                     <SelectItem value="senior">Senior</SelectItem>
                     <SelectItem value="operator">Operator</SelectItem>
+                    <SelectItem value="producer">Producer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

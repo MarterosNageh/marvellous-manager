@@ -18,6 +18,7 @@ interface HardDriveGroupedListProps {
   hardDrives: HardDrive[];
   projects: Project[];
   isMobile: boolean;
+  isProducer?: boolean;
   onToggleArchive?: (hardDriveId: string, isArchived: boolean) => void;
 }
 
@@ -25,6 +26,7 @@ export const HardDriveGroupedList = ({
   hardDrives,
   projects,
   isMobile,
+  isProducer = false,
   onToggleArchive,
 }: HardDriveGroupedListProps) => {
   const navigate = useNavigate();
@@ -378,13 +380,35 @@ export const HardDriveGroupedList = ({
                         {hardDrive.data || "No description"}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handlePrintHardDrive(hardDrive.id)}
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
+                          >
+                            View
+                          </Button>
+                          {!isProducer && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/hard-drives/${hardDrive.id}/print`)}
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                              {onToggleArchive && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onToggleArchive(hardDrive.id, false)}
+                                >
+                                  <ArchiveRestore className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -554,13 +578,42 @@ export const HardDriveGroupedList = ({
                           {hardDrive.data || "No description"}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePrintHardDrive(hardDrive.id)}
-                          >
-                            <Printer className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
+                            >
+                              View
+                            </Button>
+                            {!isProducer && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => navigate(`/hard-drives/${hardDrive.id}/print`)}
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => navigate(`/hard-drives/${hardDrive.id}/edit`)}
+                                >
+                                  Edit
+                                </Button>
+                                {onToggleArchive && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onToggleArchive(hardDrive.id, false)}
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -758,23 +811,40 @@ export const HardDriveGroupedList = ({
                                   {hardDrive.data || "No description"}
                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-2">
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => handlePrintHardDrive(hardDrive.id)}
+                                      onClick={() => navigate(`/hard-drives/${hardDrive.id}`)}
                                     >
-                                      <Printer className="h-4 w-4" />
+                                      View
                                     </Button>
-                                    {project && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleToggleArchive(hardDrive.id, true)}
-                                        title="Restore project"
-                                      >
-                                        <ArchiveRestore className="h-4 w-4" />
-                                      </Button>
+                                    {!isProducer && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => navigate(`/hard-drives/${hardDrive.id}/print`)}
+                                        >
+                                          <Printer className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => navigate(`/hard-drives/${hardDrive.id}/edit`)}
+                                        >
+                                          Edit
+                                        </Button>
+                                        {onToggleArchive && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => onToggleArchive(hardDrive.id, true)}
+                                          >
+                                            <Archive className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </TableCell>

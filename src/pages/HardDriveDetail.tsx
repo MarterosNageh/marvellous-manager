@@ -11,6 +11,7 @@ import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode } from "lucide-react"
 import { useData } from "@/context/DataContext";
 import type { HardDrive, PrintHistory } from "@/types";
 import { getHardDriveStatusColor } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -28,10 +29,14 @@ const HardDriveDetail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { hardDrives, projects, deleteHardDrive, printHistory } = useData();
+  const { currentUser } = useAuth();
   
   const [hardDrive, setHardDrive] = useState<HardDrive | null>(null);
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if user is a producer (read-only access)
+  const isProducer = currentUser?.role === 'producer';
 
   useEffect(() => {
     if (!id) {
@@ -188,48 +193,26 @@ const HardDriveDetail = () => {
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleQRCode}
-              className="flex-1 sm:flex-none justify-center"
-            >
-              <QrCode className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">QR Code</span>
-              <span className="sm:hidden">QR</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePrint}
-              className="flex-1 sm:flex-none justify-center"
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Print Forms</span>
-              <span className="sm:hidden">Print</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate(`/hard-drives/${hardDrive.id}/edit`)}
-              className="flex-1 sm:flex-none justify-center"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Edit</span>
-              <span className="sm:hidden">Edit</span>
-            </Button>
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={handleDelete}
-              className="flex-1 sm:flex-none justify-center"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">Delete</span>
-            </Button>
-          </div>
+          {!isProducer && (
+            <div className="flex items-center gap-2">
+              <Button onClick={handlePrint} variant="outline">
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+              <Button onClick={handleQRCode} variant="outline">
+                <QrCode className="h-4 w-4 mr-2" />
+                QR Code
+              </Button>
+              <Button 
+                onClick={handleDelete} 
+                variant="destructive"
+                className="hidden sm:flex"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
