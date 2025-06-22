@@ -413,7 +413,7 @@ const WeeklyView = ({
     return acc;
   }, {} as Record<string, ScheduleUser[]>);
 
-  // Sort users within each group by username
+  // Sort users within each group by username and title
   Object.keys(groupedUsers).forEach(role => {
     groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
   });
