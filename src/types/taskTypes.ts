@@ -6,13 +6,13 @@ export interface User {
   username: string;
   password: string;
   isAdmin: boolean;
-  role?: 'admin' | 'senior' | 'operator' | 'producer';
+  role?: string;
 }
 
 export interface TaskUser {
   id: string;
   username: string;
-  role: 'admin' | 'senior' | 'operator' | 'producer';
+  role: string;
 }
 
 export interface Project {

@@ -276,28 +276,13 @@ const WeeklyView = ({
 
         console.log('Loaded leave requests:', leaveRequestsData);
 
-        // Separate operational users from producers
-        const operationalUsers = usersData
-          .filter(user => user.role !== 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        const producerUsers = usersData
-          .filter(user => user.role === 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: 'producer' as const,
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        setUsers([...operationalUsers, ...producerUsers]);
+        setUsers(usersData.map(user => ({
+          id: user.id,
+          username: user.username,
+          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+          title: user.title || '',
+          balance: 0
+        })));
         
         setShifts(shiftsData);
         
@@ -397,15 +382,7 @@ const WeeklyView = ({
   
   // Group users by role with updated names
   const groupedUsers = users.reduce((acc, user) => {
-    let roleGroup: string;
-    if (user.role === 'producer') {
-      roleGroup = 'Producers';
-    } else if (user.role === 'operator') {
-      roleGroup = 'Operators';
-    } else {
-      roleGroup = 'Technical Leaders';
-    }
-    
+    const roleGroup = user.role === 'operator' ? 'Operators' : 'Leaders';
     if (!acc[roleGroup]) {
       acc[roleGroup] = [];
     }
@@ -418,7 +395,7 @@ const WeeklyView = ({
     groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
   });
 
-  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
+  const roleDisplayOrder = ['Operators', 'Leaders'];
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   // Calculate total hours for each user for the current week

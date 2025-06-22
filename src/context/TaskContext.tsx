@@ -202,13 +202,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-      // Check if user is a producer and clear assignee_ids if so
-      const isProducer = currentUser?.role === 'producer';
-      if (isProducer && data.assignee_ids && data.assignee_ids.length > 0) {
-        console.log('⚠️ Producer attempting to assign task - clearing assignments');
-        data.assignee_ids = [];
-      }
-
       // Fetch users
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
@@ -221,7 +214,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         username: user.username,
         password: user.password,
         isAdmin: user.is_admin,
-        role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' | 'producer' || 'operator'),
+        role: user.is_admin ? 'admin' : 'user',
       }));
       setUsers(transformedUsers);
 
@@ -287,9 +280,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       console.log('📝 Creating task with fast response...');
       console.log('📝 Task title:', data.title);
       console.log('👥 Assignees:', data.assignee_ids);
-      if (isProducer) {
-        console.log('⚠️ Producer creating task - no assignments will be made');
-      }
       
       const { data: taskData, error: taskError } = await supabase
         .from('tasks')
@@ -309,7 +299,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
       console.log('✅ Task created with ID:', taskData.id);
 
-      if (data.assignee_ids && data.assignee_ids.length > 0 && !isProducer) {
+      if (data.assignee_ids && data.assignee_ids.length > 0) {
         console.log('👥 Creating assignments for users:', data.assignee_ids);
         
         const assignments = data.assignee_ids.map(userId => ({
@@ -344,13 +334,9 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         });
 
       } else {
-        const message = isProducer 
-          ? "Task created successfully (no assignments - Producer role restriction)"
-          : "Task created successfully";
-        
         toast({
           title: "✅ Success",
-          description: message,
+          description: "Task created successfully",
         });
       }
 

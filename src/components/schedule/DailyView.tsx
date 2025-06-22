@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format, addHours, startOfDay, endOfDay } from 'date-fns';
 import { Card } from '@/components/ui/card';
@@ -51,28 +52,13 @@ const DailyView = ({
           shiftsTable.getAll()
         ]);
 
-        // Separate operational users from producers
-        const operationalUsers = usersData
-          .filter(user => user.role !== 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        const producerUsers = usersData
-          .filter(user => user.role === 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: 'producer' as const,
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        setUsers([...operationalUsers, ...producerUsers]);
+        setUsers(usersData.map(user => ({
+          id: user.id,
+          username: user.username,
+          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+          title: user.title || '',
+          balance: 0
+        })));
         
         // Filter shifts for selected date
         const dayStart = startOfDay(selectedDate);
@@ -108,31 +94,6 @@ const DailyView = ({
     acc[user.id] = shifts.filter(shift => shift.user_id === user.id);
     return acc;
   }, {} as Record<string, Shift[]>);
-
-  // Group users by role
-  const groupedUsers = users.reduce((acc, user) => {
-    let roleGroup: string;
-    if (user.role === 'producer') {
-      roleGroup = 'Producers';
-    } else if (user.role === 'operator') {
-      roleGroup = 'Operators';
-    } else {
-      roleGroup = 'Technical Leaders';
-    }
-    
-    if (!acc[roleGroup]) {
-      acc[roleGroup] = [];
-    }
-    acc[roleGroup].push(user);
-    return acc;
-  }, {} as Record<string, ScheduleUser[]>);
-
-  // Sort users within each group by username
-  Object.keys(groupedUsers).forEach(role => {
-    groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
-  });
-
-  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
 
   const getShiftForTimeSlot = (userId: string, timeSlot: Date) => {
     const userShifts = shiftsByUser[userId] || [];
@@ -242,54 +203,60 @@ const DailyView = ({
                 </div>
                 
                 {/* User rows */}
-                {roleDisplayOrder.map((role) => {
-                  const roleUsers = groupedUsers[role] || [];
+                {users.map((user) => {
+                  const userShifts = shiftsByUser[user.id] || [];
                   
-                  return roleUsers.map((user) => {
-                    const userShifts = shiftsByUser[user.id] || [];
-                    
-                    return (
-                      <div key={user.id} className="grid grid-cols-[200px_repeat(24,1fr)] gap-px bg-gray-200">
-                        {/* User info */}
-                        <div className="bg-white p-3 flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                              {getInitials(user.username)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm truncate">{user.username}</div>
-                            <div className="text-xs text-gray-500 truncate">
-                              {user.title || user.role}
-                            </div>
+                  return (
+                    <div key={user.id} className="grid grid-cols-[200px_repeat(24,1fr)] gap-px bg-gray-200">
+                      {/* User info */}
+                      <div className="bg-white p-3 flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                            {getInitials(user.username)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{user.username}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {user.title || user.role}
                           </div>
                         </div>
-                        
-                        {/* Time slots */}
-                        {timeSlots.map((slot, slotIndex) => {
-                          const shift = getShiftForTimeSlot(user.id, slot.time);
-                          
-                          return (
-                            <div key={slotIndex} className="bg-white p-1 relative">
-                              {shift ? (
-                                <div
-                                  className="text-xs p-1 rounded text-white text-center truncate"
-                                  style={{
-                                    backgroundColor: getShiftColor(shift.shift_type, shift.color),
-                                    minHeight: '20px'
-                                  }}
-                                >
-                                  {shift.shift_type}
-                                </div>
-                              ) : (
-                                <div className="h-5"></div>
-                              )}
-                            </div>
-                          );
-                        })}
                       </div>
-                    );
-                  });
+                      
+                      {/* Time slots */}
+                      {timeSlots.map((slot, slotIndex) => {
+                        const shift = getShiftForTimeSlot(user.id, slot.time);
+                        
+                        return (
+                          <div
+                            key={slotIndex}
+                            className={cn(
+                              "bg-white min-h-[60px] border-r border-gray-100 relative",
+                              shift && "cursor-pointer"
+                            )}
+                            onClick={() => shift && onEditShift(shift)}
+                          >
+                            {shift && (
+                              <div
+                                className="absolute inset-0 p-1 rounded-sm flex items-center justify-center"
+                                style={{
+                                  backgroundColor: getShiftColor(shift.shift_type, shift.color) + '33',
+                                  borderLeft: `3px solid ${getShiftColor(shift.shift_type, shift.color)}`
+                                }}
+                              >
+                                <div className="text-xs text-center">
+                                  <div className="font-medium">{shift.shift_type}</div>
+                                  {shift.notes && (
+                                    <div className="text-gray-600 truncate">{shift.notes}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })}
               </div>
             </div>

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/context/DataContext";
-import { useAuth } from "@/context/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,14 +17,10 @@ import { useToast } from "@/components/ui/use-toast";
 
 const HardDrives = () => {
   const { hardDrives, projects, updateHardDrive, updateProject } = useData();
-  const { currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
-
-  // Check if user is a producer (read-only access)
-  const isProducer = currentUser?.role === 'producer';
 
   const filteredHardDrives = hardDrives.filter((hardDrive) => {
     const matchesSearch =
@@ -72,14 +67,12 @@ const HardDrives = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Hard Drives</h1>
-          {!isProducer && (
-            <Link to="/hard-drives/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Hard Drive
-              </Button>
-            </Link>
-          )}
+          <Link to="/hard-drives/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Hard Drive
+            </Button>
+          </Link>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -133,7 +126,6 @@ const HardDrives = () => {
             hardDrives={filteredHardDrives}
             projects={projects}
             isMobile={isMobile}
-            isProducer={isProducer}
             onToggleArchive={handleToggleArchive}
           />
         )}

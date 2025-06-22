@@ -5,14 +5,14 @@ export type ViewType = 'daily' | 'weekly' | 'monthly';
 export type ShiftType = 'morning' | 'night' | 'on-call' | 'day-off' | 'public-holiday';
 export type LeaveType = 'day-off' | 'unpaid' | 'extra' | 'public-holiday';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
-export type UserRole = 'admin' | 'senior' | 'operator' | 'producer';
+export type UserRole = 'admin' | 'senior' | 'operator';
 export type RequestType = 'leave' | 'swap';
 export type ShiftStatus = 'active' | 'inactive' | 'pending_swap';
 
 export interface ScheduleUser {
   id: string;
   username: string;
-  role: 'admin' | 'operator' | 'senior' | 'producer';
+  role: 'admin' | 'operator' | 'senior';
   title?: string;
   balance?: number;
   department?: string;

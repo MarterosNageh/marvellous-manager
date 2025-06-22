@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 export interface AuthUser {
   id: string;
   username: string;
-  role: 'admin' | 'senior' | 'operator' | 'producer';
+  role: 'admin' | 'senior' | 'operator';
   isAdmin: boolean;
   title?: string;
   created_at?: string;
@@ -17,13 +17,9 @@ export interface AuthContextType {
   isAuthenticated: boolean | null;
   isAdmin: boolean;
   isSenior: boolean;
-  isProducer: boolean;
   canCompleteTask: boolean;
   canAddUser: boolean;
   canAccessSettings: boolean;
-  canCreateTask: boolean;
-  canViewHardDrives: boolean;
-  canEditHardDrives: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   refreshUsers: () => Promise<void>;
@@ -38,13 +34,9 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: null,
   isAdmin: false,
   isSenior: false,
-  isProducer: false,
   canCompleteTask: false,
   canAddUser: false,
   canAccessSettings: false,
-  canCreateTask: false,
-  canViewHardDrives: true,
-  canEditHardDrives: false,
   login: async () => false,
   logout: () => {},
   refreshUsers: async () => {},
@@ -69,13 +61,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Compute permissions based on user role
   const isAdmin = currentUser?.role === 'admin';
   const isSenior = currentUser?.role === 'senior';
-  const isProducer = currentUser?.role === 'producer';
   const canCompleteTask = isAdmin || isSenior;
   const canAddUser = isAdmin || isSenior;
   const canAccessSettings = isAdmin || isSenior;
-  const canCreateTask = isAdmin || isSenior || isProducer;
-  const canViewHardDrives = true; // All authenticated users can view hard drives
-  const canEditHardDrives = isAdmin || isSenior; // Only admin and senior can edit hard drives
 
   const refreshUsers = async () => {
     try {
@@ -99,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mappedUsers: AuthUser[] = data.map(user => ({
         id: user.id,
         username: user.username,
-        role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' | 'producer' || 'operator'),
+        role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' || 'operator'),
         isAdmin: user.is_admin,
         title: user.title,
         created_at: user.created_at
@@ -158,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const user: AuthUser = {
         id: data.id,
         username: data.username,
-        role: data.is_admin ? 'admin' : (data.role as 'senior' | 'operator' | 'producer' || 'operator'),
+        role: data.is_admin ? 'admin' : (data.role as 'senior' | 'operator' || 'operator'),
         isAdmin: data.is_admin,
         title: data.title,
         created_at: data.created_at
@@ -377,7 +365,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const user: AuthUser = {
               id: dbUser.id,
               username: dbUser.username,
-              role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' | 'producer' || 'operator'),
+              role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' || 'operator'),
               isAdmin: dbUser.is_admin,
               title: dbUser.title,
               created_at: dbUser.created_at
@@ -467,13 +455,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated,
     isAdmin,
     isSenior,
-    isProducer,
     canCompleteTask,
     canAddUser,
     canAccessSettings,
-    canCreateTask,
-    canViewHardDrives,
-    canEditHardDrives,
     login,
     logout,
     refreshUsers,
