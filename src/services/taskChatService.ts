@@ -28,7 +28,7 @@ export class TaskChatService {
         user_id: item.user_id,
         message: item.message,
         mentions: Array.isArray(item.mentions) 
-          ? item.mentions.map(mention => String(mention)) // Convert Json to string[]
+          ? item.mentions.map((mention: any) => String(mention))
           : [],
         created_at: item.created_at,
         updated_at: item.updated_at,
@@ -71,7 +71,7 @@ export class TaskChatService {
         task_id: data.task_id,
         user_id: data.user_id,
         message: data.message,
-        mentions: Array.isArray(data.mentions) ? data.mentions : [],
+        mentions: Array.isArray(data.mentions) ? data.mentions.map((mention: any) => String(mention)) : [],
         created_at: data.created_at,
         updated_at: data.updated_at
       };

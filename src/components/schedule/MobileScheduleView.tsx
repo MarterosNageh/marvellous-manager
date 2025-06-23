@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, Plus, Users } from 'lucide-react';
@@ -9,12 +10,12 @@ import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule
 import { cn } from '@/lib/utils';
 
 interface MobileScheduleViewProps {
-  selectedDate: Date;
-  onEditShift: (shift: Shift) => void;
-  onDeleteShift: (shiftId: string) => void;
-  onDateChange: (date: Date) => void;
-  onAddShift: () => void;
-  refreshData: () => Promise<void>;
+  selectedDate?: Date;
+  onEditShift?: (shift: Shift) => void;
+  onDeleteShift?: (shiftId: string) => void;
+  onDateChange?: (date: Date) => void;
+  onAddShift?: () => void;
+  refreshData?: () => Promise<void>;
 }
 
 const getShiftColor = (shiftType: string, color?: string) => {
@@ -29,27 +30,26 @@ const getShiftColor = (shiftType: string, color?: string) => {
   return defaultColors[shiftType as keyof typeof defaultColors] || '#3B82F6';
 };
 
+const transformUserRole = (role: string | null): 'admin' | 'operator' | 'senior' | 'producer' => {
+  if (role && ['admin', 'senior', 'operator', 'producer'].includes(role)) {
+    return role as 'admin' | 'operator' | 'senior' | 'producer';
+  }
+  return 'operator'; // default fallback
+};
+
 const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
-  selectedDate,
-  onEditShift,
-  onDeleteShift,
-  onDateChange,
-  onAddShift,
-  refreshData
+  selectedDate = new Date(),
+  onEditShift = () => {},
+  onDeleteShift = () => {},
+  onDateChange = () => {},
+  onAddShift = () => {},
+  refreshData = async () => {}
 }) => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [users, setUsers] = useState<ScheduleUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const transformUserRole = (role: string | null): 'admin' | 'operator' | 'senior' => {
-    if (role && ['admin', 'senior', 'operator'].includes(role)) {
-      return role as 'admin' | 'operator' | 'senior';
-    }
-    return 'operator'; // default fallback
-  };
-
   useEffect(() => {
-<<<<<<< HEAD
     const loadData = async () => {
       try {
         setIsLoading(true);
@@ -58,67 +58,6 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
           usersTable.getAll(),
           shiftsTable.getAll()
         ]);
-=======
-    // Use users from AuthContext if available, else fallback to DB fetch
-    if (users && users.length > 0) {
-      // Separate operational users from producers
-      const operationalUsers = users
-        .filter(user => user.role !== 'producer')
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-          title: user.title || '',
-          balance: 0
-        })) as ScheduleUser[];
-
-      const producerUsers = users
-        .filter(user => user.role === 'producer')
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          role: 'producer' as const,
-          title: user.title || '',
-          balance: 0
-        })) as ScheduleUser[];
-
-      setLocalUsers([...operationalUsers, ...producerUsers]);
-    } else {
-      // fallback: fetch from DB (legacy)
-      const loadUsers = async () => {
-        try {
-          const usersData = await usersTable.getAll();
-          
-          // Separate operational users from producers
-          const operationalUsers = usersData
-            .filter(user => user.role !== 'producer')
-            .map(user => ({
-              id: user.id,
-              username: user.username,
-              role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-              title: user.title || '',
-              balance: 0
-            }));
-
-          const producerUsers = usersData
-            .filter(user => user.role === 'producer')
-            .map(user => ({
-              id: user.id,
-              username: user.username,
-              role: 'producer' as const,
-              title: user.title || '',
-              balance: 0
-            }));
-
-          setLocalUsers([...operationalUsers, ...producerUsers]);
-        } catch (error) {
-          console.error('Error loading users:', error);
-        }
-      };
-      loadUsers();
-    }
-  }, [users]);
->>>>>>> fe29dbd (add producers role)
 
         const transformedUsers = usersData.map(user => ({
           id: user.id,
