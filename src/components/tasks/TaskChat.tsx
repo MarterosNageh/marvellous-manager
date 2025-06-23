@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,9 @@ export const TaskChat: React.FC<TaskChatProps> = ({ taskId, users, currentUser }
   const convertToTaskUser = (user: UserType): TaskUser => ({
     id: user.id,
     username: user.username,
-    role: user.role || 'user'
+    role: (user.role && ['admin', 'senior', 'operator', 'producer'].includes(user.role)) 
+      ? user.role as 'admin' | 'senior' | 'operator' | 'producer'
+      : 'operator'
   });
 
   const taskUsers = users.map(convertToTaskUser);

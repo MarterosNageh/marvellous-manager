@@ -289,28 +289,34 @@ export const templatesTable = {
     if (error) throw error;
     return (data || []).map(template => ({
       ...template,
-      user_id: template.user_id || 'system'
+      user_id: 'system' // Add default user_id since templates don't have user_id
     }));
   },
 
   async create(template: Omit<ShiftTemplate, 'id' | 'created_at'>): Promise<ShiftTemplate> {
+    // Remove user_id from template before inserting since it doesn't exist in the table
+    const { user_id, ...templateData } = template;
+    
     const { data, error } = await supabase
       .from('shift_templates')
-      .insert(template)
+      .insert(templateData)
       .select()
       .single();
     
     if (error) throw error;
     return {
       ...data,
-      user_id: data.user_id || 'system'
+      user_id: 'system'
     };
   },
 
   async update(id: string, template: Partial<ShiftTemplate>): Promise<ShiftTemplate> {
+    // Remove user_id from template before updating since it doesn't exist in the table
+    const { user_id, ...templateData } = template;
+    
     const { data, error } = await supabase
       .from('shift_templates')
-      .update(template)
+      .update(templateData)
       .eq('id', id)
       .select()
       .single();
@@ -318,7 +324,7 @@ export const templatesTable = {
     if (error) throw error;
     return {
       ...data,
-      user_id: data.user_id || 'system'
+      user_id: 'system'
     };
   },
 
@@ -823,37 +829,4 @@ export const usersTable = {
   }
 };
 
-export const userBalancesTable = {
-  async getAll() {
-    const { data, error } = await supabase
-      .from('user_balances')
-      .select('*');
-    
-    if (error) throw error;
-    return data;
-  },
-
-  async getByUserId(userId: string) {
-    const { data, error } = await supabase
-      .from('user_balances')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
-  },
-
-  async upsert(userId: string, balance: number) {
-    const { data, error } = await supabase
-      .from('user_balances')
-      .upsert({
-        user_id: userId,
-        balance,
-        updated_at: new Date().toISOString()
-      });
-    
-    if (error) throw error;
-    return data;
-  }
-};
+// Remove userBalancesTable since the table doesn't exist - balance is stored in auth_users

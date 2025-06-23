@@ -45,6 +45,14 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const { canCompleteTask } = useAuth();
 
+  // Function to transform user role to expected format
+  const transformUserRole = (role: string | null): 'admin' | 'senior' | 'operator' | 'producer' => {
+    if (role && ['admin', 'senior', 'operator', 'producer'].includes(role)) {
+      return role as 'admin' | 'senior' | 'operator' | 'producer';
+    }
+    return 'operator'; // default fallback
+  };
+
   // Function to fetch all data
   const fetchData = async () => {
     try {
@@ -62,7 +70,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         id: user.id,
         username: user.username,
         password: user.password,
-        role: user.role || 'user',
+        role: transformUserRole(user.role),
         isAdmin: user.is_admin
       }));
       setUsers(transformedUsers);
@@ -117,7 +125,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           return user ? { 
             id: user.id, 
             username: user.username,
-            role: user.role || 'user'
+            role: user.role
           } : null;
         }).filter(Boolean) || [],
         tags: [],
@@ -202,7 +210,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-      // Fetch users
+      // Fetch users with role transformation
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
         .select('*');
@@ -214,7 +222,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         username: user.username,
         password: user.password,
         isAdmin: user.is_admin,
-        role: user.is_admin ? 'admin' : 'user',
+        role: transformUserRole(user.role),
       }));
       setUsers(transformedUsers);
 
@@ -262,7 +270,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
           return user ? { 
             id: user.id, 
             username: user.username,
-            role: user.role || 'user'
+            role: user.role
           } : null;
         }).filter(Boolean) || [],
         tags: [],

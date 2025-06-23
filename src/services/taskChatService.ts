@@ -27,7 +27,9 @@ export class TaskChatService {
         task_id: item.task_id,
         user_id: item.user_id,
         message: item.message,
-        mentions: Array.isArray(item.mentions) ? item.mentions : [],
+        mentions: Array.isArray(item.mentions) 
+          ? item.mentions.map(mention => String(mention)) // Convert Json to string[]
+          : [],
         created_at: item.created_at,
         updated_at: item.updated_at,
         user: item.auth_users ? {
