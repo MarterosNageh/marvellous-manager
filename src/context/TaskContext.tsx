@@ -70,8 +70,8 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         id: user.id,
         username: user.username,
         password: user.password,
-        role: transformUserRole(user.role),
-        isAdmin: user.is_admin
+        isAdmin: user.is_admin,
+        role: (user.is_admin ? 'admin' : (user.role || 'operator')) as 'admin' | 'senior' | 'operator' | 'producer',
       }));
       setUsers(transformedUsers);
 
@@ -210,9 +210,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const createTask = async (data: CreateTaskData) => {
     try {
-<<<<<<< HEAD
-      // Fetch users with role transformation
-=======
       // Check if user is a producer and clear assignee_ids if so
       const isProducer = currentUser?.role === 'producer';
       if (isProducer && data.assignee_ids && data.assignee_ids.length > 0) {
@@ -221,7 +218,6 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Fetch users
->>>>>>> fe29dbd (add producers role)
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
         .select('*');
@@ -233,11 +229,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
         username: user.username,
         password: user.password,
         isAdmin: user.is_admin,
-<<<<<<< HEAD
-        role: transformUserRole(user.role),
-=======
-        role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' | 'producer' || 'operator'),
->>>>>>> fe29dbd (add producers role)
+        role: (user.is_admin ? 'admin' : (user.role || 'operator')) as 'admin' | 'senior' | 'operator' | 'producer',
       }));
       setUsers(transformedUsers);
 

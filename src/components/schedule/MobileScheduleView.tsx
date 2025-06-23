@@ -49,44 +49,36 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
   };
 
   useEffect(() => {
-<<<<<<< HEAD
     const loadData = async () => {
       try {
         setIsLoading(true);
         
-        const [usersData, shiftsData] = await Promise.all([
-          usersTable.getAll(),
-          shiftsTable.getAll()
-        ]);
-=======
-    // Use users from AuthContext if available, else fallback to DB fetch
-    if (users && users.length > 0) {
-      // Separate operational users from producers
-      const operationalUsers = users
-        .filter(user => user.role !== 'producer')
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-          title: user.title || '',
-          balance: 0
-        })) as ScheduleUser[];
+        // Use users from AuthContext if available, else fallback to DB fetch
+        if (users && users.length > 0) {
+          // Separate operational users from producers
+          const operationalUsers = users
+            .filter(user => user.role !== 'producer')
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+              title: user.title || '',
+              balance: 0
+            })) as ScheduleUser[];
 
-      const producerUsers = users
-        .filter(user => user.role === 'producer')
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          role: 'producer' as const,
-          title: user.title || '',
-          balance: 0
-        })) as ScheduleUser[];
+          const producerUsers = users
+            .filter(user => user.role === 'producer')
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              role: 'producer' as const,
+              title: user.title || '',
+              balance: 0
+            })) as ScheduleUser[];
 
-      setLocalUsers([...operationalUsers, ...producerUsers]);
-    } else {
-      // fallback: fetch from DB (legacy)
-      const loadUsers = async () => {
-        try {
+          setUsers([...operationalUsers, ...producerUsers]);
+        } else {
+          // fallback: fetch from DB (legacy)
           const usersData = await usersTable.getAll();
           
           // Separate operational users from producers
@@ -98,7 +90,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
               role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
               title: user.title || '',
               balance: 0
-            }));
+            })) as ScheduleUser[];
 
           const producerUsers = usersData
             .filter(user => user.role === 'producer')
@@ -108,27 +100,13 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
               role: 'producer' as const,
               title: user.title || '',
               balance: 0
-            }));
+            })) as ScheduleUser[];
 
-          setLocalUsers([...operationalUsers, ...producerUsers]);
-        } catch (error) {
-          console.error('Error loading users:', error);
+          setUsers([...operationalUsers, ...producerUsers]);
         }
-      };
-      loadUsers();
-    }
-  }, [users]);
->>>>>>> fe29dbd (add producers role)
 
-        const transformedUsers = usersData.map(user => ({
-          id: user.id,
-          username: user.username,
-          role: transformUserRole(user.role),
-          title: user.title || '',
-          balance: user.balance || 0
-        }));
-        setUsers(transformedUsers);
-        
+        // Load shifts data
+        const shiftsData = await shiftsTable.getAll();
         setShifts(shiftsData);
       } catch (error) {
         console.error('Error loading mobile schedule data:', error);
@@ -138,7 +116,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
     };
 
     loadData();
-  }, [selectedDate]);
+  }, [selectedDate, users]);
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
