@@ -1,118 +1,132 @@
-
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { usersTable } from '@/integrations/supabase/tables/schedule';
-import { shiftsTable } from '@/integrations/supabase/tables/schedule';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Button,
+  Input,
+  Label,
+  Badge,
+} from '@/components/ui';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { User, Calendar, Clock, Award, History } from 'lucide-react';
+import { ScheduleUser, LeaveRequest } from '@/types/schedule';
+import { toast } from '@/hooks/use-toast';
+import { userBalancesTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
+import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UserInfoDialogProps {
-  userId: string | null;
+  open: boolean;
   onClose: () => void;
+  user: ScheduleUser | null;
+  currentUser: { id: string; role: string };
 }
 
-interface UserInfo {
-  id: string;
-  username: string;
-  role: string;
-  title?: string;
-  balance: number;
-}
+export const UserInfoDialog: React.FC<UserInfoDialogProps> = ({
+  open,
+  onClose,
+  user,
+  currentUser,
+}) => {
+  const [balance, setBalance] = useState(0);
+  const [originalBalance, setOriginalBalance] = useState(0);
+  const [requestHistory, setRequestHistory] = useState<LeaveRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-interface UserShift {
-  id: string;
-  shift_type: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-}
-
-const UserInfoDialog = ({ userId, onClose }: UserInfoDialogProps) => {
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [userShifts, setUserShifts] = useState<UserShift[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [newBalance, setNewBalance] = useState<number>(0);
-  const { toast } = useToast();
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
-    if (userId) {
-      fetchUserInfo();
-      fetchUserShifts();
+    if (open && user) {
+      loadUserData();
     }
-  }, [userId]);
+  }, [open, user]);
 
-  const fetchUserInfo = async () => {
+  const loadUserData = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
     try {
-      if (!userId) return;
+      // Load user balance
+      const { data: userData, error: userError } = await supabase
+        .from('auth_users')
+        .select('balance')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
       
-      const userData = await usersTable.getById(userId);
-      if (userData) {
-        setUser({
-          id: userData.id,
-          username: userData.username,
-          role: userData.role,
-          title: userData.title,
-          balance: userData.balance || 0
-        });
-        setNewBalance(userData.balance || 0);
-      }
+      const userBalance = userData?.balance || 80;
+      setBalance(userBalance);
+      setOriginalBalance(userBalance);
+
+      // Load request history
+      const { data: requests, error: requestsError } = await supabase
+        .from('shift_requests')
+        .select(`
+          id,
+          user_id,
+          leave_type,
+          request_type,
+          start_date,
+          end_date,
+          reason,
+          status,
+          notes,
+          created_at,
+          updated_at,
+          reviewer_id,
+          reviewer:auth_users!shift_requests_reviewer_id_fkey(username)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (requestsError) throw requestsError;
+      
+      const mappedRequests: LeaveRequest[] = (requests || []).map(req => ({
+        id: req.id,
+        user_id: req.user_id,
+        leave_type: req.leave_type || '',
+        request_type: req.request_type || 'leave',
+        start_date: req.start_date,
+        end_date: req.end_date,
+        reason: req.reason || '',
+        status: req.status || 'pending',
+        notes: req.notes,
+        created_at: req.created_at,
+        updated_at: req.updated_at,
+        reviewer_id: req.reviewer_id,
+        reviewer: req.reviewer ? { username: req.reviewer.username } : undefined
+      }));
+      
+      setRequestHistory(mappedRequests);
     } catch (error) {
-      console.error('Error fetching user info:', error);
+      console.error('Error loading user data:', error);
       toast({
         title: "Error",
         description: "Failed to load user information",
         variant: "destructive",
       });
-    }
-  };
-
-  const fetchUserShifts = async () => {
-    try {
-      if (!userId) return;
-      
-      const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-      const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
-      
-      const allShifts = await shiftsTable.getByUserId(userId);
-      const currentWeekShifts = allShifts.filter(shift => {
-        const shiftDate = new Date(shift.start_time);
-        return shiftDate >= currentWeekStart && shiftDate <= currentWeekEnd;
-      });
-      
-      setUserShifts(currentWeekShifts);
-    } catch (error) {
-      console.error('Error fetching user shifts:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleBalanceUpdate = async () => {
-    if (!user) return;
+  const handleSaveBalance = async () => {
+    if (!user || !isAdmin) return;
     
+    setIsSaving(true);
     try {
-      setUpdating(true);
-      
-      // Since we don't have a userBalancesTable anymore, we'll update the auth_users table directly
-      const { supabase } = await import('@/integrations/supabase/client');
-      
       const { error } = await supabase
         .from('auth_users')
-        .update({ balance: newBalance })
+        .update({ balance })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      setUser(prev => prev ? { ...prev, balance: newBalance } : null);
-      
+      setOriginalBalance(balance);
       toast({
         title: "Success",
         description: "User balance updated successfully",
@@ -121,147 +135,143 @@ const UserInfoDialog = ({ userId, onClose }: UserInfoDialogProps) => {
       console.error('Error updating balance:', error);
       toast({
         title: "Error",
-        description: "Failed to update user balance",
+        description: "Failed to update balance",
         variant: "destructive",
       });
+      setBalance(originalBalance); // Reset to original value on error
     } finally {
-      setUpdating(false);
+      setIsSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <Dialog open={!!userId} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px]">
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-yellow-100 text-yellow-800';
+    }
+  };
 
-  if (!user) {
-    return (
-      <Dialog open={!!userId} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>User Not Found</DialogTitle>
-          </DialogHeader>
-          <p>Unable to load user information.</p>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  if (!user) return null;
 
   return (
-    <Dialog open={!!userId} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>User Information</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            User Information
+          </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-6">
-          {/* User Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Personal Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Username</Label>
-                  <p className="text-sm font-medium">{user.username}</p>
-                </div>
-                <div>
-                  <Label>Role</Label>
-                  <Badge variant="outline" className="capitalize">
-                    {user.role}
-                  </Badge>
-                </div>
-              </div>
-              {user.title && (
-                <div>
-                  <Label>Title</Label>
-                  <p className="text-sm font-medium">{user.title}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Balance Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Balance Management</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[400px]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* User Details */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Current Balance</Label>
-                <p className="text-2xl font-bold text-green-600">{user.balance} hours</p>
+                <Label className="text-sm font-medium text-gray-500">Name</Label>
+                <p className="text-sm font-medium">{user.username}</p>
               </div>
-              <Separator />
-              <div className="space-y-3">
-                <Label htmlFor="newBalance">Update Balance</Label>
-                <div className="flex gap-2">
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Role</Label>
+                <Badge variant="outline" className="capitalize">
+                  {user.role}
+                </Badge>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Title</Label>
+                <p className="text-sm">{user.title || 'N/A'}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Department</Label>
+                <p className="text-sm">{user.department || 'N/A'}</p>
+              </div>
+            </div>
+
+            {/* Balance Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                <Label className="font-medium">Leave Balance</Label>
+              </div>
+              
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
                   <Input
-                    id="newBalance"
                     type="number"
-                    value={newBalance}
-                    onChange={(e) => setNewBalance(Number(e.target.value))}
-                    placeholder="Enter new balance"
+                    value={balance}
+                    onChange={(e) => setBalance(Number(e.target.value))}
+                    className="w-24"
+                    min="0"
                   />
-                  <Button 
-                    onClick={handleBalanceUpdate}
-                    disabled={updating || newBalance === user.balance}
-                  >
-                    {updating ? 'Updating...' : 'Update'}
-                  </Button>
+                  <span className="text-sm text-gray-500">days</span>
+                  {balance !== originalBalance && (
+                    <Button 
+                      size="sm" 
+                      onClick={handleSaveBalance}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Current Week Shifts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">This Week's Shifts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {userShifts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No shifts scheduled for this week</p>
               ) : (
-                <div className="space-y-2">
-                  {userShifts.map(shift => (
-                    <div key={shift.id} className="flex justify-between items-center p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium capitalize">{shift.shift_type}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(shift.start_time), 'MMM dd, HH:mm')} - 
-                          {format(new Date(shift.end_time), 'HH:mm')}
-                        </p>
-                      </div>
-                      <Badge 
-                        variant={shift.status === 'active' ? 'default' : 'secondary'}
-                        className="capitalize"
-                      >
-                        {shift.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-lg font-semibold">{balance} days</p>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        <div className="flex justify-end pt-4">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </div>
+            {/* Request History */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                <Label className="font-medium">Request History</Label>
+              </div>
+              
+              <ScrollArea className="h-[200px] rounded-md border">
+                <div className="space-y-2 p-4">
+                  {requestHistory.length === 0 ? (
+                    <p className="text-sm text-gray-500">No request history available</p>
+                  ) : (
+                    requestHistory.map((request) => (
+                      <div
+                        key={request.id}
+                        className="flex flex-col gap-2 p-3 rounded-lg border bg-gray-50"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium">
+                              {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                            </span>
+                          </div>
+                          <Badge className={getStatusBadgeColor(request.status)}>
+                            {request.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600">{request.reason}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(request.created_at), 'MMM dd, yyyy HH:mm')}
+                          {request.reviewer && (
+                            <span>• Reviewed by {request.reviewer.username}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
-
-export default UserInfoDialog;
