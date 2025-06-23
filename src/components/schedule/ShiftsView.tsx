@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
@@ -141,7 +142,16 @@ const ShiftsView = () => {
 
   // Mobile view
   if (isMobile) {
-    return <MobileScheduleView />;
+    return (
+      <MobileScheduleView 
+        selectedDate={selectedDate}
+        onEditShift={handleOpenEditDialog}
+        onDeleteShift={(shiftId: string) => handleDeleteShift(shiftId, 'this')}
+        onDateChange={setSelectedDate}
+        onAddShift={handleOpenCreateDialog}
+        refreshData={refreshData}
+      />
+    );
   }
 
   return (

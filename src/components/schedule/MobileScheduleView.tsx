@@ -9,12 +9,12 @@ import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule
 import { cn } from '@/lib/utils';
 
 interface MobileScheduleViewProps {
-  selectedDate: Date;
-  onEditShift: (shift: Shift) => void;
-  onDeleteShift: (shiftId: string) => void;
-  onDateChange: (date: Date) => void;
-  onAddShift: () => void;
-  refreshData: () => Promise<void>;
+  selectedDate?: Date;
+  onEditShift?: (shift: Shift) => void;
+  onDeleteShift?: (shiftId: string) => void;
+  onDateChange?: (date: Date) => void;
+  onAddShift?: () => void;
+  refreshData?: () => Promise<void>;
 }
 
 const getShiftColor = (shiftType: string, color?: string) => {
@@ -29,24 +29,24 @@ const getShiftColor = (shiftType: string, color?: string) => {
   return defaultColors[shiftType as keyof typeof defaultColors] || '#3B82F6';
 };
 
+const transformUserRole = (role: string | null): 'admin' | 'operator' | 'senior' | 'producer' => {
+  if (role && ['admin', 'senior', 'operator', 'producer'].includes(role)) {
+    return role as 'admin' | 'operator' | 'senior' | 'producer';
+  }
+  return 'operator'; // default fallback
+};
+
 const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
-  selectedDate,
-  onEditShift,
-  onDeleteShift,
-  onDateChange,
-  onAddShift,
-  refreshData
+  selectedDate = new Date(),
+  onEditShift = () => {},
+  onDeleteShift = () => {},
+  onDateChange = () => {},
+  onAddShift = () => {},
+  refreshData = async () => {}
 }) => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [users, setUsers] = useState<ScheduleUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const transformUserRole = (role: string | null): 'admin' | 'operator' | 'senior' => {
-    if (role && ['admin', 'senior', 'operator'].includes(role)) {
-      return role as 'admin' | 'operator' | 'senior';
-    }
-    return 'operator'; // default fallback
-  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -105,7 +105,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
           setUsers([...operationalUsers, ...producerUsers]);
         }
 
-        // Load shifts data
+        // Always load shifts data
         const shiftsData = await shiftsTable.getAll();
         setShifts(shiftsData);
       } catch (error) {
