@@ -37,6 +37,8 @@ const HardDriveDetail = () => {
 
   // Check if user is a producer (read-only access)
   const isProducer = currentUser?.role === 'producer';
+  // Check if user can edit (admin, senior, or operator)
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'senior' || currentUser?.role === 'operator';
 
   useEffect(() => {
     if (!id) {
@@ -84,6 +86,11 @@ const HardDriveDetail = () => {
         });
       }
     }
+  };
+
+  const handleEdit = () => {
+    if (!hardDrive) return;
+    navigate(`/hard-drives/${hardDrive.id}/edit`);
   };
 
   const handlePrint = () => {
@@ -203,6 +210,12 @@ const HardDriveDetail = () => {
                 <QrCode className="h-4 w-4 mr-2" />
                 QR Code
               </Button>
+              {canEdit && (
+                <Button onClick={handleEdit} variant="outline">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
               <Button 
                 onClick={handleDelete} 
                 variant="destructive"
