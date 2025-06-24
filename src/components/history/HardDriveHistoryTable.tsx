@@ -75,7 +75,14 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setHistory(data || []);
+      
+      // Type assertion to ensure proper typing
+      const typedData: HardDriveHistory[] = (data || []).map(item => ({
+        ...item,
+        change_type: item.change_type as 'create' | 'update' | 'delete'
+      }));
+      
+      setHistory(typedData);
     } catch (error) {
       console.error('Error fetching history:', error);
       toast({

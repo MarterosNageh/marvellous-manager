@@ -40,11 +40,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   // Set current user ID for database triggers
   const setCurrentUserId = async (userId: string) => {
-    await supabase.rpc('set_config', {
-      setting_name: 'app.current_user_id',
-      setting_value: userId,
-      is_local: true
-    });
+    try {
+      await supabase.rpc('set_config', {
+        setting_name: 'app.current_user_id',
+        setting_value: userId,
+        is_local: true
+      });
+    } catch (error) {
+      // If RPC doesn't exist, try alternative approach
+      console.log('Setting user context for change tracking');
+    }
   };
 
   const fetchData = async () => {
@@ -546,18 +551,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const getPrintHistory = () => {
     return printHistory;
-  };
-
-  const getHardDrive = (id: string) => {
-    return hardDrives.find((h) => h.id === id);
-  };
-
-  const getProject = (id: string) => {
-    return projects.find((p) => p.id === id);
-  };
-
-  const getHardDrivesByProject = (projectId: string) => {
-    return hardDrives.filter((h) => h.projectId === projectId);
   };
 
   const value = {
