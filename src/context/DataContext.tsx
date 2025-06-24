@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [hardDrives, setHardDrives] = useState<HardDrive[]>([]);
   const [printHistory, setPrintHistory] = useState<PrintHistory[]>([]);
   const { toast } = useToast();
+
+  // Set current user ID for database triggers
+  const setCurrentUserId = async (userId: string) => {
+    await supabase.rpc('set_config', {
+      setting_name: 'app.current_user_id',
+      setting_value: userId,
+      is_local: true
+    });
+  };
 
   const fetchData = async () => {
     try {
@@ -245,6 +255,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const addHardDrive = async (hardDrive: Omit<HardDrive, "id" | "createdAt" | "updatedAt">) => {
     try {
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      if (currentUser.id) {
+        await setCurrentUserId(currentUser.id);
+      }
+
       const dbHardDrive = {
         name: hardDrive.name,
         serial_number: hardDrive.serialNumber,
@@ -302,6 +318,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const updateHardDrive = async (hardDrive: HardDrive) => {
     try {
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      if (currentUser.id) {
+        await setCurrentUserId(currentUser.id);
+      }
+
       const dbHardDrive = {
         name: hardDrive.name,
         serial_number: hardDrive.serialNumber,
@@ -343,6 +365,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteHardDrive = async (id: string) => {
     try {
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      if (currentUser.id) {
+        await setCurrentUserId(currentUser.id);
+      }
+
       const { error } = await supabase
         .from('hard_drives')
         .delete()
@@ -518,6 +546,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const getPrintHistory = () => {
     return printHistory;
+  };
+
+  const getHardDrive = (id: string) => {
+    return hardDrives.find((h) => h.id === id);
+  };
+
+  const getProject = (id: string) => {
+    return projects.find((p) => p.id === id);
+  };
+
+  const getHardDrivesByProject = (projectId: string) => {
+    return hardDrives.filter((h) => h.projectId === projectId);
   };
 
   const value = {

@@ -86,6 +86,42 @@ export type Database = {
           },
         ]
       }
+      hard_drive_history: {
+        Row: {
+          change_type: string
+          changed_by: string
+          created_at: string
+          field_name: string
+          hard_drive_id: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          version_number: number
+        }
+        Insert: {
+          change_type: string
+          changed_by: string
+          created_at?: string
+          field_name: string
+          hard_drive_id: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          version_number?: number
+        }
+        Update: {
+          change_type?: string
+          changed_by?: string
+          created_at?: string
+          field_name?: string
+          hard_drive_id?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          version_number?: number
+        }
+        Relationships: []
+      }
       hard_drives: {
         Row: {
           cables: Json

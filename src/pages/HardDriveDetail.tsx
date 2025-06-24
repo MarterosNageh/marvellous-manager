@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -7,11 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
-import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode } from "lucide-react";
+import { HardDriveHistoryTable } from "@/components/history/HardDriveHistoryTable";
+import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode, History } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import type { HardDrive, PrintHistory } from "@/types";
 import { getHardDriveStatusColor } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -33,7 +36,7 @@ const HardDriveDetail = () => {
   
   const [hardDrive, setHardDrive] = useState<HardDrive | null>(null);
   const [project, setProject] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]= useState(true);
 
   // Check if user is a producer (read-only access)
   const isProducer = currentUser?.role === 'producer';
@@ -163,17 +166,44 @@ const HardDriveDetail = () => {
     );
   }
 
-  // Filter print history for this hard drive
-  const hardDrivePrintHistory = printHistory
-    .filter(history => history.hardDriveId === hardDrive.id)
-    .map(history => ({
-      id: history.id,
-      type: history.type,
-      hard_drive_id: history.hardDriveId,
-      printed_at: history.timestamp,
-      printed_by: history.operatorName,
-      hardDriveName: hardDrive.name
-    }));
+  // Filter print history for this hard drive AND all hard drives from the same project
+  const getProjectPrintHistory = () => {
+    // Get print history for this specific hard drive
+    const hardDriveHistory = printHistory
+      .filter(history => history.hardDriveId === hardDrive.id)
+      .map(history => ({
+        id: history.id,
+        type: history.type,
+        hard_drive_id: history.hardDriveId,
+        printed_at: history.timestamp,
+        printed_by: history.operatorName,
+        hardDriveName: hardDrive.name
+      }));
+
+    // If this hard drive has a project, also get 'all-hards' prints for that project
+    if (hardDrive.projectId) {
+      const projectHistory = printHistory
+        .filter(history => 
+          history.type === 'all-hards' && 
+          history.projectId === hardDrive.projectId
+        )
+        .map(history => ({
+          id: history.id,
+          type: history.type,
+          hard_drive_id: null,
+          printed_at: history.timestamp,
+          printed_by: history.operatorName,
+          hardDriveName: project?.name || 'Unknown Project'
+        }));
+
+      return [...hardDriveHistory, ...projectHistory]
+        .sort((a, b) => new Date(b.printed_at).getTime() - new Date(a.printed_at).getTime());
+    }
+
+    return hardDriveHistory;
+  };
+
+  const hardDrivePrintHistory = getProjectPrintHistory();
 
   return (
     <MainLayout>
@@ -367,13 +397,27 @@ const HardDriveDetail = () => {
 
         <Separator />
 
-        {/* Print History */}
+        {/* History Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Print History</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              History & Activity
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <PrintHistoryTable data={hardDrivePrintHistory} />
+            <Tabs defaultValue="changes" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="changes">Change History</TabsTrigger>
+                <TabsTrigger value="prints">Print History</TabsTrigger>
+              </TabsList>
+              <TabsContent value="changes" className="mt-6">
+                <HardDriveHistoryTable hardDriveId={hardDrive.id} />
+              </TabsContent>
+              <TabsContent value="prints" className="mt-6">
+                <PrintHistoryTable data={hardDrivePrintHistory} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
