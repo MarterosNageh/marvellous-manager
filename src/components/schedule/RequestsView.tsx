@@ -1,15 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Clock, User, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, Clock, User, FileText, CheckCircle, XCircle, Edit, Trash2, Eye, Plus, Filter, Users } from 'lucide-react';
+import { format, differenceInDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useShifts } from '@/context/ShiftsContext';
 import { ShiftRequestDialog } from './ShiftRequestDialog';
-import { UserInfoDialog } from './UserInfoDialog';
+import UserInfoDialog from './UserInfoDialog';
 import { UserBalanceDialog } from './UserBalanceDialog';
 import type { ScheduleUser, RequestStatus, LeaveRequest } from '@/types/schedule';
 import { SHIFT_TEMPLATES } from '@/lib/constants';
