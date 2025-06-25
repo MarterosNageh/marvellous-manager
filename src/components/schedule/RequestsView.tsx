@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +41,7 @@ interface ShiftRequestDisplay {
 const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) => {
   const { currentUser } = useAuth();
   const { shiftRequests, refreshRequests } = useShifts();
+  const { toast } = useToast();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
   const [userBalanceDialog, setUserBalanceDialog] = useState<{ open: boolean; user: ScheduleUser | null; balance: number; }>({ open: false, user: null, balance: 0 });
@@ -643,9 +643,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) 
 
       {showUserInfoDialog && selectedUser && (
         <UserInfoDialog
-          user={selectedUser}
           open={showUserInfoDialog}
           onClose={() => setShowUserInfoDialog(false)}
+          selectedUser={selectedUser}
           currentUser={currentUser}
         />
       )}

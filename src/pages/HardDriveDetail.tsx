@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -397,7 +396,7 @@ const HardDriveDetail = () => {
 
         <Separator />
 
-        {/* History Tabs */}
+        {/* History Tabs - Print History First */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -406,16 +405,16 @@ const HardDriveDetail = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="changes" className="w-full">
+            <Tabs defaultValue="prints" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="changes">Change History</TabsTrigger>
                 <TabsTrigger value="prints">Print History</TabsTrigger>
+                <TabsTrigger value="changes">Change History</TabsTrigger>
               </TabsList>
-              <TabsContent value="changes" className="mt-6">
-                <HardDriveHistoryTable hardDriveId={hardDrive.id} />
-              </TabsContent>
               <TabsContent value="prints" className="mt-6">
                 <PrintHistoryTable data={hardDrivePrintHistory} />
+              </TabsContent>
+              <TabsContent value="changes" className="mt-6">
+                <HardDriveHistoryTable hardDriveId={hardDrive.id} />
               </TabsContent>
             </Tabs>
           </CardContent>
