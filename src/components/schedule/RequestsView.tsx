@@ -43,8 +43,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<ShiftRequest | null>(null);
-  const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'shift' | 'leave'>('shift');
@@ -227,15 +225,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
           open={showUserDialog}
           onClose={() => setShowUserDialog(false)}
           userId={selectedUserId}
-        />
-      )}
-
-      {showRequestDialog && selectedRequest && (
-        <ShiftRequestDialog
-          open={showRequestDialog}
-          onOpenChange={setShowRequestDialog}
-          request={selectedRequest}
-          onStatusUpdate={handleStatusUpdate}
         />
       )}
     </div>

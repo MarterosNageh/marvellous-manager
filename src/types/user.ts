@@ -1,6 +1,7 @@
+
 export interface User {
   id: string;
-  email: string;
+  email?: string;
   username?: string;
   role?: 'admin' | 'senior' | 'operator' | 'producer';
   created_at?: string;
