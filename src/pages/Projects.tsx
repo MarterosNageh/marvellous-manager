@@ -44,12 +44,9 @@ const Projects = () => {
       const project = projects.find(p => p.id === projectId);
       if (!project) return;
 
-      const updatedProject = {
-        ...project,
-        status: isArchived ? 'unavailable' : 'active'
-      };
+      const updatedStatus = isArchived ? 'unavailable' : 'active';
 
-      await updateProject(updatedProject);
+      await updateProject(projectId, { status: updatedStatus });
       
       toast({
         title: "Success",

@@ -66,11 +66,7 @@ const ProjectForm = () => {
     
     try {
       if (id) {
-        await updateProject({
-          id,
-          ...formData,
-          createdAt: getProject(id)?.createdAt || new Date().toISOString()
-        });
+        await updateProject(id, formData);
         
         toast({
           title: "Success",

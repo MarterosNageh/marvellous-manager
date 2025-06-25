@@ -34,7 +34,7 @@ interface LeaveRequest {
 }
 
 interface RequestsViewProps {
-  users: Array<{ id: string; username: string; email: string; role: string; }>;
+  users: Array<{ id: string; username: string; email?: string; role: string; }>;
 }
 
 export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
@@ -233,7 +233,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
       {showRequestDialog && selectedRequest && (
         <ShiftRequestDialog
           open={showRequestDialog}
-          onClose={() => setShowRequestDialog(false)}
+          onOpenChange={setShowRequestDialog}
           request={selectedRequest}
           onStatusUpdate={handleStatusUpdate}
         />

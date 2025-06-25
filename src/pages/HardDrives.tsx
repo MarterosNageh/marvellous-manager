@@ -17,7 +17,7 @@ import { HardDriveGroupedList } from "@/components/HardDriveGroupedList";
 import { useToast } from "@/components/ui/use-toast";
 
 const HardDrives = () => {
-  const { hardDrives, projects, updateHardDrive, updateProject } = useData();
+  const { hardDrives, projects, updateProject } = useData();
   const { currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
@@ -47,12 +47,9 @@ const HardDrives = () => {
       const project = projects.find(p => p.id === hardDrive.projectId);
       if (!project) return;
 
-      const updatedProject = {
-        ...project,
-        status: isArchived ? 'unavailable' : 'active'
-      };
+      const updatedStatus = isArchived ? 'unavailable' : 'active';
 
-      await updateProject(updatedProject);
+      await updateProject(project.id, { status: updatedStatus });
       
       toast({
         title: "Success",

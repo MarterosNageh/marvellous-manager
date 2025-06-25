@@ -12,6 +12,14 @@ import { Calendar, ClipboardList } from "lucide-react";
 const Schedule = () => {
   const { users } = useAuth();
 
+  // Transform users to match the expected interface
+  const transformedUsers = (users || []).map(user => ({
+    id: user.id,
+    username: user.username,
+    email: user.email || '', // Provide default empty string if email is undefined
+    role: user.role || 'user'
+  }));
+
   return (
     <ScheduleProvider>
       <ShiftsProvider>
@@ -38,7 +46,7 @@ const Schedule = () => {
             </TabsContent>
             
             <TabsContent value="requests" className="mt-6">
-                <RequestsView users={users || []} />
+                <RequestsView users={transformedUsers} />
             </TabsContent>
           </Tabs>
         </div>

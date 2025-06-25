@@ -113,13 +113,7 @@ const HardDriveForm = () => {
     
     try {
       if (id) {
-        const hardDrive = getHardDrive(id);
-        if (!hardDrive) throw new Error("Hard drive not found");
-        
-        await updateHardDrive({
-          ...hardDrive,
-          ...formData
-        });
+        await updateHardDrive(id, formData);
         
         toast({
           title: "Success",
