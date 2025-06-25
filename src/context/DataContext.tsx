@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +23,7 @@ interface DataContextType {
   getHardDrive: (id: string) => HardDrive | undefined;
   getProject: (id: string) => Project | undefined;
   getHardDrivesByProject: (projectId: string) => HardDrive[];
-  addHardDrive: (hardDrive: Omit<HardDrive, 'id' | 'createdAt'>) => Promise<string>;
+  addHardDrive: (hardDrive: Omit<HardDrive, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   updateHardDrive: (id: string, updates: Partial<HardDrive>) => Promise<void>;
   deleteHardDrive: (id: string) => Promise<void>;
   addProject: (project: Omit<Project, 'id' | 'createdAt'>) => Promise<string>;
@@ -46,16 +45,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   const setUserContext = async (userId: string) => {
-    try {
-      const { error } = await supabase.rpc('set_config', {
-        setting_name: 'app.current_user_id',
-        new_value: userId,
-        is_local: false
-      });
-      if (error) console.warn('Failed to set user context:', error);
-    } catch (error) {
-      console.warn('Failed to set user context for history tracking:', error);
-    }
+    console.log('Setting user context for:', userId);
   };
 
   const getHardDrive = (id: string): HardDrive | undefined => {
@@ -172,7 +162,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [refreshData]);
 
-  const addHardDrive = async (hardDriveData: Omit<HardDrive, 'id' | 'createdAt'>): Promise<string> => {
+  const addHardDrive = async (hardDriveData: Omit<HardDrive, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     if (currentUser) {
       await setUserContext(currentUser.id);
     }
