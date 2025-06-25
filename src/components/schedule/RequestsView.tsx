@@ -1,668 +1,260 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Clock, User, FileText, CheckCircle, XCircle, Edit, Trash2, Eye, Plus, Filter, Users } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { useShifts } from '@/context/ShiftsContext';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Check, X, User } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useSchedule } from "@/context/ScheduleContext";
 import { ShiftRequestDialog } from './ShiftRequestDialog';
-import UserInfoDialog from './UserInfoDialog';
-import { UserBalanceDialog } from './UserBalanceDialog';
-import type { ScheduleUser, RequestStatus, LeaveRequest } from '@/types/schedule';
-import { SHIFT_TEMPLATES } from '@/lib/constants';
-import { NotificationService } from '@/services/notificationService';
+import { UserInfoDialog } from './UserInfoDialog';
+import { useToast } from "@/components/ui/use-toast";
 
-interface RequestsViewProps {
-  users: ScheduleUser[];
-  onRequestsUpdate?: () => void;
-}
-
-interface ShiftRequestDisplay {
+interface ShiftRequest {
   id: string;
   user_id: string;
-  username?: string;
   request_type: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  notes: string;
+  status: string;
+  created_at: string;
+}
+
+interface LeaveRequest {
+  id: string;
+  user_id: string;
   leave_type: string;
   start_date: string;
   end_date: string;
   reason: string;
-  status: RequestStatus;
+  notes: string;
+  status: string;
   created_at: string;
-  updated_at: string;
-  notes?: string;
-  reviewer_id?: string;
 }
 
-const RequestsView: React.FC<RequestsViewProps> = ({ users, onRequestsUpdate }) => {
+interface ScheduleUser {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+}
+
+export const RequestsView = () => {
   const { currentUser } = useAuth();
-  const { shiftRequests, refreshRequests } = useShifts();
-  const { toast } = useToast();
-  const [showRequestDialog, setShowRequestDialog] = useState(false);
-  const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
-  const [userBalanceDialog, setUserBalanceDialog] = useState<{ open: boolean; user: ScheduleUser | null; balance: number; }>({ open: false, user: null, balance: 0 });
-  const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
-  const [editingRequest, setEditingRequest] = useState<ShiftRequestDisplay | LeaveRequest | null>(null);
-  const [requests, setRequests] = useState<ShiftRequestDisplay[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
+  const { 
+    shiftRequests, 
+    leaveRequests, 
+    loading, 
+    error, 
+    refreshRequests, 
+    updateShiftRequestStatus,
+    updateLeaveRequestStatus,
+    getScheduleUsers 
+  } = useSchedule();
   
-  const [userBalances, setUserBalances] = useState<{[key: string]: number}>({});
-
-  const isAdmin = currentUser?.role === 'admin';
-  const isSenior = currentUser?.role === 'senior';
-
-  // Filter users based on role - senior users only see themselves
-  const displayUsers = isAdmin ? users : users.filter(user => user.id === currentUser?.id);
+  const [selectedRequest, setSelectedRequest] = useState<ShiftRequest | null>(null);
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<ScheduleUser | null>(null);
+  const [showUserDialog, setShowUserDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'shift' | 'leave'>('shift');
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadRequests();
-    loadUserBalances();
-  }, [currentUser, users]);
+    refreshRequests();
+  }, [refreshRequests]);
 
-  const loadRequests = async () => {
-    if (!currentUser) return;
-    
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('shift_requests')
-        .select(`
-          *,
-          auth_users!shift_requests_user_id_fkey(username, role, title)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const transformedRequests: ShiftRequestDisplay[] = (data || []).map(req => ({
-        id: req.id,
-        user_id: req.user_id,
-        username: req.auth_users?.username || 'Unknown User',
-        request_type: req.request_type,
-        leave_type: req.leave_type,
-        start_date: req.start_date,
-        end_date: req.end_date,
-        reason: req.reason || '',
-        status: req.status as RequestStatus,
-        created_at: req.created_at,
-        updated_at: req.updated_at,
-        notes: req.notes,
-        reviewer_id: req.reviewer_id,
-      }));
-
-      setRequests(transformedRequests);
-    } catch (error) {
-      console.error('Error loading requests:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load requests",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const loadUserBalances = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('auth_users')
-        .select('id, balance')
-        .in('id', users.map(user => user.id));
-
-      if (error) throw error;
-
-      const balances: {[key: string]: number} = {};
-      (data || []).forEach(user => {
-        // Convert hours to days (8 hours per day)
-        balances[user.id] = (user.balance || 80) / 8;
-      });
-      
-      setUserBalances(balances);
-    } catch (error) {
-      console.error('Error loading user balances:', error);
-      // Fallback to default balances
-      const initialBalances: {[key: string]: number} = {};
-      users.forEach(user => {
-        initialBalances[user.id] = 10; // Default 10 days
-      });
-      setUserBalances(initialBalances);
-    }
-  };
-
-  const getApprovedDays = (userId: string) => {
-    return requests
-      .filter(req => req.user_id === userId && req.status === 'approved')
-      .reduce((acc, req) => {
-        const startDate = new Date(req.start_date);
-        const endDate = new Date(req.end_date);
-        const days = differenceInDays(endDate, startDate) + 1;
-        return acc + days;
-      }, 0);
-  };
-
-  const getRemainingDays = (userId: string) => {
-    const totalBalanceDays = userBalances[userId] || 10; // Default to 10 days
-    const approvedDays = getApprovedDays(userId);
-    const remainingDays = totalBalanceDays - approvedDays;
-    return Math.max(0, remainingDays); // Ensure we don't return negative days
-  };
-
-  const handleApproveRequest = async (request: ShiftRequestDisplay) => {
-    try {
-      await supabase
-        .from('shift_requests')
-        .update({ 
-          status: 'approved', 
-          reviewer_id: currentUser?.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', request.id);
-
-      await createDayOffShift(request);
-
-      // Send push notification to the user who submitted the request
-      try {
-        await NotificationService.sendRequestApprovedNotification(
-          [request.user_id],
-          request.leave_type || request.request_type,
-          request.start_date
-        );
-      } catch (notificationError) {
-        console.warn('⚠️ Error sending request approval notification:', notificationError);
-      }
-
-      toast({
-        title: "Request approved",
-        description: "The request has been approved and shifts updated.",
-      });
-
-      await loadRequests();
-      onRequestsUpdate?.();
-    } catch (error) {
-      console.error('Error approving request:', error);
-      toast({
-        title: "Error",
-        description: "Failed to approve request",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRejectRequest = async (requestId: string) => {
-    try {
-      // Get the request details before updating to send notification
-      const { data: requestData } = await supabase
-        .from('shift_requests')
-        .select('*')
-        .eq('id', requestId)
-        .single();
-
-      await supabase
-        .from('shift_requests')
-        .update({ 
-          status: 'rejected', 
-          reviewer_id: currentUser?.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      // Send push notification to the user who submitted the request
-      if (requestData) {
-        try {
-          await NotificationService.sendRequestRejectedNotification(
-            [requestData.user_id],
-            requestData.leave_type || requestData.request_type,
-            requestData.start_date
-          );
-        } catch (notificationError) {
-          console.warn('⚠️ Error sending request rejection notification:', notificationError);
-        }
-      }
-
-      toast({
-        title: "Request rejected",
-        description: "The request has been rejected.",
-      });
-
-      await loadRequests();
-      onRequestsUpdate?.();
-    } catch (error) {
-      console.error('Error rejecting request:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reject request",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteRequest = async (requestId: string) => {
-    try {
-      await supabase
-        .from('shift_requests')
-        .delete()
-        .eq('id', requestId);
-
-      toast({
-        title: "Request deleted",
-        description: "The request has been deleted.",
-      });
-
-      await loadRequests();
-      onRequestsUpdate?.();
-    } catch (error) {
-      console.error('Error deleting request:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete request",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const createDayOffShift = async (request: ShiftRequestDisplay) => {
-    try {
-      const { data: existingShifts } = await supabase
-        .from('shifts')
-        .select('*')
-        .eq('user_id', request.user_id)
-        .gte('start_time', `${request.start_date}T00:00:00`)
-        .lte('end_time', `${request.end_date}T23:59:59`);
-
-      const template = request.leave_type === 'public-holiday' 
-        ? SHIFT_TEMPLATES.PUBLIC_HOLIDAY 
-        : SHIFT_TEMPLATES.DAY_OFF;
-
-      const shiftData = {
-        user_id: request.user_id,
-        shift_type: template.shift_type,
-        title: template.title,
-        description: request.reason,
-        color: template.color,
-        notes: `${template.title} - ${request.reason}`,
-        start_time: `${request.start_date}T00:00:00`,
-        end_time: `${request.end_date}T23:59:59`,
-        created_by: currentUser?.id,
-        status: 'active' as const,
-        is_all_day: true,
-        repeat_days: [],
-      };
-
-      if (existingShifts && existingShifts.length > 0) {
-        for (const shift of existingShifts) {
-          await supabase
-            .from('shifts')
-            .update({
-              shift_type: template.shift_type,
-              title: template.title,
-              description: request.reason,
-              color: template.color,
-              notes: `${template.title} - ${request.reason} (replaced original shift)`,
-              is_all_day: true,
-              status: 'active',
-            })
-            .eq('id', shift.id);
-        }
-      } else {
-        await supabase.from('shifts').insert([shiftData]);
-      }
-    } catch (error) {
-      console.error('Error creating day-off shift:', error);
-      throw error;
-    }
-  };
-
-  const getStatusColor = (status: RequestStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      default: return 'bg-yellow-100 text-yellow-800';
     }
   };
 
-  const getRequestTypeIcon = (type: string) => {
+  const getRequestTypeColor = (type: string) => {
     switch (type) {
-      case 'extra':
-      case 'extra-days':
-      case 'extra-day':
-        return User;
-      case 'public-holiday':
-        return Users;
-      default:
-        return Clock;
+      case 'swap': return 'bg-blue-100 text-blue-800';
+      case 'coverage': return 'bg-purple-100 text-purple-800';
+      case 'time_off': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const canEditOrDelete = (request: ShiftRequestDisplay) => {
-    if (isAdmin) return true;
-    if (request.user_id !== currentUser?.id) return false;
-    return request.status === 'pending';
+  const handleStatusUpdate = async (requestId: string, status: 'approved' | 'rejected', notes?: string) => {
+    try {
+      if (activeTab === 'shift') {
+        await updateShiftRequestStatus(requestId, status, notes);
+      } else {
+        await updateLeaveRequestStatus(requestId, status, notes);
+      }
+      toast({
+        title: "Success",
+        description: `Request ${status} successfully`,
+      });
+      await refreshRequests();
+    } catch (error) {
+      console.error('Error updating request status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update request status",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUserClick = (userId: string) => {
+  const handleViewUser = (userId: string) => {
+    const users = getScheduleUsers();
     const user = users.find(u => u.id === userId);
     if (user) {
       setSelectedUser(user);
-      setShowUserInfoDialog(true);
+      setShowUserDialog(true);
     }
   };
 
-  const handleBalanceUpdate = (userId: string, newBalance: number) => {
-    setUserBalances(prev => ({ ...prev, [userId]: newBalance }));
-    setUserBalanceDialog({ open: false, user: null, balance: 0 });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+  if (loading) {
+    return <div className="text-center py-8">Loading requests...</div>;
   }
 
+  if (error) {
+    return <div className="text-center py-8 text-red-600">Error: {error}</div>;
+  }
+
+  const activeRequests = activeTab === 'shift' ? shiftRequests : leaveRequests;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-1 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            {isAdmin ? 'Time Off Balances' : 'My Time Off Balance'}
-          </h3>
-          {isAdmin && (
-            <Button size="sm" onClick={() => setUserBalanceDialog({ open: true, user: null, balance: 0 })}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add/Edit Balance
-            </Button>
-          )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Requests Management</h1>
+        <div className="flex space-x-2">
+          <Button
+            variant={activeTab === 'shift' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('shift')}
+          >
+            Shift Requests ({shiftRequests.length})
+          </Button>
+          <Button
+            variant={activeTab === 'leave' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('leave')}
+          >
+            Leave Requests ({leaveRequests.length})
+          </Button>
         </div>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground border-b pb-2">
-                <span>{isAdmin ? 'User' : 'Balance'}</span>
-                <span>Approved</span>
-                <span>Remaining</span>
-              </div>
-              
-              {displayUsers.map(user => {
-                const approvedDays = getApprovedDays(user.id);
-                const remainingDays = getRemainingDays(user.id);
-                return (
-                  <div 
-                    key={user.id} 
-                    className={`flex items-center justify-between py-2 px-2 rounded ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                    onClick={() => isAdmin && setUserBalanceDialog({
-                      open: true,
-                      user,
-                      balance: userBalances[user.id] || 80
-                    })}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {user.username?.substring(0, 2).toUpperCase()}
-                      </div>
-                      <span className="font-medium">{user.username}</span>
-                    </div>
-                    <span className="text-sm">{approvedDays} days</span>
-                    <span className="text-sm text-muted-foreground">{remainingDays} days</span>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
       </div>
-      
-      <div className="lg:col-span-2 space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">Leave Requests</h2>
-            {isAdmin && selectedUserFilter !== 'all' && (() => {
-              const filteredCount = requests.filter(request => request.user_id === selectedUserFilter).length;
-              return (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Showing requests for {users.find(u => u.id === selectedUserFilter)?.username} 
-                  ({filteredCount} request{filteredCount !== 1 ? 's' : ''})
-                </p>
-              );
-            })()}
-          </div>
-          <div className="flex items-center gap-4">
-            {isAdmin && (
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={selectedUserFilter} onValueChange={setSelectedUserFilter}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Filter by user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedUserFilter !== 'all' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedUserFilter('all')}
-                    className="h-8 px-2"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            )}
-            <Button onClick={() => setShowRequestDialog(true)}>
-              <Calendar className="h-4 w-4 mr-2" />
-              New Leave Request
-            </Button>
-          </div>
-        </div>
 
-        <div className="grid gap-4">
-          {requests.length === 0 ? (
-            
-            <Card>
-              <CardContent className="flex items-center justify-center h-[200px]">
-                <p className="text-muted-foreground">No pending or recent requests</p>
+      <div className="grid gap-4">
+        {activeRequests.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-gray-500">
+              No {activeTab} requests found
+            </CardContent>
+          </Card>
+        ) : (
+          activeRequests.map((request) => (
+            <Card key={request.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getRequestTypeColor(request.request_type)}>
+                        {request.request_type?.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                      <Badge className={getStatusColor(request.status)}>
+                        {request.status?.toUpperCase()}
+                      </Badge>
+                      {request.user_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewUser(request.user_id!)}
+                          className="flex items-center space-x-1"
+                        >
+                          <User className="h-4 w-4" />
+                          <span>View User</span>
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <p className="font-medium">Request Details:</p>
+                      {activeTab === 'shift' ? (
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <p><strong>Type:</strong> {request.request_type}</p>
+                          <p><strong>Start:</strong> {formatDate(request.start_date)}</p>
+                          <p><strong>End:</strong> {formatDate(request.end_date)}</p>
+                          {request.reason && <p><strong>Reason:</strong> {request.reason}</p>}
+                          {request.notes && <p><strong>Notes:</strong> {request.notes}</p>}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <p><strong>Leave Type:</strong> {request.leave_type}</p>
+                          <p><strong>Start:</strong> {formatDate(request.start_date)}</p>
+                          <p><strong>End:</strong> {formatDate(request.end_date)}</p>
+                          {request.reason && <p><strong>Reason:</strong> {request.reason}</p>}
+                          {request.notes && <p><strong>Notes:</strong> {request.notes}</p>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-gray-500">
+                      Submitted: {formatDate(request.created_at || '')}
+                    </div>
+                  </div>
+                  
+                  {request.status === 'pending' && currentUser?.role === 'admin' && (
+                    <div className="flex space-x-2 ml-4">
+                      <Button
+                        size="sm"
+                        onClick={() => handleStatusUpdate(request.id, 'approved')}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleStatusUpdate(request.id, 'rejected')}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            (() => {
-              let filteredRequests = requests;
-              
-              // Apply user filter for admins
-              if (isAdmin && selectedUserFilter !== 'all') {
-                filteredRequests = requests.filter(request => request.user_id === selectedUserFilter);
-              } else if (!isAdmin) {
-                // Non-admin users only see their own requests
-                filteredRequests = requests.filter(request => request.user_id === currentUser?.id);
-              }
-              
-              if (filteredRequests.length === 0) {
-                return (
-                  <Card>
-                    <CardContent className="flex items-center justify-center h-[200px]">
-                      <p className="text-muted-foreground">
-                        {isAdmin && selectedUserFilter !== 'all' 
-                          ? `No requests found for ${users.find(u => u.id === selectedUserFilter)?.username || 'selected user'}`
-                          : 'No pending or recent requests'
-                        }
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              
-              return filteredRequests.map((request) => {
-                const RequestIcon = getRequestTypeIcon(request.leave_type || request.request_type);
-                return (
-                  <Card key={request.id}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <RequestIcon className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <CardTitle className="text-base">
-                              {request.leave_type || request.request_type} Request
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                              by{' '}
-                              <button
-                                onClick={() => handleUserClick(request.user_id)}
-                                className="text-primary hover:underline cursor-pointer"
-                              >
-                                {request.username}
-                              </button>
-                            </p>
-                          </div>
-                        </div>
-                        <Badge className={getStatusColor(request.status)}>
-                          {request.status}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium">Start Date</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(request.start_date), 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">End Date</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(request.end_date), 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium">Reason</p>
-                        <p className="text-sm text-muted-foreground">{request.reason}</p>
-                      </div>
-
-                      <div className="flex justify-between items-center pt-2">
-                        <p className="text-xs text-muted-foreground">
-                          Submitted on {format(new Date(request.created_at), 'MMM dd, yyyy')}
-                        </p>
-                        
-                        <div className="flex gap-2">
-                          {canEditOrDelete(request) && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingRequest(request);
-                                  setShowRequestDialog(true);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteRequest(request.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          
-                          {isAdmin && request.status === 'pending' && (
-                            <>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => handleApproveRequest(request)}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleRejectRequest(request.id)}
-                              >
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUserClick(request.user_id)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              });
-            })()
-          )}
-        </div>
+          ))
+        )}
       </div>
 
-      {showRequestDialog && (
-        <ShiftRequestDialog
-          open={showRequestDialog}
-          onOpenChange={(open) => {
-            setShowRequestDialog(open);
-            if (!open) {
-              setEditingRequest(null);
-            }
-          }}
-          users={users}
-          editingRequest={editingRequest}
-          onRequestsUpdate={() => {
-            loadRequests();
-            onRequestsUpdate?.();
-          }}
-        />
-      )}
-
-      {showUserInfoDialog && selectedUser && (
+      {showUserDialog && selectedUser && currentUser && (
         <UserInfoDialog
-          open={showUserInfoDialog}
-          onClose={() => setShowUserInfoDialog(false)}
-          selectedUser={selectedUser}
+          open={showUserDialog}
+          onClose={() => setShowUserDialog(false)}
+          user={selectedUser}
           currentUser={currentUser}
         />
       )}
-      
-      {userBalanceDialog.open && (
-        <UserBalanceDialog
-          open={userBalanceDialog.open}
-          user={userBalanceDialog.user}
-          initialBalance={userBalanceDialog.balance}
-          onClose={() => setUserBalanceDialog({ open: false, user: null, balance: 0 })}
-          onSave={(userId, newBalance) => {
-            handleBalanceUpdate(userId, newBalance);
-          }}
+
+      {showRequestDialog && selectedRequest && (
+        <ShiftRequestDialog
+          open={showRequestDialog}
+          onClose={() => setShowRequestDialog(false)}
+          request={selectedRequest}
+          onStatusUpdate={handleStatusUpdate}
         />
       )}
     </div>
   );
 };
-
-export default RequestsView;

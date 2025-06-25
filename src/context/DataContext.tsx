@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Project, HardDrive, PrintType } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,10 +21,13 @@ interface DataContextType {
   loading: boolean;
   error: string | null;
   refreshData: () => Promise<void>;
-  addHardDrive: (hardDrive: Omit<HardDrive, 'id' | 'createdAt'>) => Promise<void>;
+  getHardDrive: (id: string) => HardDrive | undefined;
+  getProject: (id: string) => Project | undefined;
+  getHardDrivesByProject: (projectId: string) => HardDrive[];
+  addHardDrive: (hardDrive: Omit<HardDrive, 'id' | 'createdAt'>) => Promise<string>;
   updateHardDrive: (id: string, updates: Partial<HardDrive>) => Promise<void>;
   deleteHardDrive: (id: string) => Promise<void>;
-  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => Promise<void>;
+  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => Promise<string>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   addPrintHistory: (printRecord: Omit<PrintHistory, 'id' | 'timestamp'>) => Promise<void>;
@@ -43,14 +47,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const setUserContext = async (userId: string) => {
     try {
-      await supabase.rpc('set_config', {
+      const { error } = await supabase.rpc('set_config', {
         setting_name: 'app.current_user_id',
         new_value: userId,
         is_local: false
       });
+      if (error) console.warn('Failed to set user context:', error);
     } catch (error) {
       console.warn('Failed to set user context for history tracking:', error);
     }
+  };
+
+  const getHardDrive = (id: string): HardDrive | undefined => {
+    return hardDrives.find(hd => hd.id === id);
+  };
+
+  const getProject = (id: string): Project | undefined => {
+    return projects.find(p => p.id === id);
+  };
+
+  const getHardDrivesByProject = (projectId: string): HardDrive[] => {
+    return hardDrives.filter(hd => hd.projectId === projectId);
   };
 
   const loadHardDrives = async () => {
@@ -120,7 +137,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const transformedData: PrintHistory[] = (data || []).map(record => ({
         id: record.id,
-        type: record.type,
+        type: record.type as PrintType,
         hardDriveId: record.hard_drive_id,
         projectId: record.project_id,
         operatorName: record.operator_name,
@@ -155,7 +172,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [refreshData]);
 
-  const addHardDrive = async (hardDriveData: Omit<HardDrive, 'id' | 'createdAt'>) => {
+  const addHardDrive = async (hardDriveData: Omit<HardDrive, 'id' | 'createdAt'>): Promise<string> => {
     if (currentUser) {
       await setUserContext(currentUser.id);
     }
@@ -178,6 +195,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (error) throw error;
     await refreshData();
+    return data.id;
   };
 
   const updateHardDrive = async (id: string, updates: Partial<HardDrive>) => {
@@ -219,7 +237,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
-  const addProject = async (projectData: Omit<Project, 'id' | 'createdAt'>) => {
+  const addProject = async (projectData: Omit<Project, 'id' | 'createdAt'>): Promise<string> => {
     const { data, error } = await supabase
       .from('projects')
       .insert([{
@@ -233,6 +251,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (error) throw error;
     await refreshData();
+    return data.id;
   };
 
   const updateProject = async (id: string, updates: Partial<Project>) => {
@@ -284,6 +303,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loading,
     error,
     refreshData,
+    getHardDrive,
+    getProject,
+    getHardDrivesByProject,
     addHardDrive,
     updateHardDrive,
     deleteHardDrive,

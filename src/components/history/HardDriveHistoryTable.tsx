@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ArrowUpDown, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { VersionDetailsDialog } from "./VersionDetailsDialog";
 
 interface HardDriveHistory {
@@ -73,21 +73,29 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // First get the history records
+      const { data: historyData, error: historyError } = await supabase
         .from('hard_drive_history')
-        .select(`
-          *,
-          auth_users!hard_drive_history_changed_by_fkey(username)
-        `)
+        .select('*')
         .eq('hard_drive_id', hardDriveId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      
-      // Type assertion to ensure proper typing
-      const typedData: HardDriveHistory[] = (data || []).map(item => ({
+      if (historyError) throw historyError;
+
+      // Then get user information separately
+      const { data: usersData, error: usersError } = await supabase
+        .from('auth_users')
+        .select('id, username');
+
+      if (usersError) {
+        console.warn('Could not load user data:', usersError);
+      }
+
+      // Combine the data
+      const typedData: HardDriveHistory[] = (historyData || []).map(item => ({
         ...item,
-        changed_by_username: item.auth_users?.username || 'Unknown User',
+        changed_by_username: usersData?.find(user => user.id === item.changed_by)?.username || 'Unknown User',
         change_type: item.change_type as 'create' | 'update' | 'delete'
       }));
       
