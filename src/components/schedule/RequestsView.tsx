@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Check, X, User } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ShiftRequestDialog } from './ShiftRequestDialog';
 import UserInfoDialog from './UserInfoDialog';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ShiftRequest {
   id: string;
@@ -132,6 +133,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
           </Button>
         </div>
       </div>
+
       <div className="grid gap-4">
         {activeRequests.length === 0 ? (
           <Card>
@@ -164,6 +166,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
                         </Button>
                       )}
                     </div>
+                    
                     <div className="space-y-2">
                       <p className="font-medium">Request Details:</p>
                       {activeTab === 'shift' ? (
@@ -184,10 +187,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
                         </div>
                       )}
                     </div>
+
                     <div className="text-xs text-gray-500">
                       Submitted: {formatDate(request.created_at || '')}
                     </div>
                   </div>
+                  
                   {request.status === 'pending' && currentUser?.role === 'admin' && (
                     <div className="flex space-x-2 ml-4">
                       <Button
@@ -214,6 +219,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ users }) => {
           ))
         )}
       </div>
+
       {showUserDialog && selectedUserId && (
         <UserInfoDialog
           open={showUserDialog}
