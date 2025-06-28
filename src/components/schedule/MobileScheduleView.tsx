@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, isToday } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, isToday, startOfDay, endOfDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -116,7 +116,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
     };
 
     loadData();
-  }, [selectedDate, users]);
+  }, [selectedDate]);
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -142,119 +142,88 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
     );
   }
 
+  // Filter shifts for today only
+  const today = new Date();
+  const todayShifts = shifts.filter(shift => isSameDay(new Date(shift.start_time), today));
+
+  // Group users by role
+  const groupedUsers = users.reduce((acc, user) => {
+    let roleGroup: string;
+    if (user.role === 'producer') {
+      roleGroup = 'Producers';
+    } else if (user.role === 'operator') {
+      roleGroup = 'Operators';
+    } else {
+      roleGroup = 'Technical Leaders';
+    }
+    if (!acc[roleGroup]) {
+      acc[roleGroup] = [];
+    }
+    acc[roleGroup].push(user);
+    return acc;
+  }, {} as Record<string, ScheduleUser[]>);
+
+  // Sort users within each group by username
+  Object.keys(groupedUsers).forEach(role => {
+    groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
+  });
+
+  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
+
   return (
-    <div className="space-y-4">
-      {/* Week navigation */}
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => onDateChange && onDateChange(new Date(today.getTime() + 24 * 60 * 60 * 1000))}>
+          View Other Days
+        </Button>
+      </div>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold">
-            {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-          </h2>
-          <p className="text-sm text-gray-500">
-            {shifts.length} shifts this week
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePreviousWeek}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleNextWeek}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <h2 className="text-2xl font-bold">{format(today, 'EEEE, MMMM d, yyyy')}</h2>
+          <p className="text-gray-500">{todayShifts.length} shifts scheduled</p>
         </div>
       </div>
-
-      {/* Days grid */}
-      <div className="space-y-3">
-        {weekDays.map((day) => {
-          const dayShifts = getShiftsForDate(day);
-          const isCurrentDay = isToday(day);
-          const isSelected = isSameDay(day, selectedDate);
-
-          return (
-            <Card
-              key={day.toISOString()}
-              className={cn(
-                "cursor-pointer transition-colors",
-                isCurrentDay && "bg-blue-50 border-blue-200",
-                isSelected && "ring-2 ring-blue-500"
-              )}
-              onClick={() => onDateChange(day)}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium">
-                      {format(day, 'EEEE')}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {format(day, 'MMM d')}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">
-                    {dayShifts.length} shifts
-                  </Badge>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {dayShifts.slice(0, 3).map((shift) => {
-                    const user = users.find(u => u.id === shift.user_id);
-                    const shiftColor = getShiftColor(shift.shift_type, shift.color);
-                    const startTime = format(new Date(shift.start_time), 'h:mm a');
-                    const endTime = format(new Date(shift.end_time), 'h:mm a');
-
-                    return (
-                      <div
-                        key={shift.id}
-                        className="p-2 rounded-lg cursor-pointer hover:opacity-80"
-                        style={{
-                          backgroundColor: shiftColor + '33',
-                          borderLeft: `3px solid ${shiftColor}`
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditShift(shift);
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
+      {roleDisplayOrder.map(role => (
+        <div key={role} className="space-y-2">
+          <h3 className="text-lg font-semibold mt-4 mb-2">{role}</h3>
+          {groupedUsers[role] && groupedUsers[role].length > 0 ? (
+            groupedUsers[role].map(user => {
+              const userShifts = todayShifts.filter(shift => shift.user_id === user.id);
+              return (
+                <div key={user.id} className="border rounded-lg p-3 mb-2 bg-white">
+                  <div className="font-medium text-base mb-1">{user.username}</div>
+                  {userShifts.length > 0 ? (
+                    userShifts.map(shift => {
+                      const shiftColor = getShiftColor(shift.shift_type, shift.color);
+                      const startTime = format(new Date(shift.start_time), 'h:mm a');
+                      const endTime = format(new Date(shift.end_time), 'h:mm a');
+                      return (
+                        <div
+                          key={shift.id}
+                          className="flex items-center justify-between p-2 rounded-lg mb-1"
+                          style={{ backgroundColor: shiftColor + '22', borderLeft: `3px solid ${shiftColor}` }}
+                          onClick={() => onEditShift(shift)}
+                        >
                           <div>
-                            <p className="font-medium text-sm">
-                              {user?.username || 'Unknown'}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {startTime} - {endTime}
-                            </p>
+                            <span className="font-medium text-sm">{shift.shift_type}</span>
+                            <span className="ml-2 text-xs text-gray-600">{startTime} - {endTime}</span>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            {shift.shift_type}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs">{shift.shift_type}</Badge>
                         </div>
-                      </div>
-                    );
-                  })}
-                  
-                  {dayShifts.length > 3 && (
-                    <div className="text-xs text-gray-500 text-center">
-                      +{dayShifts.length - 3} more shifts
-                    </div>
-                  )}
-                  
-                  {dayShifts.length === 0 && (
-                    <div className="text-sm text-gray-400 text-center py-2">
-                      No shifts scheduled
-                    </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-gray-400">No shift for today</div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Add shift button */}
-      <Button onClick={onAddShift} className="w-full">
+              );
+            })
+          ) : (
+            <div className="text-sm text-gray-400">No users in this group</div>
+          )}
+        </div>
+      ))}
+      <Button onClick={onAddShift} className="w-full mt-4">
         <Plus className="h-4 w-4 mr-2" />
         Add Shift
       </Button>

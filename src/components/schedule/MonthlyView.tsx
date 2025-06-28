@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, isSameMonth } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Plus, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MonthlyViewProps, Shift, ScheduleUser } from '@/types/schedule';
-import { shiftsTable, usersTable } from '@/integrations/supabase/tables/schedule';
+import { MonthlyViewProps, Shift, ScheduleUser, LeaveRequest } from '@/types/schedule';
+import { shiftsTable, usersTable, leaveRequestsTable } from '@/integrations/supabase/tables/schedule';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const getShiftColor = (shiftType: string, color?: string) => {
   if (color) return color;
@@ -30,16 +31,19 @@ const MonthlyView = ({
 }: MonthlyViewProps) => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [users, setUsers] = useState<ScheduleUser[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState<'all' | 'extra' | 'unpaid'>('all');
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true);
         
-        const [usersData, shiftsData] = await Promise.all([
+        const [usersData, shiftsData, leaveRequestsData] = await Promise.all([
           usersTable.getAll(),
-          shiftsTable.getAll()
+          shiftsTable.getAll(),
+          leaveRequestsTable.getAll()
         ]);
 
         // Separate operational users from producers
@@ -66,6 +70,7 @@ const MonthlyView = ({
         setUsers([...operationalUsers, ...producerUsers]);
         
         setShifts(shiftsData);
+        setLeaveRequests(leaveRequestsData.filter(lr => lr.status === 'approved'));
       } catch (error) {
         console.error('Error loading monthly data:', error);
       } finally {
@@ -128,6 +133,24 @@ const MonthlyView = ({
 
   const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
 
+  // Helper to get leave requests for a date, filtered by type
+  const getLeaveRequestsForDate = (date: Date) => {
+    let filtered = leaveRequests.filter(lr => {
+      const start = new Date(lr.start_date);
+      const end = new Date(lr.end_date);
+      start.setHours(0,0,0,0);
+      end.setHours(23,59,59,999);
+      date.setHours(0,0,0,0);
+      return date >= start && date <= end;
+    });
+    if (leaveTypeFilter === 'extra') {
+      filtered = filtered.filter(lr => lr.leave_type === 'extra');
+    } else if (leaveTypeFilter === 'unpaid') {
+      filtered = filtered.filter(lr => lr.leave_type === 'unpaid');
+    }
+    return filtered;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[400px]">
@@ -138,7 +161,7 @@ const MonthlyView = ({
 
   return (
     <div className="space-y-6">
-      {/* Month navigation */}
+      {/* Month navigation and filter */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">{format(selectedDate, 'MMMM yyyy')}</h2>
@@ -147,6 +170,19 @@ const MonthlyView = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={leaveTypeFilter} onValueChange={v => setLeaveTypeFilter(v as any)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter by leave type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Leaves</SelectItem>
+                <SelectItem value="extra">Extra Days</SelectItem>
+                <SelectItem value="unpaid">Unpaid Leave</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button variant="outline" size="icon" onClick={handlePreviousMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -174,10 +210,17 @@ const MonthlyView = ({
           {/* Calendar days */}
           <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
             {paddedDays.map((date, index) => {
-              const dayShifts = getShiftsForDate(date);
+              let dayShifts = getShiftsForDate(date);
               const isCurrentMonth = isSameMonth(date, selectedDate);
               const isCurrentDay = isToday(date);
               const isSelected = isSameDay(date, selectedDate);
+              const dayLeaves = getLeaveRequestsForDate(date);
+
+              // If filtering by 'extra' or 'unpaid', only show shifts for users with that leave type on this day
+              if (leaveTypeFilter === 'extra' || leaveTypeFilter === 'unpaid') {
+                const filteredUserIds = dayLeaves.filter(lr => lr.leave_type === leaveTypeFilter).map(lr => lr.user_id);
+                dayShifts = dayShifts.filter(shift => filteredUserIds.includes(shift.user_id));
+              }
 
               return (
                 <div
@@ -234,6 +277,31 @@ const MonthlyView = ({
                         </div>
                       );
                     })}
+                    
+                    {/* Leave requests for this day */}
+                    {dayLeaves.map((leave, i) => (
+                      <div
+                        key={leave.id + i}
+                        className={cn(
+                          'text-xs p-1 rounded border-l-4',
+                          leave.leave_type === 'extra' ? 'bg-green-100 border-green-500 text-green-800' :
+                          leave.leave_type === 'unpaid' ? 'bg-red-100 border-red-500 text-red-800' :
+                          'bg-gray-100 border-gray-500 text-gray-800'
+                        )}
+                        title={leave.leave_type}
+                      >
+                        <div className="font-semibold capitalize">{leave.leave_type.replace('-', ' ')}</div>
+                        <div className="text-gray-600 truncate text-xs">{leave.reason}</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge variant="secondary" className="capitalize">
+                            {leave.leave_type}
+                          </Badge>
+                          <span className="text-gray-500 text-[10px]">
+                            {format(new Date(leave.start_date), 'MMM d')} - {format(new Date(leave.end_date), 'MMM d')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                     
                     {dayShifts.length > 3 && (
                       <div className="text-xs text-gray-500 text-center">
