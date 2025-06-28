@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -71,26 +72,42 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
   const fetchHistory = async () => {
     try {
       setLoading(true);
+      
       // First get the history records
       const { data: historyData, error: historyError } = await supabase
         .from('hard_drive_history')
         .select('*')
         .eq('hard_drive_id', hardDriveId)
         .order('created_at', { ascending: false });
+
       if (historyError) throw historyError;
-      // Then get user information separately
+
+      // Get all unique user IDs from the history
+      const userIds = [...new Set((historyData || []).map(item => item.changed_by).filter(Boolean))];
+      
+      // Fetch usernames for all users at once
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
-        .select('id, username');
+        .select('id, username')
+        .in('id', userIds);
+
       if (usersError) {
         console.warn('Could not load user data:', usersError);
       }
+
+      // Create a map of user IDs to usernames for quick lookup
+      const userMap = new Map();
+      (usersData || []).forEach(user => {
+        userMap.set(user.id, user.username || 'Unknown User');
+      });
+
       // Combine the data
       const typedData: HardDriveHistory[] = (historyData || []).map(item => ({
         ...item,
-        changed_by_username: usersData?.find(user => user.id === item.changed_by)?.username || 'Unknown User',
+        changed_by_username: userMap.get(item.changed_by) || 'Unknown User',
         change_type: item.change_type as 'create' | 'update' | 'delete'
       }));
+
       setHistory(typedData);
     } catch (error) {
       console.error('Error fetching history:', error);
@@ -106,6 +123,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
 
   useEffect(() => {
     fetchHistory();
+    
     // Set up real-time subscription
     const channel = supabase
       .channel(`hard_drive_history_${hardDriveId}`)
@@ -122,6 +140,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
         }
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -178,6 +197,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
     changes: HardDriveHistory[];
     changeCount: number;
   }>);
+
   // Update change count
   groupedByVersion.forEach(group => {
     group.changeCount = group.changes.length;
@@ -215,6 +235,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
           </SelectContent>
         </Select>
       </div>
+      
       <Table>
         <TableHeader>
           <TableRow>
@@ -257,7 +278,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
               <TableCell>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{group.changed_by_username}</span>
+                  <span className="font-medium">{group.changed_by_username || 'Unknown User'}</span>
                 </div>
               </TableCell>
               <TableCell>
@@ -279,6 +300,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
           )}
         </TableBody>
       </Table>
+      
       {showVersionDialog && selectedVersion && (
         <VersionDetailsDialog
           open={showVersionDialog}

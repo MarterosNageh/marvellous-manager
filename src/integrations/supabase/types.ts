@@ -89,7 +89,7 @@ export type Database = {
       hard_drive_history: {
         Row: {
           change_type: string
-          changed_by: string
+          changed_by: string | null
           created_at: string
           field_name: string
           hard_drive_id: string
@@ -100,7 +100,7 @@ export type Database = {
         }
         Insert: {
           change_type: string
-          changed_by: string
+          changed_by?: string | null
           created_at?: string
           field_name: string
           hard_drive_id: string
@@ -111,7 +111,7 @@ export type Database = {
         }
         Update: {
           change_type?: string
-          changed_by?: string
+          changed_by?: string | null
           created_at?: string
           field_name?: string
           hard_drive_id?: string
