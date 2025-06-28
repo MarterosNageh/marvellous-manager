@@ -8,12 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { PrintHistoryTable } from "@/components/print/PrintHistoryTable";
 import { HardDriveHistoryTable } from "@/components/history/HardDriveHistoryTable";
-import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode, History } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Printer, Archive, QrCode } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import type { HardDrive, PrintHistory } from "@/types";
 import { getHardDriveStatusColor } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -394,29 +393,23 @@ const HardDriveDetail = () => {
           </Card>
         </div>
 
-        <Separator />
-
-        {/* History Tabs - Print History First */}
-        <Card>
+        {/* Print History */}
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              History & Activity
-            </CardTitle>
+            <CardTitle>Print History</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="prints" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="prints">Print History</TabsTrigger>
-                <TabsTrigger value="changes">Change History</TabsTrigger>
-              </TabsList>
-              <TabsContent value="prints" className="mt-6">
-                <PrintHistoryTable data={hardDrivePrintHistory} />
-              </TabsContent>
-              <TabsContent value="changes" className="mt-6">
-                <HardDriveHistoryTable hardDriveId={hardDrive.id} />
-              </TabsContent>
-            </Tabs>
+            <PrintHistoryTable data={hardDrivePrintHistory} />
+          </CardContent>
+        </Card>
+
+        {/* Change History */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Change History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HardDriveHistoryTable hardDriveId={hardDrive.id} />
           </CardContent>
         </Card>
       </div>
