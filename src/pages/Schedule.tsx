@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/context/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,21 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Clock, User, Users, Settings, Plus } from "lucide-react";
 import { useState } from "react";
 import { useSchedule } from "@/context/ScheduleContext";
-import { DailyView } from "@/components/schedule/DailyView";
-import { WeeklyView } from "@/components/schedule/WeeklyView";
-import { MonthlyView } from "@/components/schedule/MonthlyView";
-import { ShiftsView } from "@/components/schedule/ShiftsView";
-import { RequestsView } from "@/components/schedule/RequestsView";
-import { ShiftDialog } from "@/components/schedule/ShiftDialog";
-import { MobileScheduleView } from "@/components/schedule/MobileScheduleView";
-import { useMobile } from "@/hooks/use-mobile";
+import DailyView from "@/components/schedule/DailyView";
+import WeeklyView from "@/components/schedule/WeeklyView";
+import MonthlyView from "@/components/schedule/MonthlyView";
+import ShiftsView from "@/components/schedule/ShiftsView";
+import RequestsView from "@/components/schedule/RequestsView";
+import ShiftDialog from "@/components/schedule/ShiftDialog";
+import MobileScheduleView from "@/components/schedule/MobileScheduleView";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Schedule = () => {
   const { currentUser } = useAuth();
-  const { users } = useSchedule();
+  const { shifts, templates, loading } = useSchedule();
   const [currentView, setCurrentView] = useState<'daily' | 'weekly' | 'monthly' | 'shifts' | 'requests'>('weekly');
   const [showShiftDialog, setShowShiftDialog] = useState(false);
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
 
   const views = [
     { key: 'daily' as const, label: 'Daily', icon: Calendar },
@@ -32,10 +33,10 @@ const Schedule = () => {
 
   const stats = [
     {
-      title: "Total Users",
-      value: users.length,
-      icon: Users,
-      description: "Active team members"
+      title: "Total Shifts",
+      value: shifts.length,
+      icon: Clock,
+      description: "Active shifts"
     },
     {
       title: "Your Role",
@@ -97,17 +98,20 @@ const Schedule = () => {
 
         {/* View Content */}
         <div className="space-y-4">
-          {currentView === 'daily' && <DailyView />}
-          {currentView === 'weekly' && <WeeklyView />}
-          {currentView === 'monthly' && <MonthlyView />}
+          {currentView === 'daily' && <DailyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={() => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
+          {currentView === 'weekly' && <WeeklyView startDate={new Date()} selectedDate={new Date()} shifts={shifts} onAddShift={() => setShowShiftDialog(true)} onDateChange={() => {}} onEditShift={() => {}} onDeleteShift={() => {}} onUpdateShift={() => {}} users={[]} refreshData={() => {}} />}
+          {currentView === 'monthly' && <MonthlyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={() => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
           {currentView === 'shifts' && <ShiftsView />}
-          {currentView === 'requests' && <RequestsView />}
+          {currentView === 'requests' && <RequestsView users={[]} />}
         </div>
 
         {showShiftDialog && (
           <ShiftDialog
             open={showShiftDialog}
             onClose={() => setShowShiftDialog(false)}
+            onSave={() => setShowShiftDialog(false)}
+            templates={templates}
+            users={[]}
           />
         )}
       </div>
