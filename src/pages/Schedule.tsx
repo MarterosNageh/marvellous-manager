@@ -1,58 +1,117 @@
-
-import { useState } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { ScheduleProvider } from "@/context/ScheduleContext";
-import { ShiftsProvider } from "@/context/ShiftsContext";
 import { useAuth } from "@/context/AuthContext";
-import ShiftsView from "@/components/schedule/ShiftsView";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, User, Users, Settings, Plus } from "lucide-react";
+import { useState } from "react";
+import { useSchedule } from "@/context/ScheduleContext";
+import { DailyView } from "@/components/schedule/DailyView";
+import { WeeklyView } from "@/components/schedule/WeeklyView";
+import { MonthlyView } from "@/components/schedule/MonthlyView";
+import { ShiftsView } from "@/components/schedule/ShiftsView";
 import { RequestsView } from "@/components/schedule/RequestsView";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, ClipboardList } from "lucide-react";
+import { ShiftDialog } from "@/components/schedule/ShiftDialog";
+import { MobileScheduleView } from "@/components/schedule/MobileScheduleView";
+import { useMobile } from "@/hooks/use-mobile";
 
 const Schedule = () => {
-  const { users } = useAuth();
+  const { currentUser } = useAuth();
+  const { users } = useSchedule();
+  const [currentView, setCurrentView] = useState<'daily' | 'weekly' | 'monthly' | 'shifts' | 'requests'>('weekly');
+  const [showShiftDialog, setShowShiftDialog] = useState(false);
+  const isMobile = useMobile();
 
-  // Transform users to match the expected interface
-  const transformedUsers = (users || []).map(user => ({
-    id: user.id,
-    username: user.username,
-    email: user.email || '', // Provide default empty string if email is undefined
-    role: user.role || 'user'
-  }));
+  const views = [
+    { key: 'daily' as const, label: 'Daily', icon: Calendar },
+    { key: 'weekly' as const, label: 'Weekly', icon: Calendar },
+    { key: 'monthly' as const, label: 'Monthly', icon: Calendar },
+    { key: 'shifts' as const, label: 'Shifts', icon: Clock },
+    { key: 'requests' as const, label: 'Requests', icon: Users },
+  ];
+
+  const stats = [
+    {
+      title: "Total Users",
+      value: users.length,
+      icon: Users,
+      description: "Active team members"
+    },
+    {
+      title: "Your Role",
+      value: currentUser?.role || 'Unknown',
+      icon: User,
+      description: currentUser?.username || 'Not logged in'
+    }
+  ];
+
+  if (isMobile) {
+    return (
+      <MainLayout>
+        <MobileScheduleView />
+      </MainLayout>
+    );
+  }
 
   return (
-    <ScheduleProvider>
-      <ShiftsProvider>
-      <MainLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">Schedule</h1>
-          </div>
-
-          <Tabs defaultValue="shifts" className="w-full">
-            <TabsList>
-              <TabsTrigger value="shifts" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Shifts
-              </TabsTrigger>
-              <TabsTrigger value="requests" className="flex items-center gap-2">
-                <ClipboardList className="h-4 w-4" />
-                Requests
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="shifts" className="mt-6">
-              <ShiftsView />
-            </TabsContent>
-            
-            <TabsContent value="requests" className="mt-6">
-                <RequestsView users={transformedUsers} />
-            </TabsContent>
-          </Tabs>
+    <MainLayout>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Schedule Management</h1>
+          <Button onClick={() => setShowShiftDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Shift
+          </Button>
         </div>
-      </MainLayout>
-      </ShiftsProvider>
-    </ScheduleProvider>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat, index) => (
+            <Card key={index}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-muted-foreground">{stat.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* View Tabs */}
+        <div className="flex space-x-2 border-b">
+          {views.map((view) => (
+            <Button
+              key={view.key}
+              variant={currentView === view.key ? "default" : "ghost"}
+              onClick={() => setCurrentView(view.key)}
+              className="flex items-center space-x-2"
+            >
+              <view.icon className="h-4 w-4" />
+              <span>{view.label}</span>
+            </Button>
+          ))}
+        </div>
+
+        {/* View Content */}
+        <div className="space-y-4">
+          {currentView === 'daily' && <DailyView />}
+          {currentView === 'weekly' && <WeeklyView />}
+          {currentView === 'monthly' && <MonthlyView />}
+          {currentView === 'shifts' && <ShiftsView />}
+          {currentView === 'requests' && <RequestsView />}
+        </div>
+
+        {showShiftDialog && (
+          <ShiftDialog
+            open={showShiftDialog}
+            onClose={() => setShowShiftDialog(false)}
+          />
+        )}
+      </div>
+    </MainLayout>
   );
 };
 
