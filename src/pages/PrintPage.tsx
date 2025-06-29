@@ -35,6 +35,7 @@ const PrintPage = () => {
   const location = useLocation();
   const {
     addPrintHistory,
+    updateHardDrive,
   } = useData();
   const {
     currentUser
@@ -214,6 +215,14 @@ const PrintPage = () => {
           projectId: project?.id || null,
           operatorName,
         });
+        // Update hard drive status based on print type
+        if (printType === "hard-out") {
+          await updateHardDrive(hardDrive.id, { status: "unavailable" });
+          toast.success("Hard drive marked as unavailable (transfer out)");
+        } else if (printType === "hard-in") {
+          await updateHardDrive(hardDrive.id, { status: "available" });
+          toast.success("Hard drive marked as available (transfer in)");
+        }
       } else if (printType === "hard-label" && hardDrive) {
         // Add print history for label prints too
         await addPrintHistory({
