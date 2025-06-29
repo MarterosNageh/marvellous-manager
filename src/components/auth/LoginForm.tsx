@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -160,7 +159,6 @@ const LoginForm = () => {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoading} />
           </div>
-          
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={isLoading}>

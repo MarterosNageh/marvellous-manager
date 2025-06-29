@@ -318,7 +318,15 @@ export class NotificationService {
         .eq('fcm_token', token);
         
       if (existingTokens && existingTokens.length > 0) {
-        // Update existing token
+        // If the user_id is already the same, do nothing
+        if (existingTokens[0].user_id === userId) {
+          console.log('✅ FCM token already exists for this user, no update needed');
+          return { 
+            success: true, 
+            message: 'FCM token already exists for this user' 
+          };
+        }
+        // Update existing token if user_id is different
         const { error: updateError } = await supabase
           .from('fcm_tokens')
           .update({ 
