@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -5,7 +6,6 @@ import { toast } from 'sonner';
 export interface AuthUser {
   id: string;
   username: string;
-  email?: string;
   role: 'admin' | 'senior' | 'operator' | 'producer';
   isAdmin: boolean;
   title?: string;
@@ -100,7 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mappedUsers: AuthUser[] = data.map(user => ({
         id: user.id,
         username: user.username,
-        email: user.email || undefined,
         role: user.is_admin ? 'admin' : (user.role as 'senior' | 'operator' | 'producer' || 'operator'),
         isAdmin: user.is_admin,
         title: user.title,
@@ -160,7 +159,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const user: AuthUser = {
         id: data.id,
         username: data.username,
-        email: data.email || undefined,
         role: data.is_admin ? 'admin' : (data.role as 'senior' | 'operator' | 'producer' || 'operator'),
         isAdmin: data.is_admin,
         title: data.title,
@@ -380,7 +378,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const user: AuthUser = {
               id: dbUser.id,
               username: dbUser.username,
-              email: dbUser.email || undefined,
               role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' | 'producer' || 'operator'),
               isAdmin: dbUser.is_admin,
               title: dbUser.title,
