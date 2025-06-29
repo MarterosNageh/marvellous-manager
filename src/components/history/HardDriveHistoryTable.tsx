@@ -82,32 +82,59 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
 
       if (historyError) throw historyError;
 
+      console.log('History data fetched:', historyData);
+
+      if (!historyData || historyData.length === 0) {
+        setHistory([]);
+        return;
+      }
+
       // Get all unique user IDs from the history
-      const userIds = [...new Set((historyData || []).map(item => item.changed_by).filter(Boolean))];
+      const userIds = [...new Set(historyData.map(item => item.changed_by).filter(Boolean))];
+      console.log('User IDs to fetch:', userIds);
       
+      if (userIds.length === 0) {
+        // No user IDs to fetch, just set the data with default usernames
+        const typedData: HardDriveHistory[] = historyData.map(item => ({
+          ...item,
+          changed_by_username: 'System',
+          change_type: item.change_type as 'create' | 'update' | 'delete'
+        }));
+        setHistory(typedData);
+        return;
+      }
+
       // Fetch usernames for all users at once
       const { data: usersData, error: usersError } = await supabase
         .from('auth_users')
         .select('id, username')
         .in('id', userIds);
 
-      if (usersError) {
-        console.warn('Could not load user data:', usersError);
-      }
+      console.log('Users data fetched:', usersData);
+      console.log('Users fetch error:', usersError);
 
       // Create a map of user IDs to usernames for quick lookup
       const userMap = new Map();
-      (usersData || []).forEach(user => {
-        userMap.set(user.id, user.username || 'Unknown User');
-      });
+      if (usersData && usersData.length > 0) {
+        usersData.forEach(user => {
+          userMap.set(user.id, user.username || 'Unknown User');
+        });
+      }
+
+      console.log('User map created:', userMap);
 
       // Combine the data
-      const typedData: HardDriveHistory[] = (historyData || []).map(item => ({
-        ...item,
-        changed_by_username: userMap.get(item.changed_by) || 'Unknown User',
-        change_type: item.change_type as 'create' | 'update' | 'delete'
-      }));
+      const typedData: HardDriveHistory[] = historyData.map(item => {
+        const username = userMap.get(item.changed_by) || 'Unknown User';
+        console.log(`Mapping user ID ${item.changed_by} to username: ${username}`);
+        return {
+          ...item,
+          changed_by_username: username,
+          change_type: item.change_type as 'create' | 'update' | 'delete'
+        };
+      });
 
+      console.log('Final typed data:', typedData);
       setHistory(typedData);
     } catch (error) {
       console.error('Error fetching history:', error);
@@ -182,7 +209,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
       acc.push({
         version_number: item.version_number,
         change_type: item.change_type,
-        changed_by_username: item.changed_by_username,
+        changed_by_username: item.changed_by_username || 'Unknown User',
         created_at: item.created_at,
         changes: [item],
         changeCount: 1
@@ -278,7 +305,7 @@ export const HardDriveHistoryTable: React.FC<HardDriveHistoryTableProps> = ({ ha
               <TableCell>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{group.changed_by_username || 'Unknown User'}</span>
+                  <span className="font-medium">{group.changed_by_username}</span>
                 </div>
               </TableCell>
               <TableCell>
