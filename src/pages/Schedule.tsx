@@ -11,14 +11,14 @@ import DailyView from "@/components/schedule/DailyView";
 import WeeklyView from "@/components/schedule/WeeklyView";
 import MonthlyView from "@/components/schedule/MonthlyView";
 import ShiftsView from "@/components/schedule/ShiftsView";
-import RequestsView from "@/components/schedule/RequestsView";
+import { RequestsView } from "@/components/schedule/RequestsView";
 import ShiftDialog from "@/components/schedule/ShiftDialog";
 import MobileScheduleView from "@/components/schedule/MobileScheduleView";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const Schedule = () => {
   const { currentUser } = useAuth();
-  const { shifts, templates, loading } = useSchedule();
+  const { shifts, templates, loading, updateShift, deleteShift, refreshData } = useSchedule();
   const [currentView, setCurrentView] = useState<'daily' | 'weekly' | 'monthly' | 'shifts' | 'requests'>('weekly');
   const [showShiftDialog, setShowShiftDialog] = useState(false);
   const isMobile = useIsMobile();
@@ -98,9 +98,9 @@ const Schedule = () => {
 
         {/* View Content */}
         <div className="space-y-4">
-          {currentView === 'daily' && <DailyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={() => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
-          {currentView === 'weekly' && <WeeklyView startDate={new Date()} selectedDate={new Date()} shifts={shifts} onAddShift={() => setShowShiftDialog(true)} onDateChange={() => {}} onEditShift={() => {}} onDeleteShift={() => {}} onUpdateShift={() => {}} users={[]} refreshData={() => {}} />}
-          {currentView === 'monthly' && <MonthlyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={() => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
+          {currentView === 'daily' && <DailyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={async () => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
+          {currentView === 'weekly' && <WeeklyView startDate={new Date()} selectedDate={new Date()} shifts={shifts} onAddShift={() => setShowShiftDialog(true)} onDateChange={() => {}} onEditShift={() => {}} onDeleteShift={async () => {}} onUpdateShift={updateShift} users={[]} refreshData={refreshData} />}
+          {currentView === 'monthly' && <MonthlyView selectedDate={new Date()} onEditShift={() => {}} onDeleteShift={async () => {}} onDateChange={() => {}} shifts={shifts} users={[]} />}
           {currentView === 'shifts' && <ShiftsView />}
           {currentView === 'requests' && <RequestsView users={[]} />}
         </div>
@@ -109,7 +109,7 @@ const Schedule = () => {
           <ShiftDialog
             open={showShiftDialog}
             onClose={() => setShowShiftDialog(false)}
-            onSave={() => setShowShiftDialog(false)}
+            onSave={async () => setShowShiftDialog(false)}
             templates={templates}
             users={[]}
           />
