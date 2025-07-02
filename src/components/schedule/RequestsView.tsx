@@ -229,6 +229,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
   });
   const [pendingCount, setPendingCount] = useState(0);
   const isAdmin = currentUser?.role === 'admin';
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   // Constants for time calculations
   const HOURS_PER_DAY = 8;
@@ -595,7 +596,8 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     try {
       const dbRequest = {
         user_id: request.user_id,
-        request_type: request.leave_type,
+        request_type: 'leave',
+        leave_type: request.leave_type,
         start_date: request.start_date,
         end_date: request.end_date,
         reason: request.reason || '',
@@ -647,6 +649,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
 
       setShowRequestDialog(false);
       setEditingRequest(null);
+      setSelectedUsers([]);
       refreshRequests();
     } catch (error) {
       console.error('Error saving request:', error);
@@ -662,7 +665,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
     id: '',
     user_id: currentUser?.id || '',
     leave_type: 'day-off',
-    request_type: 'day-off',
+    request_type: 'leave',
     start_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: format(new Date(), 'yyyy-MM-dd'),
     reason: '',
@@ -935,6 +938,7 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
         setShowRequestDialog(open);
         if (!open) {
           setEditingRequest(null);
+          setSelectedUsers([]);
         }
       }}>
         <DialogContent className="sm:max-w-[425px]">
@@ -945,30 +949,64 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {isAdmin && editingRequest?.id && (
+            {/* User selection for admins when creating new request */}
+            {isAdmin && !editingRequest?.id && (
               <div className="grid gap-2">
-                <Label>Status</Label>
-                <Select
-                  value={editingRequest.status}
-                  onValueChange={(value) => {
-                    const status = value as RequestStatus;
-                    setEditingRequest(prev => 
-                      prev ? { 
-                        ...prev, 
-                        status,
-                      } : null
-                    );
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Select Users</Label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border rounded p-2">
+                  {users.map(user => (
+                    <div
+                      key={user.id}
+                      className={`flex items-center gap-2 p-2 rounded ${
+                        selectedUsers.includes(user.id) ? 'bg-primary/10 border border-primary/20' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`user-${user.id}`}
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={() => {
+                          setSelectedUsers(prev =>
+                            prev.includes(user.id)
+                              ? prev.filter(id => id !== user.id)
+                              : [...prev, user.id]
+                          );
+                        }}
+                        className="accent-primary"
+                      />
+                      <label htmlFor={`user-${user.id}`}
+                        className="flex items-center gap-2 flex-1 cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+                          {user.username[0].toUpperCase()}
+                        </div>
+                        <span>{user.username}</span>
+                        <span className="text-xs text-muted-foreground">({user.role})</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {selectedUsers.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedUsers.map(userId => {
+                      const user = users.find(u => u.id === userId);
+                      return user ? (
+                        <div key={userId} className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded text-xs">
+                          {user.username}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0"
+                            onClick={() => setSelectedUsers(prev => prev.filter(id => id !== userId))}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1057,12 +1095,29 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
             <Button variant="outline" onClick={() => {
               setShowRequestDialog(false);
               setEditingRequest(null);
+              setSelectedUsers([]);
             }}>
               Cancel
             </Button>
             <Button 
-              onClick={() => handleSaveEdit(editingRequest)} 
-              disabled={!editingRequest || !editingRequest.start_date || !editingRequest.end_date || !editingRequest.reason}
+              onClick={async () => {
+                if (!editingRequest) return;
+                if (isAdmin && !editingRequest.id && selectedUsers.length > 0) {
+                  // Admin creating new requests for multiple users
+                  for (const userId of selectedUsers) {
+                    await handleSaveEdit({ ...editingRequest, user_id: userId, leave_type: editingRequest.leave_type as LeaveType });
+                  }
+                  setShowRequestDialog(false);
+                  setEditingRequest(null);
+                  setSelectedUsers([]);
+                } else {
+                  await handleSaveEdit({ ...editingRequest, leave_type: editingRequest.leave_type as LeaveType });
+                  setShowRequestDialog(false);
+                  setEditingRequest(null);
+                  setSelectedUsers([]);
+                }
+              }} 
+              disabled={!editingRequest || !editingRequest.start_date || !editingRequest.end_date || !editingRequest.reason || (isAdmin && !editingRequest.id && selectedUsers.length === 0)}
             >
               {editingRequest?.id ? 'Update' : 'Create'} Request
             </Button>

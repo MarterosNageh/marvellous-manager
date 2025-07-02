@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { User, Crown, UserCog, Edit, Users } from "lucide-react";
+import { User, Crown, UserCog, Edit, Users, Plus, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 interface SelectedUser {
@@ -28,11 +28,23 @@ interface SelectedUser {
 }
 
 const Settings = () => {
-  const { currentUser, users, updateUser, isAdmin } = useAuth();
+  const { currentUser, users, updateUser, isAdmin, addUser } = useAuth();
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<'admin' | 'senior' | 'operator' | 'producer'>('operator');
   const [selectedTitle, setSelectedTitle] = useState("");
+  // Add User dialog state
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    isAdmin: false,
+    role: "operator" as 'admin' | 'senior' | 'operator' | 'producer',
+    title: ""
+  });
+  const [isAddUserLoading, setIsAddUserLoading] = useState(false);
+  const [editUserUsername, setEditUserUsername] = useState("");
+  const [editUserPassword, setEditUserPassword] = useState("");
 
   // Reset form when dialog opens/closes
   const handleDialogChange = (open: boolean) => {
@@ -40,6 +52,8 @@ const Settings = () => {
       setSelectedUser(null);
       setSelectedRole('operator');
       setSelectedTitle("");
+      setEditUserUsername("");
+      setEditUserPassword("");
     }
     setIsEditUserOpen(open);
   };
@@ -49,30 +63,38 @@ const Settings = () => {
     setSelectedUser(user);
     setSelectedRole(user.role);
     setSelectedTitle(user.title || "");
+    setEditUserUsername(user.username);
+    setEditUserPassword("");
     setIsEditUserOpen(true);
   };
 
-  const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'senior' | 'operator' | 'producer', newTitle?: string) => {
+  const handleUpdateUserRole = async (
+    userId: string,
+    newRole: 'admin' | 'senior' | 'operator' | 'producer',
+    newTitle?: string
+  ) => {
     try {
       if (!selectedUser) return;
 
       const updateData: any = {};
-      
-      // Only include role in update if it's different from current
+
+      if (editUserUsername && editUserUsername !== selectedUser.username) {
+        updateData.username = editUserUsername;
+      }
+      if (editUserPassword && editUserPassword.length >= 6) {
+        updateData.password = editUserPassword;
+      }
       if (newRole !== selectedUser.role) {
         updateData.role = newRole;
       }
-      
-      // Only include title in update if it's different from current
       if (newTitle !== selectedUser.title) {
         updateData.title = newTitle;
       }
-      
-      // Only proceed with update if there are changes
+
       if (Object.keys(updateData).length > 0) {
         const success = await updateUser(userId, updateData);
-      
-      if (success) {
+
+        if (success) {
           toast.success("User information updated successfully");
           handleDialogChange(false);
         }
@@ -100,6 +122,47 @@ const Settings = () => {
       case 'manager': return UserCog;
       case 'supervisor': return User;
       default: return User;
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!currentUser?.isAdmin) {
+      toast.error("Only administrators can add users");
+      return;
+    }
+    if (!newUser.username || !newUser.password) {
+      toast.error("Username and password are required");
+      return;
+    }
+    if (newUser.username.length < 3) {
+      toast.error("Username must be at least 3 characters long");
+      return;
+    }
+    if (newUser.password.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+    if (users.some(user => user.username.toLowerCase() === newUser.username.toLowerCase())) {
+      toast.error("Username already exists");
+      return;
+    }
+    setIsAddUserLoading(true);
+    try {
+      const success = await addUser(newUser);
+      if (success) {
+        setNewUser({
+          username: "",
+          password: "",
+          isAdmin: false,
+          role: "operator",
+          title: ""
+        });
+        setIsAddUserOpen(false);
+      }
+    } catch (error) {
+      toast.error("Failed to add user");
+    } finally {
+      setIsAddUserLoading(false);
     }
   };
   
@@ -134,6 +197,12 @@ const Settings = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  <div className="flex justify-end mb-4">
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-lg text-lg flex items-center" onClick={() => setIsAddUserOpen(true)}>
+                      <Plus className="mr-2 h-5 w-5" />
+                      Add User
+                    </Button>
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -192,6 +261,107 @@ const Settings = () => {
                   </Table>
                 </CardContent>
               </Card>
+              {/* Add User Dialog */}
+              <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+                <DialogContent className="max-w-md w-full">
+                  <DialogHeader>
+                    <DialogTitle>Add New User</DialogTitle>
+                    <DialogDescription>
+                      Create a new user account with specific role and permissions
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username *</Label>
+                      <Input
+                        id="username"
+                        value={newUser.username}
+                        placeholder="Enter username (min 3 characters)"
+                        onChange={(e) => setNewUser(prev => ({
+                          ...prev,
+                          username: e.target.value
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">Must be unique and at least 3 characters.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        placeholder="Enter password (min 6 characters)"
+                        onChange={(e) => setNewUser(prev => ({
+                          ...prev,
+                          password: e.target.value
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">At least 6 characters. (Passwords are stored as plain text!)</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Title (Optional)</Label>
+                      <Input
+                        id="title"
+                        value={newUser.title}
+                        placeholder="e.g., Senior Developer, Team Lead"
+                        onChange={(e) => setNewUser(prev => ({
+                          ...prev,
+                          title: e.target.value
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">User's job title or description.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select 
+                        value={newUser.role} 
+                        onValueChange={(value) => setNewUser(prev => ({
+                          ...prev,
+                          role: value as 'admin' | 'senior' | 'operator' | 'producer'
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="operator">Operator</SelectItem>
+                          <SelectItem value="senior">Senior</SelectItem>
+                          <SelectItem value="producer">Producer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500">
+                        {newUser.isAdmin ? (
+                          <span className="flex items-center gap-1"><Shield className="h-3 w-3 text-red-500" />Full system access, can manage all users, tasks, and data</span>
+                        ) : newUser.role === 'senior' ? "Can complete tasks, add users (without role setting), manage team schedules"
+                          : newUser.role === 'operator' ? "Can view schedules, submit requests, view tasks (no completion)"
+                          : newUser.role === 'producer' ? "Can view hard drives (read-only), create tasks (no assignments)"
+                          : "Basic user permissions"}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isAdmin"
+                        checked={newUser.isAdmin}
+                        onChange={(e) => setNewUser(prev => ({
+                          ...prev,
+                          isAdmin: e.target.checked
+                        }))}
+                        className="accent-red-600 h-4 w-4"
+                      />
+                      <label htmlFor="isAdmin" className="text-sm font-medium leading-none flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-red-500" />
+                        Admin User (Full System Access)
+                      </label>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleAddUser} disabled={isAddUserLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                      {isAddUserLoading ? "Adding..." : "Add User"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
           )}
 
@@ -297,6 +467,25 @@ const Settings = () => {
             
             <div className="space-y-4 py-4">
               <div className="space-y-2">
+                <Label>Username</Label>
+                <Input
+                  value={editUserUsername}
+                  placeholder="Enter username"
+                  onChange={(e) => setEditUserUsername(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">Must be unique and at least 3 characters.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type="password"
+                  value={editUserPassword}
+                  placeholder="Leave blank to keep current password"
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">At least 6 characters. Leave blank to keep unchanged.</p>
+              </div>
+              <div className="space-y-2">
                 <Label>Role</Label>
                 <Select 
                   value={selectedRole}
@@ -313,7 +502,6 @@ const Settings = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input

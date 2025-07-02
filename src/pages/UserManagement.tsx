@@ -176,16 +176,16 @@ const UserManagement = () => {
           <div className="flex space-x-2">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-lg text-lg">
+                  <Plus className="mr-2 h-5 w-5" />
                   Add User
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-md w-full">
                 <DialogHeader>
                   <DialogTitle>Add New User</DialogTitle>
                   <DialogDescription>
-                    Create a new user account with specific role and permissions
+                    Create a new user account with specific role and permissions.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -200,6 +200,7 @@ const UserManagement = () => {
                         username: e.target.value
                       }))}
                     />
+                    <p className="text-xs text-gray-500">Must be unique and at least 3 characters.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password *</Label>
@@ -213,6 +214,7 @@ const UserManagement = () => {
                         password: e.target.value
                       }))}
                     />
+                    <p className="text-xs text-gray-500">At least 6 characters. (Passwords are stored as plain text!)</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="title">Title (Optional)</Label>
@@ -225,6 +227,7 @@ const UserManagement = () => {
                         title: e.target.value
                       }))}
                     />
+                    <p className="text-xs text-gray-500">User's job title or description.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
@@ -264,7 +267,7 @@ const UserManagement = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddUser} disabled={isLoading}>
+                  <Button onClick={handleAddUser} disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold">
                     {isLoading ? "Adding..." : "Add User"}
                   </Button>
                 </DialogFooter>

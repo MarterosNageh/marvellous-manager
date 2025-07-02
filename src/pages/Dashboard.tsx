@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { isToday, format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTask } from "@/context/TaskContext";
 
 // Types for Dashboard
 interface HardDriveData {
@@ -84,6 +85,7 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [randomGif, setRandomGif] = useState<string>("");
+  const { tasks } = useTask();
   
   // Function to get a random GIF
   const getRandomGif = () => {
@@ -220,6 +222,11 @@ const Dashboard = () => {
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
   };
+
+  // Calculate overall task utilization (completion rate)
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(task => task.status === 'completed').length;
+  const overallCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Rendering logic
   return (
@@ -373,8 +380,8 @@ const Dashboard = () => {
           />
           <StatsCard 
             title="Task Utilization" 
-            value="86%" 
-            description="Last 30 days"
+            value={`${overallCompletionRate}%`} 
+            description="All time"
             icon={<BarChart2 className="h-4 w-4" />} 
           />
           <StatsCard 
