@@ -147,8 +147,8 @@ const mapToLeaveRequest = (dbRequest: any): LeaveRequest => {
   return {
     id: dbRequest.id,
     user_id: dbRequest.user_id,
-    leave_type: toLeaveType(dbRequest.request_type),
-    request_type: toLeaveType(dbRequest.request_type),
+    leave_type: toLeaveType(dbRequest.leave_type),
+    request_type: dbRequest.request_type,
     start_date: dbRequest.start_date,
     end_date: dbRequest.end_date,
     reason: dbRequest.reason || '',
@@ -630,7 +630,10 @@ const RequestsView = ({ users, onRequestsUpdate }: RequestsViewProps) => {
           .from('shift_requests')
           .insert([{
             ...dbRequest,
-            user_id: currentUser?.id,
+            user_id: dbRequest.user_id, // Use the selected user
+            leave_type: dbRequest.leave_type, // Save the correct leave type
+            request_type: 'leave', // Always 'leave' for leave requests
+            status: isAdmin ? 'approved' : 'pending', // Auto-approve for admin
             id: crypto.randomUUID(),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()

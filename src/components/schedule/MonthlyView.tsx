@@ -291,7 +291,6 @@ const MonthlyView = ({
                         title={leave.leave_type}
                       >
                         <div className="font-semibold capitalize">{leave.leave_type.replace('-', ' ')}</div>
-                        <div className="text-gray-600 truncate text-xs">{leave.reason}</div>
                         <div className="mt-1 flex items-center gap-2">
                           <Badge variant="secondary" className="capitalize">
                             {leave.leave_type}

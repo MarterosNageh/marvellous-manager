@@ -75,6 +75,7 @@ const Dashboard = () => {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [currentShifts, setCurrentShifts] = useState<ShiftData[]>([]);
   const [dayOffUsers, setDayOffUsers] = useState<{ username: string; role: string }[]>([]);
+  const [extraDayUsers, setExtraDayUsers] = useState<{ username: string; role: string }[]>([]);
   const [stats, setStats] = useState({
     totalHardDrives: 0,
     availableHardDrives: 0,
@@ -143,18 +144,28 @@ const Dashboard = () => {
           user: shift.user
         })) as ShiftData[]);
 
-        // Fetch Day Off Users (users with approved time off requests for today)
+        // Fetch Day Off and Extra Day Users (users with approved time off requests for today)
         const today = new Date().toISOString().split('T')[0];
-        const { data: dayOffData, error: dayOffError } = await supabase
+        const { data: leaveData, error: leaveError } = await supabase
           .from('shift_requests')
-          .select('user:auth_users!user_id(username, role)')
+          .select('user:auth_users!user_id(username, role), leave_type')
           .eq('status', 'approved')
           .eq('request_type', 'leave')
           .lte('start_date', today)
           .gte('end_date', today);
 
-        if (dayOffError) throw dayOffError;
-        setDayOffUsers((dayOffData as DayOffUser[]).map(d => d.user).filter((user): user is NonNullable<typeof user> => user !== null));
+        if (leaveError) throw leaveError;
+        // Separate users by leave_type
+        const dayOffUsers = (leaveData as any[])
+          .filter(d => d.leave_type === 'day-off')
+          .map(d => d.user)
+          .filter((user: any) => user !== null);
+        const extraDayUsers = (leaveData as any[])
+          .filter(d => d.leave_type === 'extra')
+          .map(d => d.user)
+          .filter((user: any) => user !== null);
+        setDayOffUsers(dayOffUsers);
+        setExtraDayUsers(extraDayUsers);
         
         // Get Stats
         const [
@@ -331,33 +342,60 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-              {dayOffUsers.length > 0 && (
+              {(dayOffUsers.length > 0 || extraDayUsers.length > 0) && (
                 <div>
-                  <h3 className="font-medium mb-2 text-sm">Day Off</h3>
-                  <div className="space-y-2">
-                    {dayOffUsers.map((user, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50"
-                      >
-                        <div
-                          className="w-1 h-8 rounded-full"
-                          style={{ backgroundColor: '#6B7280' }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{user.username}</span>
-                            <Badge variant="secondary" className="capitalize text-xs">
-                              Day Off
-                            </Badge>
+                  {dayOffUsers.length > 0 && (
+                    <>
+                      <h3 className="font-medium mb-2 text-sm">Day Off</h3>
+                      <div className="space-y-2 mb-4">
+                        {dayOffUsers.map((user, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 p-2 border-l-4 rounded-md bg-gray-100 border-gray-500"
+                          >
+                            <div className="w-1 h-8 rounded-full bg-gray-500" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-gray-800">{user.username}</span>
+                                <Badge variant="secondary" className="capitalize text-xs text-gray-800">
+                                  Day Off
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {format(new Date(), 'EEEE, MMMM d')}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {format(new Date(), 'EEEE, MMMM d')}
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
+                  {extraDayUsers.length > 0 && (
+                    <>
+                      <h3 className="font-medium mb-2 text-sm">Extra Day</h3>
+                      <div className="space-y-2">
+                        {extraDayUsers.map((user, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 p-2 border-l-4 rounded-md bg-green-100 border-green-500"
+                          >
+                          
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-green-800">{user.username}</span>
+                                <Badge variant="secondary" className="capitalize text-xs text-green-800">
+                                  Extra Day
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {format(new Date(), 'EEEE, MMMM d')}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>
