@@ -175,12 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthenticated(true);
       
       // Store user session in localStorage
-      const sessionData = {
-        ...user,
-        loginTime: Date.now(),
-        sessionTimeout: 24 * 60 * 60 * 1000 // 24 hours
-      };
-      localStorage.setItem('currentUser', JSON.stringify(sessionData));
+      localStorage.setItem('currentUser', JSON.stringify(user));
       
       toast.success('Login successful');
       return true;
@@ -359,45 +354,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
           const sessionData = JSON.parse(storedUser);
-          const now = Date.now();
-          const sessionAge = now - (sessionData.loginTime || 0);
-          const timeout = sessionData.sessionTimeout || 24 * 60 * 60 * 1000;
+          // Verify the user still exists in the database
+          const { data: dbUser, error } = await supabase
+            .from('auth_users')
+            .select('*')
+            .eq('id', sessionData.id)
+            .single();
 
-          if (sessionAge <= timeout) {
-            // Verify the user still exists in the database
-            const { data: dbUser, error } = await supabase
-              .from('auth_users')
-              .select('*')
-              .eq('id', sessionData.id)
-              .single();
-
-            if (error || !dbUser) {
-              console.error('Failed to verify user in database:', error);
-              localStorage.removeItem('currentUser');
-              setIsAuthenticated(false);
-              return;
-            }
-
-            console.log('Session restoration - DB user data:', dbUser);
-
-            const user: AuthUser = {
-              id: dbUser.id,
-              username: dbUser.username,
-              role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' | 'producer' || 'operator'),
-              isAdmin: dbUser.is_admin,
-              title: dbUser.title,
-              created_at: dbUser.created_at
-            };
-
-            console.log('Session restoration - Constructed user:', user);
-
-            setCurrentUser(user);
-            setIsAuthenticated(true);
-          } else {
-            console.log('Session expired:', { sessionAge, timeout });
+          if (error || !dbUser) {
+            console.error('Failed to verify user in database:', error);
             localStorage.removeItem('currentUser');
             setIsAuthenticated(false);
+            return;
           }
+
+          const user: AuthUser = {
+            id: dbUser.id,
+            username: dbUser.username,
+            role: dbUser.is_admin ? 'admin' : (dbUser.role as 'senior' | 'operator' | 'producer' || 'operator'),
+            isAdmin: dbUser.is_admin,
+            title: dbUser.title,
+            created_at: dbUser.created_at
+          };
+
+          setCurrentUser(user);
+          setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
         }
