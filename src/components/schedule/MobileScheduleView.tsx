@@ -55,9 +55,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
   // Group users by role
   const groupedUsers = users.reduce((acc, user) => {
     let roleGroup: string;
-    if (user.role === 'producer') {
-      roleGroup = 'Producers';
-    } else if (user.role === 'operator') {
+    if (user.role === 'operator') {
       roleGroup = 'Operators';
     } else {
       roleGroup = 'Technical Leaders';
@@ -74,7 +72,7 @@ const MobileScheduleView: React.FC<MobileScheduleViewProps> = ({
     groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
   });
 
-  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
+  const roleDisplayOrder = ['Operators', 'Technical Leaders'];
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">

@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
   Badge,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui';
 import { ViewType, ScheduleUser, ShiftTemplate, Shift } from '@/types/schedule';
 import WeeklyView from '@/components/schedule/WeeklyView';
@@ -57,6 +58,8 @@ const Schedule = () => {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = useIsMobile();
+  const [showManageTemplatesDialog, setShowManageTemplatesDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ShiftTemplate | null>(null);
 
   // Calculate week start from Sunday (weekStartsOn: 0)
   const startDate = startOfWeek(selectedDate, { weekStartsOn: 0 });
@@ -81,19 +84,22 @@ const Schedule = () => {
       });
 
       // Transform users data to match ScheduleUser interface
-      const transformedUsers = usersData.map(user => ({
-        id: user.id,
-        username: user.username,
-        role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') 
-          ? user.role as 'admin' | 'senior' | 'operator'
-          : 'operator' as const,
-        title: user.title,
-        created_at: user.created_at,
-        updated_at: user.created_at
-      }));
+      const transformedUsers = usersData
+        .filter(user => (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') && user.username !== 'admin')
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          role: user.role as 'admin' | 'senior' | 'operator',
+          title: user.title,
+          created_at: user.created_at,
+          updated_at: user.created_at
+        }));
 
+      // After transformedUsers is set, filter shifts to only those belonging to non-producer users
+      const allowedUserIds = transformedUsers.map(u => u.id);
+      const filteredShifts = shiftsData.filter(shift => allowedUserIds.includes(shift.user_id));
       setUsers(transformedUsers);
-      setShifts(shiftsData);
+      setShifts(filteredShifts);
       setTemplates(templatesData);
     } catch (error) {
       console.error('Error loading schedule data:', error);
@@ -236,9 +242,10 @@ const Schedule = () => {
     setShowShiftDialog(true);
   };
 
-  const handleDeleteShift = async (shiftId: string) => {
+  // Replace handleDeleteShift with recurrence support
+  const handleDeleteShift = async (shiftId: string, recurrenceAction: import('@/types').RecurrenceAction = 'this') => {
     try {
-      await shiftsTable.delete(shiftId);
+      await shiftsTable.delete(shiftId, recurrenceAction);
       toast({
         title: "Success",
         description: "Shift deleted successfully",
@@ -249,6 +256,25 @@ const Schedule = () => {
       toast({
         title: "Error",
         description: "Failed to delete shift. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add handleUpdateShift for drag-and-drop and recurrence updates
+  const handleUpdateShift = async (shiftId: string, data: Partial<Shift>, recurrenceAction: import('@/types').RecurrenceAction = 'this') => {
+    try {
+      await shiftsTable.update(shiftId, data, recurrenceAction);
+      toast({
+        title: "Success",
+        description: "Shift updated successfully",
+      });
+      loadData();
+    } catch (error) {
+      console.error('Error updating shift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update shift. Please try again.",
         variant: "destructive",
       });
     }
@@ -311,7 +337,7 @@ const Schedule = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShowTemplateDialog(true)}
+                            onClick={() => setShowManageTemplatesDialog(true)}
                           >
                             <Settings className="h-4 w-4 mr-1" />
                             Templates
@@ -386,7 +412,7 @@ const Schedule = () => {
                       <DailyView
                         selectedDate={selectedDate}
                         onEditShift={handleEditShift}
-                        onDeleteShift={handleDeleteShift}
+                        onDeleteShift={(shiftId) => handleDeleteShift(shiftId, 'this')}
                         onDateChange={setSelectedDate}
                         users={filteredUsers}
                         shifts={shifts}
@@ -402,15 +428,15 @@ const Schedule = () => {
                         onDateChange={setSelectedDate}
                         onEditShift={handleEditShift}
                         onDeleteShift={handleDeleteShift}
-                        onUpdateShift={async () => {}}
-                        refreshData={async () => {}}
+                        onUpdateShift={handleUpdateShift}
+                        refreshData={loadData}
                       />
                     )}
                     {viewType === 'monthly' && (
                       <MonthlyView
                         selectedDate={selectedDate}
                         onEditShift={handleEditShift}
-                        onDeleteShift={handleDeleteShift}
+                        onDeleteShift={(shiftId) => handleDeleteShift(shiftId, 'this')}
                         onDateChange={setSelectedDate}
                         users={filteredUsers}
                         shifts={shifts}
@@ -450,6 +476,50 @@ const Schedule = () => {
             onSave={handleSaveTemplate}
           />
         )}
+        {showManageTemplatesDialog && (
+  <Dialog open={showManageTemplatesDialog} onOpenChange={setShowManageTemplatesDialog}>
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Manage Shift Templates</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        <Button onClick={() => setEditingTemplate({
+          id: '', name: '', shift_type: 'morning', start_time: '09:00', end_time: '17:00', color: '#E3F2FD', user_id: 'system', created_at: ''
+        })} className="w-full" variant="outline">+ Add New Template</Button>
+        <div className="divide-y">
+          {templates.length === 0 && <div className="text-center text-gray-500 py-4">No templates found.</div>}
+          {templates.map((tpl) => (
+            <div key={tpl.id} className="flex items-center justify-between py-2">
+              <div>
+                <div className="font-medium">{tpl.name}</div>
+                <div className="text-xs text-gray-500">{tpl.shift_type} | {tpl.start_time} - {tpl.end_time}</div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setEditingTemplate(tpl)}>Edit</Button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => setShowManageTemplatesDialog(false)}>Close</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+)}
+{editingTemplate && (
+  <ShiftTemplateDialog
+    template={editingTemplate.id ? editingTemplate : null}
+    onClose={() => setEditingTemplate(null)}
+    onSave={async (templateData) => {
+      if (editingTemplate.id) {
+        await templatesTable.update(editingTemplate.id, templateData);
+      } else {
+        await templatesTable.create(templateData as any);
+      }
+      setEditingTemplate(null);
+      await loadData();
+    }}
+  />
+)}
       </MainLayout>
     </ShiftsProvider>
   );

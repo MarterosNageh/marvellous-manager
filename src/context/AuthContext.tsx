@@ -9,6 +9,7 @@ export interface AuthUser {
   isAdmin: boolean;
   title?: string;
   created_at?: string;
+  password?: string; // Add password as optional for updateUser
 }
 
 export interface AuthContextType {
@@ -230,21 +231,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateData.title = userData.title;
       }
 
+      // Add password update support
+      if (userData.password !== undefined && userData.password.length >= 6 && userData.password !== currentData.password) {
+        updateData.password = userData.password;
+      }
+
       // If no changes to make, return early
       if (Object.keys(updateData).length === 0) {
         return true;
       }
 
-      console.log('Updating user with data:', {
-        userId,
-        updateData,
-        currentUser
-      });
+      console.log('Current user data from DB:', currentData);
+      console.log('User data from UI:', userData);
+      console.log('Update data to be sent to Supabase:', updateData);
 
       const { error: updateError } = await supabase
         .from('auth_users')
         .update(updateData)
         .eq('id', userId);
+
+      console.log('Supabase update response error:', updateError);
 
       if (updateError) {
         console.error('Update error:', updateError);

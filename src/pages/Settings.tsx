@@ -28,7 +28,7 @@ interface SelectedUser {
 }
 
 const Settings = () => {
-  const { currentUser, users, updateUser, isAdmin, addUser } = useAuth();
+  const { currentUser, users, updateUser, isAdmin, addUser, removeUser } = useAuth();
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<'admin' | 'senior' | 'operator' | 'producer'>('operator');
@@ -253,6 +253,23 @@ const Settings = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
+                              {isAdmin && currentUser?.id !== user.id && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="ml-2"
+                                  onClick={async () => {
+                                    if (window.confirm(`Are you sure you want to delete user '${user.username}'? This action cannot be undone.`)) {
+                                      const success = await removeUser(user.id);
+                                      if (success) {
+                                        toast.success(`User '${user.username}' deleted successfully`);
+                                      }
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

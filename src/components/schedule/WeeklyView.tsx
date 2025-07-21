@@ -251,7 +251,6 @@ const WeeklyView = ({
   const [shifts, setShifts] = useState<Shift[]>(propShifts || []);
   const [users, setUsers] = useState<ScheduleUser[]>(propUsers || []);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState(startDate);
   const [hoveredCell, setHoveredCell] = useState<{userId: string, dateIndex: number, targetDate: Date} | null>(null);
   const [showShiftDialog, setShowShiftDialog] = useState(false);
@@ -260,64 +259,6 @@ const WeeklyView = ({
   // Update weekStart when startDate changes
   useEffect(() => {
     setWeekStart(startDate);
-  }, [startDate]);
-
-  // Load data from database
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        
-        const [usersData, shiftsData, leaveRequestsData] = await Promise.all([
-          usersTable.getAll(),
-          shiftsTable.getAll(),
-          leaveRequestsTable.getAll()
-        ]);
-
-        console.log('Loaded leave requests:', leaveRequestsData);
-
-        // Separate operational users from producers
-        const operationalUsers = usersData
-          .filter(user => user.role !== 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        const producerUsers = usersData
-          .filter(user => user.role === 'producer')
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            role: 'producer' as const,
-            title: user.title || '',
-            balance: 0
-          })) as ScheduleUser[];
-
-        setUsers([...operationalUsers, ...producerUsers]);
-        
-        setShifts(shiftsData);
-        
-        // Filter leave requests to only show approved ones
-        const approvedLeaveRequests = leaveRequestsData.filter(request => request.status === 'approved');
-        console.log('Approved leave requests:', approvedLeaveRequests);
-        setLeaveRequests(approvedLeaveRequests);
-      } catch (error) {
-        console.error('Error loading schedule data:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load schedule data. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
   }, [startDate]);
 
   // Update local shifts when props change
@@ -398,14 +339,11 @@ const WeeklyView = ({
   // Group users by role with updated names
   const groupedUsers = users.reduce((acc, user) => {
     let roleGroup: string;
-    if (user.role === 'producer') {
-      roleGroup = 'Producers';
-    } else if (user.role === 'operator') {
+    if (user.role === 'operator') {
       roleGroup = 'Operators';
     } else {
       roleGroup = 'Technical Leaders';
     }
-    
     if (!acc[roleGroup]) {
       acc[roleGroup] = [];
     }
@@ -418,7 +356,7 @@ const WeeklyView = ({
     groupedUsers[role].sort((a, b) => a.username.localeCompare(b.username));
   });
 
-  const roleDisplayOrder = ['Operators', 'Producers', 'Technical Leaders'];
+  const roleDisplayOrder = ['Operators', 'Technical Leaders'];
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   // Calculate total hours for each user for the current week
@@ -592,14 +530,6 @@ const WeeklyView = ({
       });
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
 
   return (
     <>
