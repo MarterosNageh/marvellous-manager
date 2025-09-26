@@ -266,6 +266,46 @@ const WeeklyView = ({
     setShifts(propShifts);
   }, [propShifts]);
 
+  // Load users and approved leave requests for the current week
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [usersData, leaveRequestsData] = await Promise.all([
+          usersTable.getAll(),
+          leaveRequestsTable.getAll()
+        ]);
+
+        // Separate operational users from producers (mirror monthly mapping)
+        const operationalUsers = usersData
+          .filter(user => user.role !== 'producer')
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            role: (user.role === 'admin' || user.role === 'senior' || user.role === 'operator') ? user.role : 'operator',
+            title: user.title || '',
+            balance: 0
+          })) as ScheduleUser[];
+
+        const producerUsers = usersData
+          .filter(user => user.role === 'producer')
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            role: 'producer' as const,
+            title: user.title || '',
+            balance: 0
+          })) as ScheduleUser[];
+
+        setUsers(propUsers && propUsers.length > 0 ? propUsers : [...operationalUsers, ...producerUsers]);
+        setLeaveRequests(leaveRequestsData.filter(lr => lr.status === 'approved'));
+      } catch (error) {
+        console.error('Error loading weekly data:', error);
+      }
+    };
+
+    loadData();
+  }, [weekStart]);
+
   const handleDeleteShift = async (shiftId: string, recurrenceAction: RecurrenceAction) => {
     // Check if user is admin before allowing delete operations
     if (!isAdmin) {
