@@ -29,11 +29,11 @@ export const HardDriveLabelPrint = ({ hardDrive, project }: HardDriveLabelPrintP
 
       {/* Optionally include any "Data" field */}
       <div className="text-sm mb-1">
-        <span className="font-medium">Serial Number:</span> {hardDrive.serialNumber}
+        <span className="font-medium">Serial Number:</span> <br></br>{hardDrive.serialNumber}
       </div>
       {hardDrive.data && (
         <div className="text-xs mb-2 opacity-80">
-          <span className="font-medium">Data:</span>
+          
         </div>
       )}
     </div>
